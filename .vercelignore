@@ -1,12 +1,10 @@
-node_modules/
-dist/
-dist-server/
 .env
 .env.*
 !.env.example
 data/
 .cache/
+node_modules/
+dist/
+dist-server/
 playwright-report/
 test-results/
-*.log
-.vercel/

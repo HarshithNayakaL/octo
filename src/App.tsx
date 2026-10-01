@@ -305,7 +305,12 @@ export default function App() {
         <div className="workspace-switch">
           <div className="workspace-avatar">P</div>
           <div>
-            Personal workspace<span>Local · self-hosted</span>
+            Personal workspace
+            <span>
+              {config?.deployment === "vercel"
+                ? "Hosted · Vercel"
+                : "Local · self-hosted"}
+            </span>
           </div>
           <ChevronDown size={15} />
         </div>
@@ -439,7 +444,9 @@ export default function App() {
             </button>
             <span className="local-pill">
               <span />
-              Local workspace
+              {config?.deployment === "vercel"
+                ? "Hosted workspace"
+                : "Local workspace"}
             </span>
             <button
               className="icon-button"
@@ -575,8 +582,19 @@ export default function App() {
             ))}
             <h3>Connect Google for testing</h3>
             <p>
-              Add your Google AI Studio key to the server's <code>.env</code>,
-              then restart. Credentials stay on the server.
+              {config?.deployment === "vercel" ? (
+                <>
+                  Add your Google AI Studio key to the Vercel project’s
+                  environment variables, then redeploy. Credentials stay on the
+                  server.
+                </>
+              ) : (
+                <>
+                  Add your Google AI Studio key to the server's{" "}
+                  <code>.env</code>, then restart. Credentials stay on the
+                  server.
+                </>
+              )}
             </p>
             <pre>
               DEFAULT_PROVIDER=google{"\n"}GEMINI_API_KEY=your_key_here{"\n"}
@@ -600,7 +618,19 @@ export default function App() {
             </p>
             <div className="setting-line">
               <span>Storage</span>
-              <b>Local SQLite · data/research.sqlite</b>
+              <b>
+                {config?.storage === "postgres"
+                  ? "Postgres · DATABASE_URL"
+                  : "Local SQLite · data/research.sqlite"}
+              </b>
+            </div>
+            <div className="setting-line">
+              <span>Background work</span>
+              <b>
+                {config?.deployment === "vercel"
+                  ? "Advances while the workspace is open · daily backstop"
+                  : "Server worker while it is running"}
+              </b>
             </div>
             <div className="setting-line">
               <span>Default agent</span>
@@ -950,7 +980,10 @@ function NewResearch({
               {uploading ? <Arc size={15} /> : <Paperclip size={15} />}
               Attach context
             </button>
-            <span>PDF, CSV, documents · 5 MB each · up to 5 files</span>
+            <span>
+              PDF, CSV, documents · {config?.uploadLimitMb ?? 5} MB each · up to
+              5 files
+            </span>
           </div>
           <div className="attached-files">
             {files.map((f) => (
@@ -1049,8 +1082,9 @@ function NewResearch({
                 />
               </label>
               <p>
-                Checks reuse the same session while your server is online. Every
-                live check incurs API usage.
+                {config?.deployment === "vercel"
+                  ? "Checks reuse the same session. On Vercel they run when the workspace is open or at the daily scheduled backstop (more often on Pro). Every live check incurs API usage."
+                  : "Checks reuse the same session while your server is online. Every live check incurs API usage."}
               </p>
             </div>
           )}

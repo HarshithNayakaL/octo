@@ -3,11 +3,9 @@ import helmet from "helmet";
 import multer from "multer";
 import { z } from "zod";
 import { randomUUID, timingSafeEqual } from "node:crypto";
-import { mkdirSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
 import { resolve, basename } from "node:path";
-import { Store } from "./store.js";
-import { Engine, active } from "./engine.js";
+import type { RunStore } from "./store.js";
+import { Engine, active, type EngineOptions } from "./engine.js";
 import type { Provider } from "./provider.js";
 import type {
   Run,
@@ -47,7 +45,7 @@ const creation = z
       });
   });
 interface AppOptions {
-  store: Store;
+  store: RunStore;
   provider?: Provider;
   providers?: Partial<Record<ProviderId, Provider>>;
   providerConfigurations?: ProviderConfiguration[];
@@ -57,6 +55,19 @@ interface AppOptions {
   origin: string;
   token?: string;
   production?: boolean;
+  deployment?: "local" | "vercel";
+  /** Keeps work alive after the response (Vercel `waitUntil`); defaults to fire-and-forget. */
+  background?: (work: Promise<unknown>) => void;
+  /** Advance due runs whenever the workspace is read. Needed where no worker runs between requests. */
+  driveOnRequest?: boolean;
+  /** Shared secret for the scheduled backstop at /api/cron/tick. */
+  cronSecret?: string;
+  uploadLimitBytes?: number;
+  /** Largest response body the host can return (artifact downloads). */
+  responseLimitBytes?: number;
+  engine?: EngineOptions;
+  /** A configuration problem that makes the API unusable; reported instead of serving data. */
+  setupError?: string;
 }
 export function createApp(options: AppOptions) {
   const { store, provider } = options;
@@ -76,9 +87,30 @@ export function createApp(options: AppOptions) {
   const defaultProvider = options.defaultProvider ?? "openai";
   const defaultProfile = profiles.find((p) => p.id === defaultProvider)!;
   const getProvider = (run: Run) => registry[run.provider ?? "openai"];
-  const engine = new Engine(store, provider, registry);
+  const engine = new Engine(store, provider, registry, options.engine);
+  const background =
+    options.background ??
+    ((work: Promise<unknown>) => {
+      void work.catch(() => undefined);
+    });
+  const advance = (id?: string) =>
+    background(id ? engine.process(id) : engine.tick());
+  const uploadLimit = options.uploadLimitBytes ?? 5 * 1024 * 1024;
   const app = express();
   app.disable("x-powered-by");
+  if (options.deployment === "vercel") {
+    app.set("trust proxy", true);
+    // A platform rewrite may deliver /api/runs as /api?path=runs; restore the route.
+    app.use((req, _res, next) => {
+      const url = new URL(req.url, "http://local");
+      const path = url.searchParams.get("path");
+      if (url.pathname === "/api" && path) {
+        url.searchParams.delete("path");
+        req.url = `/api/${path.replace(/^\/+/, "")}${url.search}`;
+      }
+      next();
+    });
+  }
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -92,11 +124,38 @@ export function createApp(options: AppOptions) {
       },
     }),
   );
+  app.get("/api/cron/tick", async (req, res) => {
+    const expected = Buffer.from(options.cronSecret ?? "");
+    const received = Buffer.from(
+      req.headers.authorization?.replace(/^Bearer /, "") ?? "",
+    );
+    if (
+      !options.cronSecret ||
+      expected.length !== received.length ||
+      !timingSafeEqual(expected, received)
+    ) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    await engine.tick();
+    res.json({ ok: true });
+  });
+  app.use("/api", (_req, res, next) => {
+    if (options.setupError) {
+      res.status(503).json({ error: options.setupError });
+      return;
+    }
+    next();
+  });
   app.use("/api", (req, res, next) => {
+    const proto = String(req.headers["x-forwarded-proto"] ?? "http").split(
+      ",",
+    )[0];
     if (
       req.headers.origin &&
       req.headers.origin !== options.origin &&
-      req.headers.origin !== `http://${req.headers.host}`
+      req.headers.origin !== `http://${req.headers.host}` &&
+      req.headers.origin !== `${proto}://${req.headers.host}`
     ) {
       res.status(403).json({ error: "Untrusted request origin" });
       return;
@@ -146,27 +205,33 @@ export function createApp(options: AppOptions) {
       })),
       authRequired: Boolean(options.token),
       api: defaultProfile.name,
+      deployment: options.deployment ?? "local",
+      storage: store.kind,
+      uploadLimitMb: Math.floor(uploadLimit / (1024 * 1024)),
     }),
   );
-  app.get("/api/runs", (_req, res) =>
+  app.get("/api/runs", async (_req, res) => {
+    const runs = await store.list();
     res.json(
-      store.list().map(({ activities, report, leads, ...run }) => ({
+      runs.map(({ activities, report, leads, ...run }) => ({
         ...run,
         report: "",
         leads: [],
         activities: [],
       })),
-    ),
-  );
-  app.get("/api/runs/:id", (req, res) => {
-    const run = store.get(req.params.id);
+    );
+    if (options.driveOnRequest) advance();
+  });
+  app.get("/api/runs/:id", async (req, res) => {
+    const run = await store.get(req.params.id);
     if (!run) {
       res.status(404).json({ error: "Research not found" });
       return;
     }
     res.json(run);
+    if (options.driveOnRequest) advance(run.id);
   });
-  app.post("/api/runs", (req, res) => {
+  app.post("/api/runs", async (req, res) => {
     const data = creation.parse(req.body);
     const providerId = data.provider ?? defaultProvider;
     const profile = profiles.find((p) => p.id === providerId);
@@ -176,11 +241,11 @@ export function createApp(options: AppOptions) {
     }
     if (data.mode === "live" && !registry[providerId]) {
       res.status(409).json({
-        error: `Add ${providerId === "google" ? "GEMINI_API_KEY" : "OPENAI_API_KEY"} to .env and restart the server first.`,
+        error: `Add ${providerId === "google" ? "GEMINI_API_KEY" : "OPENAI_API_KEY"} ${options.deployment === "vercel" ? "to the Vercel project's environment variables and redeploy" : "to .env and restart the server"} first.`,
       });
       return;
     }
-    if (store.list().some(active)) {
+    if ((await store.list()).some(active)) {
       res.status(409).json({
         error:
           "Finish or cancel the active research run before starting another.",
@@ -191,12 +256,14 @@ export function createApp(options: AppOptions) {
       res.status(400).json({ error: "Duplicate attachment IDs" });
       return;
     }
-    const attachments = data.attachmentIds.map((id) => {
-      const file = store.getUpload(id);
-      if (!file)
-        throw new Error("An attachment was not found. Upload it again.");
-      return file;
-    });
+    const attachments = await Promise.all(
+      data.attachmentIds.map(async (id) => {
+        const file = await store.getUpload(id);
+        if (!file)
+          throw new Error("An attachment was not found. Upload it again.");
+        return file;
+      }),
+    );
     const now = new Date().toISOString();
     const run: Run = {
       ...data,
@@ -225,13 +292,13 @@ export function createApp(options: AppOptions) {
         ? "An illustrative run. No live web search or API usage."
         : "The research director will use web search and a hosted sandbox.",
     );
-    store.save(run);
+    await store.save(run);
     res.status(201).json(run);
-    void engine.process(run.id);
+    advance(run.id);
   });
   const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    limits: { fileSize: uploadLimit, files: 1 },
     fileFilter: (_req, file, cb) => {
       if (!/\.(pdf|csv|txt|md|json|xlsx|docx)$/i.test(file.originalname))
         cb(
@@ -251,16 +318,11 @@ export function createApp(options: AppOptions) {
     const name = basename(req.file.originalname)
       .replace(/[^a-zA-Z0-9._-]/g, "_")
       .slice(-150);
-    const directory = resolve(store.directory, "uploads");
-    mkdirSync(directory, { recursive: true });
-    const path = resolve(directory, id + "-" + name);
-    await writeFile(path, req.file.buffer, { flag: "wx" });
-    const file = { id, name, size: req.file.size, path };
-    store.upload(file);
+    await store.saveUpload({ id, name, size: req.file.size }, req.file.buffer);
     res.status(201).json({ id, name, size: req.file.size });
   });
-  app.patch("/api/runs/:id/notes", (req, res) => {
-    const run = store.get(req.params.id);
+  app.patch("/api/runs/:id/notes", async (req, res) => {
+    const run = await store.get(req.params.id);
     if (!run) {
       res.status(404).json({ error: "Research not found" });
       return;
@@ -268,16 +330,16 @@ export function createApp(options: AppOptions) {
     run.notes = z
       .object({ notes: z.string().max(50000) })
       .parse(req.body).notes;
-    store.save(run);
+    await store.save(run);
     res.json({ saved: true });
   });
-  app.post("/api/runs/:id/followup", (req, res) => {
-    const run = store.get(req.params.id);
+  app.post("/api/runs/:id/followup", async (req, res) => {
+    const run = await store.get(req.params.id);
     if (!run) {
       res.status(404).json({ error: "Research not found" });
       return;
     }
-    if (active(run) || store.list().some(active)) {
+    if (active(run) || (await store.list()).some(active)) {
       res.status(409).json({ error: "A research run is already active." });
       return;
     }
@@ -297,12 +359,12 @@ export function createApp(options: AppOptions) {
         .json({ error: "This run has no remote session. Start new research." });
       return;
     }
-    engine.queueMessage(run, message);
-    res.json(store.get(run.id));
-    void engine.process(run.id);
+    await engine.queueMessage(run, message);
+    res.json(await store.get(run.id));
+    advance(run.id);
   });
-  app.post("/api/runs/:id/cancel", (req, res) => {
-    const run = store.get(req.params.id);
+  app.post("/api/runs/:id/cancel", async (req, res) => {
+    const run = await store.get(req.params.id);
     if (!run) {
       res.status(404).json({ error: "Research not found" });
       return;
@@ -317,12 +379,12 @@ export function createApp(options: AppOptions) {
         "Waiting for the remote turn to acknowledge cancellation.",
       );
     }
-    store.save(run);
+    await store.save(run);
     res.json(run);
-    void engine.process(run.id);
+    advance(run.id);
   });
-  app.post("/api/runs/:id/schedule", (req, res) => {
-    const run = store.get(req.params.id);
+  app.post("/api/runs/:id/schedule", async (req, res) => {
+    const run = await store.get(req.params.id);
     if (!run) {
       res.status(404).json({ error: "Research not found" });
       return;
@@ -345,11 +407,11 @@ export function createApp(options: AppOptions) {
       data.remainingChecks && !active(run)
         ? new Date(Date.now() + data.intervalHours * 3600000).toISOString()
         : undefined;
-    store.save(run);
+    await store.save(run);
     res.json(run);
   });
-  app.get("/api/runs/:id/export", (req, res) => {
-    const run = store.get(req.params.id);
+  app.get("/api/runs/:id/export", async (req, res) => {
+    const run = await store.get(req.params.id);
     if (!run) {
       res.status(404).json({ error: "Research not found" });
       return;
@@ -379,7 +441,7 @@ export function createApp(options: AppOptions) {
     else res.type("text/markdown").send(run.report);
   });
   app.get("/api/runs/:id/artifacts/:artifactId", async (req, res) => {
-    const run = store.get(req.params.id);
+    const run = await store.get(req.params.id);
     if (!run) {
       res.status(404).json({ error: "Research not found" });
       return;
@@ -391,14 +453,24 @@ export function createApp(options: AppOptions) {
       return;
     }
     const buffer = await selectedProvider.artifact(run.sessionId, artifact.id);
+    if (
+      options.responseLimitBytes &&
+      buffer.byteLength > options.responseLimitBytes
+    ) {
+      res.status(413).json({
+        error:
+          "This file is larger than the hosting platform can return in one response. Download it from your provider account instead.",
+      });
+      return;
+    }
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${basename(artifact.path).replace(/[^a-zA-Z0-9._-]/g, "_")}"`,
     );
     res.type("application/octet-stream").send(buffer);
   });
-  app.post("/api/runs/:id/crm", (req, res) => {
-    const run = store.get(req.params.id);
+  app.post("/api/runs/:id/crm", async (req, res) => {
+    const run = await store.get(req.params.id);
     if (!run) {
       res.status(404).json({ error: "Research not found" });
       return;
@@ -420,7 +492,7 @@ export function createApp(options: AppOptions) {
         .json({ error: "Only completed live sales results can be exported." });
       return;
     }
-    if (store.list().some(active)) {
+    if ((await store.list()).some(active)) {
       res
         .status(409)
         .json({ error: "Finish the active run before exporting." });
@@ -461,9 +533,9 @@ export function createApp(options: AppOptions) {
       "Reviewed CRM export queued",
       "Exporting company records through your configured MCP server.",
     );
-    store.save(child);
+    await store.save(child);
     res.status(201).json(child);
-    void engine.process(child.id);
+    advance(child.id);
   });
   if (options.production) {
     app.use(express.static(resolve("dist")));

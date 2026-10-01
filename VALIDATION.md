@@ -56,3 +56,15 @@ Verified in headless Chromium against the dev server, without API keys:
 - 36 backend tests and the production build pass.
 
 Not verified: live Google or OpenAI runs (so live OpenAI specialist mascot states have only been exercised with demo data), real CRM export, and Safari/Firefox rendering of the canvas mascots.
+
+## Serverless readiness for Vercel (October 1, 2026)
+
+No deployment was made. Verified locally:
+
+- `vercel build` (Vercel CLI, local project settings, no account) completes. Output: the Vite build on the CDN, one Node.js 24 function `api/index.js` with `maxDuration` 300, the API rewrite, SPA fallback, and a daily cron at `/api/cron/tick`.
+- The traced function bundle runs on its own (outside the repository's `node_modules`) and serves `/api/config`.
+- The compiled entry reports a missing `DATABASE_URL` or `APP_TOKEN` with HTTP 503 and rejects unauthenticated cron calls.
+- 49 backend tests pass, including 13 serverless tests. The Postgres store is exercised against PGlite (Postgres compiled to WebAssembly): persistence across store instances, uploads and file blobs, lease exclusivity, expiry and polling gaps, two simulated instances creating exactly one remote session (also on SQLite), request-driven progress through `background()`, cron authentication, same-host HTTPS origins behind the proxy, upload and response size limits, and Google attachments and output caching through Postgres. A deliberately broken lease makes the duplicate-session test fail.
+- Local mode is unchanged: the browser suite passes 4 of 4 against the SQLite server.
+
+Not verified: a real Vercel deployment, Neon connectivity and latency, `waitUntil` lifetime on the platform, cron delivery, and live Google research.

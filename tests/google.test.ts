@@ -11,12 +11,12 @@ import { seedRun } from "../server/demo";
 import type { Run } from "../shared/types";
 let directory: string;
 let store: Store;
-beforeEach(() => {
+beforeEach(async () => {
   directory = mkdtempSync(join(tmpdir(), "google-research-"));
   store = new Store(directory);
 });
-afterEach(() => {
-  store.close();
+afterEach(async () => {
+  await store.close();
   rmSync(directory, { recursive: true, force: true });
 });
 const json = (data: unknown, status = 200, headers = {}) =>
@@ -165,15 +165,15 @@ it("preserves partial output when native token limits stop research", async () =
       ],
     }),
   ]);
-  store.save(run());
+  await store.save(run());
   await new Engine(store, undefined, { google: provider }).process(
     "google-run",
   );
-  expect(store.get("google-run")).toMatchObject({
+  expect((await store.get("google-run"))).toMatchObject({
     status: "failed",
     report: "# Partial results",
   });
-  expect(store.get("google-run")?.error).toContain("token budget");
+  expect((await store.get("google-run"))?.error).toContain("token budget");
 });
 it("backs off quota polling and redacts credentials in provider errors", async () => {
   const { provider, fetcher } = setup([
@@ -181,12 +181,12 @@ it("backs off quota polling and redacts credentials in provider errors", async (
       "retry-after": "120",
     }),
   ]);
-  store.save(run());
+  await store.save(run());
   const engine = new Engine(store, undefined, { google: provider });
   await engine.process("google-run");
-  expect(store.get("google-run")?.syncError).toBe("Quota [redacted]");
+  expect((await store.get("google-run"))?.syncError).toBe("Quota [redacted]");
   expect(
-    Date.parse(store.get("google-run")!.nextPollAt!) - Date.now(),
+    Date.parse((await store.get("google-run"))!.nextPollAt!) - Date.now(),
   ).toBeGreaterThan(110000);
   await engine.tick();
   expect(fetcher).toHaveBeenCalledTimes(1);
@@ -199,15 +199,15 @@ it("retries a create that Google rejected for quota instead of treating it as un
     json({ id: "int-new" }),
     json({ status: "in_progress", steps: [] }),
   ]);
-  store.save(run({ sessionId: undefined, status: "starting" }));
+  await store.save(run({ sessionId: undefined, status: "starting" }));
   const engine = new Engine(store, undefined, { google: provider });
   await engine.process("google-run");
-  expect(store.get("google-run")).toMatchObject({ status: "starting" });
-  expect(store.get("google-run")?.creationAttempted).toBeFalsy();
-  store.save({ ...store.get("google-run")!, nextPollAt: undefined });
+  expect((await store.get("google-run"))).toMatchObject({ status: "starting" });
+  expect((await store.get("google-run"))?.creationAttempted).toBeFalsy();
+  await store.save({ ...(await store.get("google-run"))!, nextPollAt: undefined });
   await engine.process("google-run");
   expect(fetcher).toHaveBeenCalledTimes(3);
-  expect(store.get("google-run")).toMatchObject({
+  expect((await store.get("google-run"))).toMatchObject({
     status: "running",
     sessionId: "int-new",
   });
@@ -220,29 +220,29 @@ it("retries a follow-up that Google rejected for quota", async () => {
     json({ id: "int-2" }),
     json({ status: "in_progress", steps: [] }),
   ]);
-  store.save(
+  await store.save(
     run({ pendingInput: { text: "Continue", key: "k", kind: "followup" } }),
   );
   const engine = new Engine(store, undefined, { google: provider });
   await engine.process("google-run");
-  expect(store.get("google-run")?.pendingInput?.attempted).toBeFalsy();
-  expect(store.get("google-run")?.status).toBe("running");
-  store.save({ ...store.get("google-run")!, nextPollAt: undefined });
+  expect((await store.get("google-run"))?.pendingInput?.attempted).toBeFalsy();
+  expect((await store.get("google-run"))?.status).toBe("running");
+  await store.save({ ...(await store.get("google-run"))!, nextPollAt: undefined });
   await engine.process("google-run");
   expect(fetcher).toHaveBeenCalledTimes(5);
-  expect(store.get("google-run")?.sessionId).toBe("int-2");
-  expect(store.get("google-run")?.pendingInput).toBeUndefined();
+  expect((await store.get("google-run"))?.sessionId).toBe("int-2");
+  expect((await store.get("google-run"))?.pendingInput).toBeUndefined();
 });
 it("never repeats an ambiguous create after restart", async () => {
   const { provider, fetcher } = setup([]);
-  store.save(
+  await store.save(
     run({ sessionId: undefined, status: "starting", creationAttempted: true }),
   );
   await new Engine(store, undefined, { google: provider }).process(
     "google-run",
   );
   expect(fetcher).not.toHaveBeenCalled();
-  expect(store.get("google-run")?.status).toBe("failed");
+  expect((await store.get("google-run"))?.status).toBe("failed");
 });
 it("stores the new interaction ID and never repeats uncertain follow-up submission", async () => {
   const { provider } = setup([
@@ -250,16 +250,16 @@ it("stores the new interaction ID and never repeats uncertain follow-up submissi
     json({ id: "int-2" }),
     json({ status: "in_progress", steps: [] }),
   ]);
-  store.save(
+  await store.save(
     run({ pendingInput: { text: "Continue", key: "k", kind: "followup" } }),
   );
   await new Engine(store, undefined, { google: provider }).process(
     "google-run",
   );
-  expect(store.get("google-run")?.sessionId).toBe("int-2");
-  expect(store.get("google-run")?.pendingInput).toBeUndefined();
+  expect((await store.get("google-run"))?.sessionId).toBe("int-2");
+  expect((await store.get("google-run"))?.pendingInput).toBeUndefined();
   const uncertain = setup([]);
-  store.save(
+  await store.save(
     run({
       pendingInput: {
         text: "Continue",
@@ -273,7 +273,7 @@ it("stores the new interaction ID and never repeats uncertain follow-up submissi
     "google-run",
   );
   expect(uncertain.fetcher).not.toHaveBeenCalled();
-  expect(store.get("google-run")?.error).toContain("uncertain");
+  expect((await store.get("google-run"))?.error).toContain("uncertain");
 });
 it("uses only explicitly allowed CRM tools in a separate export", async () => {
   const { provider, fetcher } = setup([json({ id: "crm" })], {

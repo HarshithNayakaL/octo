@@ -1,14 +1,23 @@
-import { readFile, writeFile, mkdir, access, rename } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { join, posix } from "node:path";
+import { posix } from "node:path";
 import type { GoogleGenAI } from "@google/genai";
 import type { Run, Artifact } from "../shared/types.js";
-import { ProviderError, type Provider, type ApiObject } from "./provider.js";
+import {
+  ProviderError,
+  readLocalAttachment,
+  type ApiObject,
+  type AttachmentReader,
+  type Provider,
+} from "./provider.js";
+import { directoryCache, type BlobCache } from "./files.js";
 import { instructions, initialInput } from "./prompts.js";
 
 type GoogleCreate = Parameters<GoogleGenAI["interactions"]["create"]>[0];
 // The REST MCP allowlist is tool names; the preview SDK currently types it differently.
-type GoogleMcpCreate = Omit<Extract<GoogleCreate, {agent: unknown}>, "tools"> & {
+type GoogleMcpCreate = Omit<
+  Extract<GoogleCreate, { agent: unknown }>,
+  "tools"
+> & {
   tools: Array<{
     type: "mcp_server";
     name: string;
@@ -20,14 +29,20 @@ type GoogleMcpCreate = Omit<Extract<GoogleCreate, {agent: unknown}>, "tools"> & 
 const digest = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 export class GoogleProvider implements Provider {
+  private cache: BlobCache;
   constructor(
     private key: string,
     private agent: string,
     private model: string,
-    private cacheDirectory: string,
+    cache: BlobCache | string,
     private crm: { url?: string; token?: string; tools: string[] },
     private request: typeof fetch = fetch,
-  ) {}
+    private readAttachment: AttachmentReader = readLocalAttachment,
+    /** Per-file cache limit; serverless deployments are bounded by payload size. */
+    private maxFileBytes = 20_000_000,
+  ) {
+    this.cache = typeof cache === "string" ? directoryCache(cache) : cache;
+  }
   private async call(
     path: string,
     body?: unknown,
@@ -110,7 +125,7 @@ export class GoogleProvider implements Provider {
           type: "inline",
           target: `/workspace/inputs/${file.id}-${file.name}`,
           encoding: "base64",
-          content: (await readFile(file.path)).toString("base64"),
+          content: (await this.readAttachment(file)).toString("base64"),
         })),
       )),
     ];
@@ -164,13 +179,13 @@ export class GoogleProvider implements Provider {
       path.split("/").map(encodeURIComponent).join("/")
     );
   }
-  private cachedPath(interaction: string, artifact: string) {
+  private cacheKey(interaction: string, artifact: string) {
     if (!/^[a-f0-9]{64}$/.test(artifact))
       throw new Error("Invalid Google artifact ID");
-    return join(this.cacheDirectory, digest(interaction), artifact);
+    return `${digest(interaction)}/${artifact}`;
   }
   async artifact(id: string, artifactId: string) {
-    return readFile(this.cachedPath(id, artifactId));
+    return this.cache.get(this.cacheKey(id, artifactId));
   }
   async snapshot(id: string) {
     const interaction = await this.call(
@@ -233,25 +248,20 @@ export class GoogleProvider implements Provider {
             path
               .split("/")
               .some((part: string) => part === ".." || part === ".") ||
-            Number(file.size_bytes) > 20_000_000
+            Number(file.size_bytes) > this.maxFileBytes
           )
             continue;
           if (posix.normalize(path) !== path) continue;
           const artifactId = digest(id + "\0" + path);
-          const destination = this.cachedPath(id, artifactId);
-          await mkdir(join(this.cacheDirectory, digest(id)), {
-            recursive: true,
-          });
-          try {
-            await access(destination);
-          } catch {
-            const bytes = await this.call(
+          const key = this.cacheKey(id, artifactId);
+          if (!(await this.cache.has(key))) {
+            const bytes: Buffer = await this.call(
               this.fileUrl(interaction.environment_id, path) + "?alt=media",
               undefined,
               true,
             );
-            await writeFile(destination + ".tmp", bytes);
-            await rename(destination + ".tmp", destination);
+            if (bytes.byteLength > this.maxFileBytes) continue;
+            await this.cache.put(key, bytes);
           }
           artifacts.push({ id: artifactId, path: "/" + path, turn_id: id });
         }

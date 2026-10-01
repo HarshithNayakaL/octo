@@ -21,7 +21,8 @@ export interface Attachment {
   id: string;
   name: string;
   size: number;
-  path: string;
+  /** Local disk path (SQLite storage). Hosted storage keeps bytes in the database. */
+  path?: string;
 }
 export interface Source {
   title: string;
@@ -103,6 +104,10 @@ export interface Run {
   crmState?: "pending" | "completed" | "failed";
 }
 export interface Configuration {
+  /** Where runs are stored and how background work is driven. */
+  deployment?: "local" | "vercel";
+  storage?: "sqlite" | "postgres";
+  uploadLimitMb?: number;
   defaultProvider?: ProviderId;
   providers?: ProviderConfiguration[];
   liveReady: boolean;

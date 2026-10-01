@@ -94,6 +94,35 @@ npm start
 
 Production runs at **http://127.0.0.1:3001** and serves both the frontend and API. Set `APP_ORIGIN` to your deployed origin. If binding beyond loopback, `APP_TOKEN` is mandatory; the UI asks for it and stores it in tab session storage. Use HTTPS for remote deployments.
 
+## Deploy to Vercel
+
+The repository is ready for Vercel: `vercel.json` builds the Vite frontend to the CDN and serves the Express API as one Vercel Function (`api/index.js`, compiled from `server/vercel.ts`). Run locally exactly as before; Vercel mode only applies to the deployed function.
+
+**How it works without a server process.** Serverless functions stop between requests, so there is no background worker. Each run advances in short, leased steps:
+
+- While the workspace is open, the UI's regular refresh triggers the next step, kept alive after the response with `waitUntil`. A run therefore progresses while someone has the app open.
+- `/api/cron/tick` is a scheduled backstop. On the **Hobby plan Vercel allows cron at most once per day**, so scheduled ongoing-research checks run when someone opens the workspace or at the daily tick. On Pro, change the schedule in `vercel.json` (for example `*/5 * * * *`).
+- A database lease ensures only one function instance advances a run at a time, so concurrent requests can never create a duplicate paid session. Steps on one run are spaced at least 4 seconds apart.
+
+**Setup**
+
+1. Import the repository in Vercel (framework detected from `vercel.json`).
+2. Add a Postgres database from the Vercel Marketplace (Neon). It provides `DATABASE_URL`; tables are created automatically on first use.
+3. Add environment variables (Production):
+
+| Variable | Value |
+| --- | --- |
+| `GEMINI_API_KEY` | Your Google AI Studio key (mark Sensitive) |
+| `APP_TOKEN` | A long random string, e.g. `openssl rand -hex 32` (mark Sensitive). Required: the API refuses to serve without it |
+| `CRON_SECRET` | Optional random string; enables the scheduled backstop (Vercel sends it automatically) |
+| `DEFAULT_PROVIDER` | `google` |
+| `GEMINI_AGENT` / `GEMINI_MODEL` | `antigravity-preview-09-2026` / `gemini-3.8-flash` |
+| `APP_ORIGIN` | Optional; your production URL. Same-host requests are always accepted |
+
+4. Deploy. Without `DATABASE_URL` or `APP_TOKEN`, the API returns a clear setup message instead of data.
+
+**Limits on Vercel.** Function request and response bodies are capped at 4.5 MB, so uploads are limited to 4 MB per file and Google output files are cached only up to 4 MB (larger outputs stay in your Google project). Files are stored in Postgres. Each step must finish within the 300-second function limit. The per-minute write rate limit is per function instance.
+
 ## Product boundaries
 
 This is a **single-workspace, self-hosted starter**, with functioning application workflows and an Agents API adapter. It is not a deployed multi-tenant SaaS. Before offering it as a hosted service, add proper user accounts, per-user authorization and storage isolation, enforced project budgets, billing, retention/deletion controls, a resilient external job queue, tenant-specific CRM credentials, and operational monitoring.

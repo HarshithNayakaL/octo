@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { Run, Artifact } from "../shared/types.js";
+import type { Run, Artifact, Attachment } from "../shared/types.js";
 import { instructions, initialInput } from "./prompts.js";
 
 export class ProviderError extends Error {
@@ -12,6 +12,11 @@ export class ProviderError extends Error {
   }
 }
 export type ApiObject = Record<string, any>;
+export type AttachmentReader = (file: Attachment) => Promise<Buffer>;
+export const readLocalAttachment: AttachmentReader = (file) => {
+  if (!file.path) throw new Error(`Attachment ${file.name} is unavailable.`);
+  return readFile(file.path);
+};
 export interface Provider {
   recover(localId: string): Promise<ApiObject | undefined>;
   create(run: Run): Promise<ApiObject>;
@@ -22,7 +27,12 @@ export interface Provider {
     agents: ApiObject[];
     artifacts: Artifact[];
   }>;
-  message(id: string, text: string, key: string, run?:Run): Promise<void | {id:string}>;
+  message(
+    id: string,
+    text: string,
+    key: string,
+    run?: Run,
+  ): Promise<void | { id: string }>;
   cancel(id: string): Promise<void>;
   artifact(id: string, artifactId: string): Promise<Buffer>;
   exportCrm(run: Run): Promise<ApiObject>;
@@ -33,6 +43,7 @@ export class OpenAIProvider implements Provider {
     private model: string,
     private crm: { url?: string; token?: string; tools: string[] },
     private request: typeof fetch = fetch,
+    private readAttachment: AttachmentReader = readLocalAttachment,
   ) {}
   private async call(
     path: string,
@@ -93,7 +104,7 @@ export class OpenAIProvider implements Provider {
       run.attachments.map(async (file) => ({
         type: "inline",
         path: `/workspace/inputs/${file.id}-${file.name}`,
-        data: (await readFile(file.path)).toString("base64"),
+        data: (await this.readAttachment(file)).toString("base64"),
       })),
     );
     return this.call(

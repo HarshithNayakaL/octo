@@ -18,12 +18,12 @@ import type { Run } from "../shared/types";
 
 let directory: string;
 let store: Store;
-beforeEach(() => {
+beforeEach(async () => {
   directory = mkdtempSync(join(tmpdir(), "research-test-"));
   store = new Store(directory);
 });
-afterEach(() => {
-  store.close();
+afterEach(async () => {
+  await store.close();
   rmSync(directory, { recursive: true, force: true });
 });
 const payload = {
@@ -103,7 +103,7 @@ describe("Research API", () => {
           .send({ ...payload, mode: "live" })
       ).status,
     ).toBe(409);
-    expect(store.list()).toHaveLength(0);
+    expect((await store.list())).toHaveLength(0);
   });
   it("requires an ICP for company research and caps target count", async () => {
     const server = app();
@@ -128,7 +128,7 @@ describe("Research API", () => {
     ).toBe(400);
   });
   it("prevents concurrent paid sessions", async () => {
-    store.save(run());
+    await store.save(run());
     const response = await request(app(fakeProvider()))
       .post("/api/runs")
       .send({ ...payload, mode: "live" });
@@ -160,7 +160,7 @@ describe("Research API", () => {
       .post("/api/uploads")
       .attach("file", Buffer.from("Industry: SaaS"), "icp.txt");
     expect(upload.status).toBe(201);
-    expect(store.getUpload(upload.body.id)?.name).toBe("icp.txt");
+    expect((await store.getUpload(upload.body.id))?.name).toBe("icp.txt");
     expect(
       (
         await request(server)
@@ -181,7 +181,7 @@ describe("Research API", () => {
   });
   it("saves notes across database reopen and exports reports", async () => {
     const sample = seedRun();
-    store.save(sample);
+    await store.save(sample);
     const server = app();
     expect(
       (
@@ -190,9 +190,9 @@ describe("Research API", () => {
           .send({ notes: "My durable note" })
       ).status,
     ).toBe(200);
-    store.close();
+    await store.close();
     store = new Store(directory);
-    expect(store.get(sample.id)?.notes).toBe("My durable note");
+    expect((await store.get(sample.id))?.notes).toBe("My durable note");
     const response = await request(app()).get(
       "/api/runs/" + sample.id + "/export?format=md",
     );
@@ -203,7 +203,7 @@ describe("Research API", () => {
   it("returns clear 404s and no export for an unfinished run", async () => {
     const server = app();
     expect((await request(server).get("/api/runs/missing")).status).toBe(404);
-    store.save(run());
+    await store.save(run());
     expect(
       (await request(server).get("/api/runs/test-run/export")).status,
     ).toBe(409);
@@ -216,7 +216,7 @@ describe("Research API", () => {
       crmReady: true,
       origin: "http://127.0.0.1:5173",
     }).app;
-    store.save(run({ mode: "demo", status: "completed" }));
+    await store.save(run({ mode: "demo", status: "completed" }));
     expect(
       (
         await request(server)
@@ -240,17 +240,17 @@ describe("Durable workflow engine", () => {
       sessionId: undefined,
       startedAt: new Date(Date.now() - 10000).toISOString(),
     });
-    store.save(demo);
+    await store.save(demo);
     const engine = new Engine(store);
     await engine.process(demo.id);
-    expect(store.get(demo.id)?.status).toBe("completed");
-    expect(store.get(demo.id)?.report).toContain("Demo output");
-    engine.queueMessage(
-      store.get(demo.id)!,
+    expect((await store.get(demo.id))?.status).toBe("completed");
+    expect((await store.get(demo.id))?.report).toContain("Demo output");
+    await engine.queueMessage(
+      (await store.get(demo.id))!,
       "Compare the pricing models in more detail.",
     );
-    expect(store.get(demo.id)?.status).toBe("running");
-    expect(store.get(demo.id)?.pendingInput?.text).toContain("pricing");
+    expect((await store.get(demo.id))?.status).toBe("running");
+    expect((await store.get(demo.id))?.pendingInput?.text).toContain("pricing");
   });
   it("recovers remote state and ignores a subagent completion as a root outcome", async () => {
     const provider = fakeProvider();
@@ -261,13 +261,13 @@ describe("Durable workflow engine", () => {
       agents: [],
       artifacts: [],
     });
-    store.save(run());
+    await store.save(run());
     const engine = new Engine(store, provider);
     await engine.process("test-run");
-    expect(store.get("test-run")?.status).toBe("running");
+    expect((await store.get("test-run"))?.status).toBe("running");
     await engine.process("test-run");
-    expect(store.get("test-run")?.status).toBe("completed");
-    expect(store.get("test-run")?.sources).toHaveLength(1);
+    expect((await store.get("test-run"))?.status).toBe("completed");
+    expect((await store.get("test-run"))?.sources).toHaveLength(1);
     expect(provider.create).not.toHaveBeenCalled();
   });
   it("does not accept idle as successful completion", async () => {
@@ -279,13 +279,13 @@ describe("Durable workflow engine", () => {
       agents: [],
       artifacts: [],
     });
-    store.save(run());
+    await store.save(run());
     await new Engine(store, provider).process("test-run");
-    expect(store.get("test-run")?.status).toBe("running");
+    expect((await store.get("test-run"))?.status).toBe("running");
   });
   it("does not reuse a prior completed turn after follow-up input", async () => {
     const provider = fakeProvider();
-    store.save(
+    await store.save(
       run({
         lastTurnId: "turn_1",
         pendingInput: {
@@ -301,8 +301,8 @@ describe("Durable workflow engine", () => {
       "New research",
       "input-key",
     );
-    expect(store.get("test-run")?.status).toBe("running");
-    expect(store.get("test-run")?.pendingInput).toBeUndefined();
+    expect((await store.get("test-run"))?.status).toBe("running");
+    expect((await store.get("test-run"))?.pendingInput).toBeUndefined();
   });
   it("handles failed turns and stops future scheduled checks", async () => {
     const provider = fakeProvider();
@@ -320,25 +320,25 @@ describe("Durable workflow engine", () => {
       agents: [],
       artifacts: [],
     });
-    store.save(run({ workflow: "monitor", remainingChecks: 3 }));
+    await store.save(run({ workflow: "monitor", remainingChecks: 3 }));
     await new Engine(store, provider).process("test-run");
-    expect(store.get("test-run")?.status).toBe("failed");
-    expect(store.get("test-run")?.error).toBe("Tool unavailable");
-    expect(store.get("test-run")?.remainingChecks).toBe(0);
+    expect((await store.get("test-run"))?.status).toBe("failed");
+    expect((await store.get("test-run"))?.error).toBe("Tool unavailable");
+    expect((await store.get("test-run"))?.remainingChecks).toBe(0);
   });
   it("preserves session IDs after network failures without duplicate creation", async () => {
     const provider = fakeProvider();
     vi.mocked(provider.snapshot).mockRejectedValueOnce(
       new Error("Network timeout"),
     );
-    store.save(run());
+    await store.save(run());
     const engine = new Engine(store, provider);
     await engine.process("test-run");
-    expect(store.get("test-run")?.sessionId).toBe("sess_1");
-    expect(store.get("test-run")?.syncError).toContain("Network");
+    expect((await store.get("test-run"))?.sessionId).toBe("sess_1");
+    expect((await store.get("test-run"))?.syncError).toContain("Network");
     await engine.process("test-run");
     expect(provider.create).not.toHaveBeenCalled();
-    expect(store.get("test-run")?.status).toBe("completed");
+    expect((await store.get("test-run"))?.status).toBe("completed");
   });
   it("recovers a session when the creation response was lost", async () => {
     const provider = fakeProvider();
@@ -346,7 +346,7 @@ describe("Durable workflow engine", () => {
       id: "sess_1",
       metadata: { local_run_id: "test-run" },
     });
-    store.save(
+    await store.save(
       run({
         sessionId: undefined,
         status: "starting",
@@ -355,11 +355,11 @@ describe("Durable workflow engine", () => {
     );
     await new Engine(store, provider).process("test-run");
     expect(provider.create).not.toHaveBeenCalled();
-    expect(store.get("test-run")?.sessionId).toBe("sess_1");
+    expect((await store.get("test-run"))?.sessionId).toBe("sess_1");
   });
   it("stops rather than recreating a session after an uncertain create", async () => {
     const provider = fakeProvider();
-    store.save(
+    await store.save(
       run({
         sessionId: undefined,
         status: "starting",
@@ -368,17 +368,17 @@ describe("Durable workflow engine", () => {
     );
     await new Engine(store, provider).process("test-run");
     expect(provider.create).not.toHaveBeenCalled();
-    expect(store.get("test-run")?.status).toBe("failed");
-    expect(store.get("test-run")?.error).toContain("uncertain");
+    expect((await store.get("test-run"))?.status).toBe("failed");
+    expect((await store.get("test-run"))?.error).toContain("uncertain");
   });
   it("marks invalid credentials as failed, rather than retrying forever", async () => {
     const provider = fakeProvider();
     vi.mocked(provider.create).mockRejectedValue(
       new ProviderError("Invalid API key", 401),
     );
-    store.save(run({ sessionId: undefined, status: "starting" }));
+    await store.save(run({ sessionId: undefined, status: "starting" }));
     await new Engine(store, provider).process("test-run");
-    expect(store.get("test-run")?.status).toBe("failed");
+    expect((await store.get("test-run"))?.status).toBe("failed");
   });
   it("cancels when limits are exceeded and waits for acknowledgement", async () => {
     const provider = fakeProvider();
@@ -389,11 +389,11 @@ describe("Durable workflow engine", () => {
       agents: [],
       artifacts: [],
     });
-    store.save(run({ maxTokens: 20000 }));
+    await store.save(run({ maxTokens: 20000 }));
     const engine = new Engine(store, provider);
     await engine.process("test-run");
-    expect(store.get("test-run")?.cancelRequested).toBe(true);
-    expect(store.get("test-run")?.status).toBe("running");
+    expect((await store.get("test-run"))?.cancelRequested).toBe(true);
+    expect((await store.get("test-run"))?.status).toBe("running");
     await engine.process("test-run");
     expect(provider.cancel).toHaveBeenCalledWith("sess_1");
   });
@@ -406,14 +406,14 @@ describe("Durable workflow engine", () => {
       agents: [],
       artifacts: [],
     });
-    store.save(run({ tokenUsage: 30000 }));
+    await store.save(run({ tokenUsage: 30000 }));
     const engine = new Engine(store, provider);
-    engine.queueMessage(
-      store.get("test-run")!,
+    await engine.queueMessage(
+      (await store.get("test-run"))!,
       "Investigate the pricing again.",
     );
     await engine.process("test-run");
-    expect(store.get("test-run")?.cancelRequested).toBe(false);
+    expect((await store.get("test-run"))?.cancelRequested).toBe(false);
   });
   it("preserves missing usage as unknown and validates structured company evidence", async () => {
     const provider = fakeProvider();
@@ -446,26 +446,26 @@ describe("Durable workflow engine", () => {
       },
     ];
     vi.mocked(provider.snapshot).mockResolvedValue(snap);
-    store.save(run());
+    await store.save(run());
     await new Engine(store, provider).process("test-run");
-    expect(store.get("test-run")?.tokenUsage).toBeUndefined();
-    expect(store.get("test-run")?.leads[0].fit).toBe("unknown");
+    expect((await store.get("test-run"))?.tokenUsage).toBeUndefined();
+    expect((await store.get("test-run"))?.leads[0].fit).toBe("unknown");
   });
   it("schedules bounded checks and preserves the session on recurring work", async () => {
     const provider = fakeProvider();
-    store.save(
+    await store.save(
       run({ workflow: "monitor", remainingChecks: 2, intervalHours: 24 }),
     );
     const engine = new Engine(store, provider);
     await engine.process("test-run");
-    expect(store.get("test-run")?.nextCheckAt).toBeDefined();
-    const saved = store.get("test-run")!;
+    expect((await store.get("test-run"))?.nextCheckAt).toBeDefined();
+    const saved = (await store.get("test-run"))!;
     saved.nextCheckAt = new Date(Date.now() - 1000).toISOString();
-    store.save(saved);
+    await store.save(saved);
     await engine.process("test-run");
     expect(provider.message).toHaveBeenCalled();
-    expect(store.get("test-run")?.remainingChecks).toBe(1);
-    expect(store.get("test-run")?.sessionId).toBe("sess_1");
+    expect((await store.get("test-run"))?.remainingChecks).toBe(1);
+    expect((await store.get("test-run"))?.sessionId).toBe("sess_1");
   });
 });
 describe("Output and API transport contracts", () => {

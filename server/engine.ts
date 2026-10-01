@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Run, ProviderId } from "../shared/types.js";
-import { Store } from "./store.js";
+import type { RunStore } from "./store.js";
 import { ProviderError, type Provider } from "./provider.js";
 import {
   finalReport,
@@ -12,14 +12,27 @@ import { demoResult } from "./demo.js";
 
 export const active = (r: Run) =>
   ["starting", "running", "requires_action"].includes(r.status);
+export interface EngineOptions {
+  /** Longest a single step may hold a run. Must stay below the host's request limit. */
+  leaseMs?: number;
+  /** Minimum gap between steps on one run, so frequent triggers don't over-poll providers. */
+  pollGapMs?: number;
+}
 export class Engine {
   private busy = new Set<string>();
   private timer?: ReturnType<typeof setInterval>;
+  private ticking?: Promise<void>;
+  readonly leaseMs: number;
+  readonly pollGapMs: number;
   constructor(
-    readonly store: Store,
+    readonly store: RunStore,
     readonly provider?: Provider,
     readonly providers?: Partial<Record<ProviderId, Provider>>,
-  ) {}
+    options: EngineOptions = {},
+  ) {
+    this.leaseMs = options.leaseMs ?? 240_000;
+    this.pollGapMs = options.pollGapMs ?? 0;
+  }
   log(run: Run, label: string, text: string, type = "system") {
     run.activities.push({
       id: randomUUID(),
@@ -40,8 +53,15 @@ export class Engine {
   stop() {
     clearInterval(this.timer);
   }
-  async tick() {
-    for (const row of this.store.list()) {
+  /** Advance every run that has due work. Concurrent calls in one process share a pass. */
+  tick() {
+    this.ticking ??= this.sweep().finally(() => {
+      this.ticking = undefined;
+    });
+    return this.ticking;
+  }
+  private async sweep() {
+    for (const row of await this.store.list()) {
       if (this.busy.has(row.id)) continue;
       if (
         row.nextPollAt &&
@@ -60,8 +80,21 @@ export class Engine {
   async process(id: string) {
     if (this.busy.has(id)) return;
     this.busy.add(id);
+    let claimed = false;
     try {
-      let run = this.store.get(id)!;
+      claimed = await this.store.claim(id, this.leaseMs);
+      if (!claimed) return;
+      await this.step(id);
+    } finally {
+      this.busy.delete(id);
+      if (claimed)
+        await this.store.release(id, this.pollGapMs).catch(() => undefined);
+    }
+  }
+  private async step(id: string) {
+    try {
+      let run = (await this.store.get(id))!;
+      if (!run) return;
       if (
         !active(run) &&
         !run.pendingInput &&
@@ -73,25 +106,29 @@ export class Engine {
         Date.parse(run.nextCheckAt) <= Date.now() &&
         !active(run)
       ) {
-        if (this.store.list().some((other) => other.id !== id && active(other)))
+        if (
+          (await this.store.list()).some(
+            (other) => other.id !== id && active(other),
+          )
+        )
           return;
         if (run.remainingChecks <= 0) {
           run.nextCheckAt = undefined;
-          this.store.save(run);
+          await this.store.save(run);
           return;
         }
         run.remainingChecks--;
         run.nextCheckAt = undefined;
-        this.queueMessage(
+        await this.queueMessage(
           run,
           "Research this topic again. Search for new evidence since the previous briefing, compare against saved findings, report only meaningful changes, and update the report and research.json.",
         );
-        run = this.store.get(id)!;
+        run = (await this.store.get(id))!;
       }
       if (run.cancelRequested && !run.sessionId) {
         run.status = "cancelled";
         this.log(run, "Run cancelled", "No remote session was started.");
-        this.store.save(run);
+        await this.store.save(run);
         return;
       }
       if (run.mode === "demo") {
@@ -115,11 +152,11 @@ export class Engine {
           run.status = "failed";
           run.error =
             "The session creation outcome is uncertain. No matching saved session was found. Check your provider project before starting another run; automatic recreation is disabled to prevent duplicate usage.";
-          this.store.save(run);
+          await this.store.save(run);
           return;
         }
         run.creationAttempted = true;
-        this.store.save(run);
+        await this.store.save(run);
         const session =
           recovered ??
           (await (run.purpose === "crm"
@@ -127,7 +164,7 @@ export class Engine {
             : provider.create(run)));
         if (typeof session.id !== "string")
           throw new Error("The Agents API did not return a session ID.");
-        run = this.store.get(id)!;
+        run = (await this.store.get(id))!;
         run.sessionId = session.id;
         run.status = "running";
         this.log(
@@ -137,7 +174,7 @@ export class Engine {
             session.id +
             ". Progress is recovered from durable API items.",
         );
-        this.store.save(run);
+        await this.store.save(run);
       }
       if (run.pendingInput) {
         const input = run.pendingInput;
@@ -148,21 +185,21 @@ export class Engine {
           run.remainingChecks = 0;
           run.error =
             "The Google follow-up submission outcome is uncertain. Inspect Google AI Studio before submitting again; automatic repeat is disabled.";
-          this.store.save(run);
+          await this.store.save(run);
           return;
         }
         if (run.provider === "google") {
           input.attempted = true;
-          this.store.save(run);
+          await this.store.save(run);
         }
         const result =
           run.provider === "google"
             ? await provider.message(run.sessionId!, input.text, input.key, run)
             : await provider.message(run.sessionId!, input.text, input.key);
-        run = this.store.get(id)!;
+        run = (await this.store.get(id))!;
         if (result?.id) run.sessionId = result.id;
         run.pendingInput = undefined;
-        this.store.save(run);
+        await this.store.save(run);
       }
       if (
         !run.cancelRequested &&
@@ -176,11 +213,11 @@ export class Engine {
           "Requesting cancellation before checking further progress.",
           "warning",
         );
-        this.store.save(run);
+        await this.store.save(run);
       }
       if (run.cancelRequested) await provider.cancel(run.sessionId!);
       const snap = await provider.snapshot(run.sessionId!);
-      run = this.store.get(id)!;
+      run = (await this.store.get(id))!;
       run.syncError = undefined;
       run.nextPollAt = undefined;
       run.tokenUsage =
@@ -315,16 +352,16 @@ export class Engine {
         run.nextCheckAt = undefined;
         run.remainingChecks = 0;
       }
-      const current = this.store.get(id);
+      const current = await this.store.get(id);
       run.notes = current?.notes ?? run.notes;
       if (current?.cancelRequested) {
         run.cancelRequested = true;
         run.remainingChecks = 0;
         run.nextCheckAt = undefined;
       }
-      this.store.save(run);
+      await this.store.save(run);
     } catch (error) {
-      const run = this.store.get(id);
+      const run = await this.store.get(id);
       if (!run) return;
       const detail =
         error instanceof Error ? error.message : "Unexpected research error";
@@ -343,7 +380,7 @@ export class Engine {
         run.nextCheckAt = undefined;
         run.remainingChecks = 0;
         this.log(run, "API request rejected", detail, "error");
-        this.store.save(run);
+        await this.store.save(run);
       } else if (
         error instanceof ProviderError &&
         error.status === 429 &&
@@ -359,18 +396,16 @@ export class Engine {
           `${detail} Retrying the submission after ${run.nextPollAt}.`,
           "warning",
         );
-        this.store.save(run);
+        await this.store.save(run);
       } else if (run.sessionId || run.status === "starting") {
         run.syncError = detail;
-        this.store.save(run);
+        await this.store.save(run);
       } else {
         run.status = "failed";
         run.error = detail;
         this.log(run, "Run failed", detail, "error");
-        this.store.save(run);
+        await this.store.save(run);
       }
-    } finally {
-      this.busy.delete(id);
     }
   }
   private schedule(run: Run) {
@@ -388,7 +423,7 @@ export class Engine {
       run.status = "cancelled";
       run.nextCheckAt = undefined;
       this.log(run, "Demo cancelled", "No API usage.");
-      this.store.save(run);
+      await this.store.save(run);
       return;
     }
     run.pendingInput = undefined;
@@ -455,9 +490,9 @@ export class Engine {
       );
       this.schedule(run);
     }
-    this.store.save(run);
+    await this.store.save(run);
   }
-  queueMessage(run: Run, text: string) {
+  async queueMessage(run: Run, text: string) {
     run.pendingInput = { text, key: randomUUID(), kind: "followup" };
     run.status = "running";
     run.budgetBaseline = run.provider === "google" ? 0 : (run.tokenUsage ?? 0);
@@ -468,6 +503,6 @@ export class Engine {
     run.syncError = undefined;
     run.nextCheckAt = undefined;
     this.log(run, "Follow-up queued", text, "user");
-    this.store.save(run);
+    await this.store.save(run);
   }
 }

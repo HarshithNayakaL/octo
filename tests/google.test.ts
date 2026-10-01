@@ -191,6 +191,48 @@ it("backs off quota polling and redacts credentials in provider errors", async (
   await engine.tick();
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
+it("retries a create that Google rejected for quota instead of treating it as uncertain", async () => {
+  const { provider, fetcher } = setup([
+    json({ error: { message: "Quota exhausted" } }, 429, {
+      "retry-after": "1",
+    }),
+    json({ id: "int-new" }),
+    json({ status: "in_progress", steps: [] }),
+  ]);
+  store.save(run({ sessionId: undefined, status: "starting" }));
+  const engine = new Engine(store, undefined, { google: provider });
+  await engine.process("google-run");
+  expect(store.get("google-run")).toMatchObject({ status: "starting" });
+  expect(store.get("google-run")?.creationAttempted).toBeFalsy();
+  store.save({ ...store.get("google-run")!, nextPollAt: undefined });
+  await engine.process("google-run");
+  expect(fetcher).toHaveBeenCalledTimes(3);
+  expect(store.get("google-run")).toMatchObject({
+    status: "running",
+    sessionId: "int-new",
+  });
+});
+it("retries a follow-up that Google rejected for quota", async () => {
+  const { provider, fetcher } = setup([
+    json({ environment_id: "env" }),
+    json({ error: { message: "Quota exhausted" } }, 429),
+    json({ environment_id: "env" }),
+    json({ id: "int-2" }),
+    json({ status: "in_progress", steps: [] }),
+  ]);
+  store.save(
+    run({ pendingInput: { text: "Continue", key: "k", kind: "followup" } }),
+  );
+  const engine = new Engine(store, undefined, { google: provider });
+  await engine.process("google-run");
+  expect(store.get("google-run")?.pendingInput?.attempted).toBeFalsy();
+  expect(store.get("google-run")?.status).toBe("running");
+  store.save({ ...store.get("google-run")!, nextPollAt: undefined });
+  await engine.process("google-run");
+  expect(fetcher).toHaveBeenCalledTimes(5);
+  expect(store.get("google-run")?.sessionId).toBe("int-2");
+  expect(store.get("google-run")?.pendingInput).toBeUndefined();
+});
 it("never repeats an ambiguous create after restart", async () => {
   const { provider, fetcher } = setup([]);
   store.save(

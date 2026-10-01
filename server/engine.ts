@@ -344,6 +344,22 @@ export class Engine {
         run.remainingChecks = 0;
         this.log(run, "API request rejected", detail, "error");
         this.store.save(run);
+      } else if (
+        error instanceof ProviderError &&
+        error.status === 429 &&
+        (!run.sessionId || run.pendingInput?.attempted)
+      ) {
+        // A quota rejection is a definitive response: nothing was submitted, so retry after backoff.
+        if (!run.sessionId) run.creationAttempted = false;
+        if (run.pendingInput) run.pendingInput.attempted = false;
+        run.syncError = undefined;
+        this.log(
+          run,
+          "Provider quota reached",
+          `${detail} Retrying the submission after ${run.nextPollAt}.`,
+          "warning",
+        );
+        this.store.save(run);
       } else if (run.sessionId || run.status === "starting") {
         run.syncError = detail;
         this.store.save(run);

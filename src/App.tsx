@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useRef,
   useState,
@@ -45,6 +47,19 @@ import Overview from "./OriginalOverview";
 import SearchDialog from "./SearchDialog";
 import Select from "./Select";
 import { Arc } from "loading-dev";
+import AsciiField from "./AsciiField";
+import MiddleTruncate, { displayUrl } from "./MiddleTruncate";
+import SlideConfirm from "./SlideConfirm";
+import {
+  Mascot,
+  TeamStack,
+  agentState,
+  crmProfile,
+  director,
+  directorState,
+  playbooks,
+  profileFor,
+} from "./agents";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api, download } from "./api";
@@ -56,6 +71,7 @@ import {
   type ProviderId,
 } from "../shared/types";
 
+const EvidenceRadar = lazy(() => import("./EvidenceRadar"));
 type Page = "research" | "reports" | "monitors" | "connections";
 const isActive = (run: Run) =>
   ["starting", "running", "requires_action"].includes(run.status);
@@ -86,12 +102,9 @@ function Mark({ small = false }: { small?: boolean }) {
       fill="none"
       aria-hidden="true"
     >
-      <path
-        d="M5 28V8h8v20M23 28V8h8v20M5 18h26"
-        stroke="currentColor"
-        strokeWidth="3"
-      />
-      <path d="M13 8l10 20" stroke="currentColor" strokeWidth="3" />
+      <circle cx="18" cy="18" r="11" stroke="currentColor" strokeWidth="3.2" />
+      <circle cx="18" cy="18" r="3.4" fill="currentColor" />
+      <circle cx="30.5" cy="8.5" r="3" fill="currentColor" />
     </svg>
   );
 }
@@ -286,7 +299,7 @@ export default function App() {
         >
           <Mark />
           <div>
-            Agents<span>RESEARCH WORKSPACE</span>
+            Octo<span>RESEARCH WORKSPACE</span>
           </div>
         </a>
         <div className="workspace-switch">
@@ -590,8 +603,13 @@ export default function App() {
               <b>Local SQLite · data/research.sqlite</b>
             </div>
             <div className="setting-line">
-              <span>Live model</span>
-              <b>{config?.model ?? "Not available"}</b>
+              <span>Default agent</span>
+              <b>
+                {config?.providers?.find((p) => p.id === config.defaultProvider)
+                  ?.model ??
+                  config?.model ??
+                  "Not available"}
+              </b>
             </div>
             <div className="setting-line">
               <span>API</span>
@@ -605,7 +623,8 @@ export default function App() {
               <p>
                 Time and token limits request cancellation. Usage reporting can
                 lag, and tools and sandboxes have separate charges. Use your
-                OpenAI project’s billing controls for spend management.
+                Google or OpenAI project’s quota and billing controls for spend
+                management.
               </p>
             </div>
             <a
@@ -656,6 +675,14 @@ export default function App() {
               Source quality and model output still need human review.
             </p>
             <div className="help-links">
+              <a
+                href="https://ai.google.dev/gemini-api/docs/antigravity-agent"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Google Antigravity documentation
+                <ArrowUpRight size={16} />
+              </a>
               <a
                 href="https://developers.openai.com/api/docs/guides/agents-api/overview"
                 target="_blank"
@@ -827,6 +854,19 @@ function NewResearch({
               );
             })}
           </div>
+          <div className="team-preview">
+            <TeamStack team={playbooks[kind]} size={28} />
+            <p>
+              <b>Your research team</b>
+              {kind === "sales"
+                ? "Discovery and evidence specialists, then a final review."
+                : kind === "monitor"
+                  ? "Builds the first briefing, then compares each check with saved findings."
+                  : "Market, competitor, pricing and regulation passes, then a final review."}
+              {provider === "google" &&
+                " Google runs these as passes inside one Antigravity session."}
+            </p>
+          </div>
           <div className="form-topline">
             <label className="field grow">
               Research title
@@ -951,8 +991,8 @@ function NewResearch({
                   { value: "demo", label: "Demo · no API usage" },
                   {
                     value: "live",
-                    label: "Live · your OpenAI project",
-                    disabled: !config?.liveReady,
+                    label: `Live · your ${provider === "google" ? "Google" : "OpenAI"} project`,
+                    disabled: !profile?.ready,
                   },
                 ]}
               />
@@ -1335,10 +1375,15 @@ function RunDetail({
                   </div>
                 </>
               ) : (
-                <div className="working-state">
+                <div className={`working-state ${isActive(run) ? "live" : ""}`}>
                   {isActive(run) ? (
-                    <div className="working-orbit">
-                      <Arc size={38} color="var(--accent)" />
+                    <div className="working-scan">
+                      <AsciiField />
+                      <Mascot
+                        profile={director}
+                        size={64}
+                        state={run.cancelRequested ? "default" : "working"}
+                      />
                     </div>
                   ) : (
                     <AlertCircle size={32} />
@@ -1380,7 +1425,7 @@ function RunDetail({
                     </span>
                     <div>
                       <b>{source.title}</b>
-                      <span>{new URL(source.url).hostname}</span>
+                      <MiddleTruncate text={displayUrl(source.url)} tail={18} />
                     </div>
                     <ExternalLink size={16} />
                   </a>
@@ -1415,6 +1460,46 @@ function RunDetail({
                     CSV
                   </button>
                 </div>
+                {run.leads.length > 0 && (
+                  <div className="evidence-panel">
+                    <div>
+                      <h3>Evidence coverage</h3>
+                      <p>
+                        Share of the {run.leads.length} saved records carrying
+                        each kind of evidence. Low coverage means verify before
+                        outreach.
+                      </p>
+                      <div className="fit-bars">
+                        {(["high", "medium", "low", "unknown"] as const).map(
+                          (fit) => {
+                            const n = run.leads.filter(
+                              (l) => l.fit === fit,
+                            ).length;
+                            return (
+                              <div key={fit}>
+                                <span>
+                                  {fit[0].toUpperCase() + fit.slice(1)} fit
+                                </span>
+                                <i>
+                                  <em
+                                    className={`fit-bar ${fit}`}
+                                    style={{
+                                      width: `${(n / run.leads.length) * 100}%`,
+                                    }}
+                                  />
+                                </i>
+                                <b>{n}</b>
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
+                    </div>
+                    <Suspense fallback={<div className="evidence-radar" />}>
+                      <EvidenceRadar leads={run.leads} />
+                    </Suspense>
+                  </div>
+                )}
                 <div className="lead-list">
                   {run.leads.map((lead, i) => (
                     <article className="lead-card" key={lead.company + i}>
@@ -1558,6 +1643,7 @@ function RunDetail({
                     <FileText size={18} />
                     <div>
                       <b>{f.path.split("/").at(-1)}</b>
+                      <MiddleTruncate text={f.path} tail={20} />
                       <span>
                         {run.provider === "google"
                           ? "Cached Google output"
@@ -1642,8 +1728,13 @@ function RunDetail({
             )}
           </div>
           <div className="director-card">
-            <span className="director-icon">
-              <Command size={20} />
+            <span className="director-icon mascot-frame">
+              <Mascot
+                profile={run.purpose === "crm" ? crmProfile : director}
+                size={36}
+                state={directorState(run)}
+                interactive
+              />
             </span>
             <div>
               <b>Research director</b>
@@ -1656,24 +1747,55 @@ function RunDetail({
               </span>
             </div>
           </div>
-          {run.agents.length > 0 && (
+          {run.agents.length > 0 ? (
             <div className="agent-list">
-              <div className="small-label">SPECIALIST AGENTS</div>
-              {run.agents.map((a) => (
-                <div key={a.id}>
-                  <span className={`agent-dot ${a.status}`} />
-                  <span>{a.name}</span>
-                  {a.status === "completed" ? (
-                    <Check size={13} />
-                  ) : a.status === "in_progress" || a.status === "running" ? (
-                    <Arc size={13} />
-                  ) : (
-                    <span className="muted agent-status">{a.status}</span>
-                  )}
+              <div className="small-label">
+                {run.mode === "demo" ? "DEMO SPECIALISTS" : "SPECIALIST AGENTS"}
+              </div>
+              {run.agents.map((a) => {
+                const profile = profileFor(a);
+                return (
+                  <div key={a.id}>
+                    <Mascot
+                      profile={profile}
+                      size={24}
+                      state={agentState(a.status)}
+                      paused={a.status === "completed"}
+                    />
+                    <span>{a.name}</span>
+                    {a.status === "completed" ? (
+                      <Check size={13} />
+                    ) : a.status === "in_progress" || a.status === "running" ? (
+                      <Arc size={13} />
+                    ) : (
+                      <span className="muted agent-status">
+                        {a.status.replaceAll("_", " ")}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : run.purpose !== "crm" ? (
+            <div className="agent-list planned">
+              <div className="small-label">
+                {run.provider === "google"
+                  ? "RESEARCH PASSES"
+                  : "RESEARCH PLAN"}
+              </div>
+              {playbooks[run.workflow].map((profile) => (
+                <div key={profile.id}>
+                  <Mascot profile={profile} size={24} paused label="" />
+                  <span>{profile.name}</span>
                 </div>
               ))}
+              <p className="planned-note">
+                {run.provider === "google"
+                  ? "Planned passes inside one Antigravity session. Google does not report separate specialist activity."
+                  : "Specialists appear here when the API reports them."}
+              </p>
             </div>
-          )}
+          ) : null}
           <div className="activity-feed">
             <div className="small-label">SAVED ACTIVITY</div>
             {run.activities
@@ -1756,16 +1878,14 @@ function RunDetail({
             <button className="quiet" onClick={() => setCrm(false)}>
               Cancel
             </button>
-            <button
-              className="primary"
+            <SlideConfirm
+              key={String(approved)}
+              label="Slide to export approved records"
               disabled={!approved || busy}
-              onClick={() =>
+              onConfirm={() =>
                 void action("crm", { approved: true }).then(() => setCrm(false))
               }
-            >
-              Export approved records
-              <ArrowRight size={15} />
-            </button>
+            />
           </footer>
         </Modal>
       )}

@@ -45,3 +45,14 @@ The original blue-and-white overview is restored; later visual experiments are n
 All 34 backend tests pass, including 10 Google-specific tests with mocked responses: background creation, pinned settings, mounted binary documents, raw REST output extraction, immutable cached files, path rejection, chained follow-ups, partial budget-limited reports, quota backoff, secret redaction, uncertain submission protection, and isolated CRM tool allowlists. No API usage was incurred. Google live research, actual account access, hosted file conversion, and CRM operations remain unverified until a Google key is supplied locally.
 
 Chrome showed Google Antigravity selected by default in the research dialog and demo mode selected with no key configured. Further dropdown verification was interrupted by browser timeouts. Google REST MCP allowlists follow the official tool-name array documentation; the preview SDK currently declares a different type for that field.
+
+## Octo UI refinement (October 1, 2026)
+
+Verified in headless Chromium against the dev server, without API keys:
+
+- Overview, research dialog, running and completed run detail, companies, and sources screens captured at 1440 px and 390 px; no document-level horizontal overflow at 390 px.
+- Committed Playwright suite: 4 of 4 passed (market and sales demo flows, desktop and mobile) using the pre-installed Chromium. The suite now runs with one worker because the app allows one active run at a time; parallel workers previously collided on that rule.
+- Slide-to-confirm completes by pointer drag and by keyboard (Enter), and stays inert while disabled. CRM export itself remains unverified because no CRM MCP is configured; demo records cannot be exported.
+- 36 backend tests and the production build pass.
+
+Not verified: live Google or OpenAI runs (so live OpenAI specialist mascot states have only been exercised with demo data), real CRM export, and Safari/Firefox rendering of the canvas mascots.

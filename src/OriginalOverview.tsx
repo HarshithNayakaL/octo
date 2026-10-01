@@ -13,8 +13,16 @@ import {
   ShieldCheck,
   SlidersHorizontal,
 } from "lucide-react";
-import { Arc } from "loading-dev";
+import { useEffect, useState } from "react";
+import { Arc, Orbit } from "loading-dev";
 import Select from "./Select";
+import {
+  Mascot,
+  TeamStack,
+  director,
+  directorState,
+  playbooks,
+} from "./agents";
 import {
   workflowLabels,
   type Configuration,
@@ -102,8 +110,7 @@ export default function OriginalOverview({
                 Google Antigravity + OpenAI Agents API
               </span>
               <h2>
-                One brief.
-                <br />
+                One brief. <br />
                 Multiple perspectives.
               </h2>
               <p>
@@ -145,17 +152,21 @@ export default function OriginalOverview({
                     </h3>
                     <p>{descriptions[workflow]}</p>
                     <div className="card-footer">
-                      {workflow === "market"
-                        ? "Investor briefings & competitor analysis"
-                        : workflow === "sales"
-                          ? "ICP matching & company evidence"
-                          : "Saved context & scheduled checks"}
+                      <TeamStack team={playbooks[workflow]} size={22} />
+                      <span>
+                        {workflow === "market"
+                          ? "Investor briefings & competitors"
+                          : workflow === "sales"
+                            ? "ICP matching & company evidence"
+                            : "Saved context & scheduled checks"}
+                      </span>
                     </div>
                   </button>
                 );
               },
             )}
           </section>
+          <ResearchPulse runs={runs} />
         </>
       )}
       <section className="research-list">
@@ -213,12 +224,21 @@ export default function OriginalOverview({
             <tbody>
               {listed.map((run) => {
                 const Icon = icons[run.workflow];
+                const live = active(run) && !run.cancelRequested;
                 return (
                   <tr key={run.id} onClick={() => onOpen(run.id)}>
                     <td>
                       <div className="research-cell">
-                        <span className="file-icon">
-                          <FileText size={18} />
+                        <span className="file-icon mascot-icon">
+                          <Mascot
+                            profile={
+                              live ? director : playbooks[run.workflow][0]
+                            }
+                            size={26}
+                            state={live ? "working" : directorState(run)}
+                            paused={!live}
+                            label=""
+                          />
                         </span>
                         <div>
                           <button
@@ -249,7 +269,11 @@ export default function OriginalOverview({
                     </td>
                     <td>
                       <span className={`status ${run.status}`}>
-                        <span />
+                        {live ? (
+                          <Orbit size={11} color="currentColor" />
+                        ) : (
+                          <span />
+                        )}
                         {run.cancelRequested && active(run)
                           ? "Stopping"
                           : run.status.replaceAll("_", " ")}
@@ -318,10 +342,23 @@ export default function OriginalOverview({
 }
 
 function ResearchDiagram() {
+  const team = playbooks.market.slice(0, 4);
+  // Illustration only: one specialist at a time takes a turn, like a research pass.
+  const [turn, setTurn] = useState(0);
+  const [hover, setHover] = useState<number>();
+  useEffect(() => {
+    const timer = setInterval(
+      () => setTurn((t) => (t + 1) % team.length),
+      3200,
+    );
+    return () => clearInterval(timer);
+  }, [team.length]);
+  const busy = hover ?? turn;
   return (
     <div
       className="research-diagram"
-      aria-label="Research director coordinates market, competitor, pricing, and regulation research to produce a report"
+      role="img"
+      aria-label="Illustration: a research director coordinates market, competitor, pricing, and regulation research to produce a report"
     >
       <div className="diagram-grid" />
       <svg
@@ -337,27 +374,36 @@ function ResearchDiagram() {
           strokeOpacity=".28"
           strokeWidth="1.2"
         />
+        <path
+          className="diagram-pulse"
+          d={`M250 82H${[60, 187, 313, 440][busy]}V110`}
+          fill="none"
+          stroke="#002fa7"
+          strokeWidth="1.6"
+        />
         <circle cx="250" cy="82" r="3" fill="#002fa7" />
       </svg>
       <div className="director-node">
-        <Command size={15} />
+        <Mascot profile={director} size={26} state="default" label="" />
         Research director
       </div>
       <div className="specialist-nodes">
-        {[
-          ["Market", Globe2],
-          ["Competitors", Building2],
-          ["Pricing", SlidersHorizontal],
-          ["Regulation", ShieldCheck],
-        ].map(([label, Icon]) => {
-          const Glyph = Icon as typeof Globe2;
-          return (
-            <div key={label as string}>
-              <Glyph size={17} />
-              <span>{label as string}</span>
-            </div>
-          );
-        })}
+        {team.map((profile, i) => (
+          <div
+            key={profile.id}
+            className={busy === i ? "busy" : ""}
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(undefined)}
+          >
+            <Mascot
+              profile={profile}
+              size={30}
+              state={busy === i ? "working" : "default"}
+              label=""
+            />
+            <span>{profile.name.replace(" researcher", "")}</span>
+          </div>
+        ))}
       </div>
       <div className="report-node">
         <FileText size={15} />
@@ -365,5 +411,75 @@ function ResearchDiagram() {
         <ArrowUpRight size={13} />
       </div>
     </div>
+  );
+}
+
+const dayKey = (value: Date) =>
+  `${value.getFullYear()}-${value.getMonth()}-${value.getDate()}`;
+/** Research started per day, from saved run dates. */
+function ResearchPulse({ runs }: { runs: Run[] }) {
+  const weeks = 26;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(today);
+  start.setDate(start.getDate() - start.getDay() - (weeks - 1) * 7);
+  const counts = new Map<string, number>();
+  for (const run of runs) {
+    const key = dayKey(new Date(run.createdAt));
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const days = Array.from({ length: weeks * 7 }, (_, i) => {
+    const day = new Date(start);
+    day.setDate(start.getDate() + i);
+    return { day, count: counts.get(dayKey(day)) ?? 0, future: day > today };
+  });
+  const live = runs.filter((r) => r.mode === "live");
+  const stats = [
+    ["Active now", runs.filter(active).length],
+    ["Reports", runs.filter((r) => r.status === "completed").length],
+    ["Saved sources", runs.reduce((n, r) => n + r.sources.length, 0)],
+    ["Scheduled checks", runs.filter((r) => r.nextCheckAt).length],
+  ] as const;
+  const fmt = new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+  return (
+    <section className="pulse-panel" aria-label="Workspace activity">
+      <div className="pulse-stats">
+        {stats.map(([label, value]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <b>{value}</b>
+          </div>
+        ))}
+      </div>
+      <div className="pulse-calendar">
+        <div className="pulse-calendar-top">
+          <span>Research started · last {weeks} weeks</span>
+          <span>
+            {live.length} live · {runs.length - live.length} demo
+          </span>
+        </div>
+        <div className="pulse-grid" role="list">
+          {days.map(({ day, count, future }) => (
+            <span
+              role="listitem"
+              key={day.toISOString()}
+              className={`pulse-cell level-${future ? "x" : Math.min(count, 4)}`}
+              title={`${fmt.format(day)} · ${count} research ${count === 1 ? "run" : "runs"}`}
+              aria-label={`${fmt.format(day)}: ${count} research ${count === 1 ? "run" : "runs"} started`}
+            />
+          ))}
+        </div>
+        <div className="pulse-legend" aria-hidden="true">
+          Less
+          {[0, 1, 2, 3, 4].map((n) => (
+            <span key={n} className={`pulse-cell level-${n}`} />
+          ))}
+          More
+        </div>
+      </div>
+    </section>
   );
 }

@@ -398,14 +398,27 @@ export class Engine {
         "Research director",
         "Planning the research and assigning independent questions.",
       ],
-      [
-        "Market researcher",
-        "Demonstrating source collection. No live search is performed.",
-      ],
-      [
-        "Competitor researcher",
-        "Demonstrating comparison and evidence review.",
-      ],
+      ...(run.workflow === "sales"
+        ? [
+            [
+              "Company discovery",
+              "Demonstrating company matching. No live search is performed.",
+            ],
+            [
+              "Company evidence",
+              "Demonstrating fit evidence and unknown contacts.",
+            ],
+          ]
+        : [
+            [
+              "Market researcher",
+              "Demonstrating source collection. No live search is performed.",
+            ],
+            [
+              "Competitor researcher",
+              "Demonstrating comparison and evidence review.",
+            ],
+          ]),
       [
         "Final reviewer",
         "Preparing an illustrative report and highlighting unknowns.",

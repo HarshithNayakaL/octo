@@ -1,0 +1,53 @@
+{
+  "name": "agents-research-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.14"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"tsx watch server/index.ts\" \"vite --host 127.0.0.1\"",
+    "build": "tsc --noEmit && vite build && tsc -p tsconfig.server.json",
+    "start": "node dist-server/server/index.js --production",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "format": "prettier --write src server shared tests *.ts *.json README.md"
+  },
+  "dependencies": {
+    "@fontsource-variable/epilogue": "^5.3.0",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@google/genai": "^2.25.0",
+    "@radix-ui/react-select": "^2.3.7",
+    "cmdk": "^1.1.1",
+    "dotenv": "^16.6.1",
+    "echarts": "^6.1.0",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "loading-dev": "^0.3.5",
+    "lucide-react": "^0.468.0",
+    "multer": "^2.0.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/express": "^5.0.3",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/supertest": "^6.0.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^9.2.0",
+    "prettier": "^3.6.2",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.2",
+    "vite": "^6.3.5",
+    "vitest": "^5.0.3"
+  }
+}

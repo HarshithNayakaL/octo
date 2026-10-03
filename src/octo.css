@@ -112,16 +112,6 @@ canvas.mascot {
   display: block;
   flex-shrink: 0;
 }
-.team-stack {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-.team-stack-item {
-  display: grid;
-  place-items: center;
-}
-
 /* Hero diagram */
 .specialist-nodes > div {
   height: 68px;
@@ -131,22 +121,6 @@ canvas.mascot {
     box-shadow 0.25s,
     color 0.25s;
 }
-.specialist-nodes > div.busy {
-  border-color: #b9c6ea;
-  color: var(--blue);
-  box-shadow: 0 6px 18px #002fa712;
-}
-.diagram-pulse {
-  stroke-dasharray: 5 7;
-  animation: diagram-flow 1.2s linear infinite;
-  opacity: 0.7;
-}
-@keyframes diagram-flow {
-  to {
-    stroke-dashoffset: -24;
-  }
-}
-
 /* Workflow cards */
 .card-footer {
   display: flex;
@@ -253,10 +227,6 @@ canvas.mascot {
 }
 
 /* Research table */
-.file-icon.mascot-icon {
-  background: #f7f8fb;
-  overflow: visible;
-}
 .status svg {
   flex-shrink: 0;
 }
@@ -293,17 +263,13 @@ canvas.mascot {
     display: none;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .diagram-pulse {
-    animation: none;
-  }
-}
 
 /* Research dialog */
 .team-preview {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   padding: 12px 14px;
   margin: -6px 0 20px;
   border: 1px solid var(--blue-line);
@@ -552,4 +518,45 @@ canvas.mascot {
 }
 .slide-confirm.disabled .slide-confirm-fill {
   background: #eceef3;
+}
+.team-roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-roster li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px 4px 5px;
+  border: 1px solid var(--blue-line);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 11.5px;
+  color: #3f4656;
+}
+/* Activity written by a known agent shows that agent, centred on the timeline. */
+.activity-item {
+  gap: 15px;
+}
+.timeline-author {
+  position: relative;
+  width: 5px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.timeline-author > canvas.mascot {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.activity-feed .activity-item {
+  padding-left: 7px;
+}
+.activity-feed .activity-item:before {
+  left: 9px;
 }

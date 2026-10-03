@@ -123,6 +123,13 @@ export function profileFor(agent: Pick<Agent, "name">): AgentProfile {
     (director.match.test(agent.name) ? director : undefined);
   return known ?? { ...generic, name: agent.name };
 }
+/** The agent an activity entry was written by, matched by exact name only. */
+export function authorOf(label: string): AgentProfile | undefined {
+  const name = label.trim().toLowerCase();
+  return [director, ...Object.values(cast)].find(
+    (p) => p.name.toLowerCase() === name,
+  );
+}
 export const agentState = (status: string): MascotState =>
   ["in_progress", "running", "queued", "starting"].includes(status)
     ? status === "queued"
@@ -173,27 +180,5 @@ export function Mascot({
       }
       aria-hidden={label === "" ? true : undefined}
     />
-  );
-}
-
-/** Overlapping mascots, used where a team is summarised. */
-export function TeamStack({
-  team,
-  size = 26,
-  lead = true,
-}: {
-  team: AgentProfile[];
-  size?: number;
-  lead?: boolean;
-}) {
-  const members = lead ? [director, ...team] : team;
-  return (
-    <span className="team-stack" aria-hidden="true">
-      {members.map((p) => (
-        <span className="team-stack-item" key={p.id}>
-          <Mascot profile={p} size={size} paused label="" />
-        </span>
-      ))}
-    </span>
   );
 }

@@ -13,16 +13,9 @@ import {
   ShieldCheck,
   SlidersHorizontal,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 import { Arc, Orbit } from "loading-dev";
 import Select from "./Select";
-import {
-  Mascot,
-  TeamStack,
-  director,
-  directorState,
-  playbooks,
-} from "./agents";
+import { Mascot, director, playbooks } from "./agents";
 import {
   workflowLabels,
   type Configuration,
@@ -152,7 +145,6 @@ export default function OriginalOverview({
                     </h3>
                     <p>{descriptions[workflow]}</p>
                     <div className="card-footer">
-                      <TeamStack team={playbooks[workflow]} size={22} />
                       <span>
                         {workflow === "market"
                           ? "Investor briefings & competitors"
@@ -229,16 +221,8 @@ export default function OriginalOverview({
                   <tr key={run.id} onClick={() => onOpen(run.id)}>
                     <td>
                       <div className="research-cell">
-                        <span className="file-icon mascot-icon">
-                          <Mascot
-                            profile={
-                              live ? director : playbooks[run.workflow][0]
-                            }
-                            size={26}
-                            state={live ? "working" : directorState(run)}
-                            paused={!live}
-                            label=""
-                          />
+                        <span className="file-icon">
+                          <FileText size={18} />
                         </span>
                         <div>
                           <button
@@ -343,17 +327,6 @@ export default function OriginalOverview({
 
 function ResearchDiagram() {
   const team = playbooks.market.slice(0, 4);
-  // Illustration only: one specialist at a time takes a turn, like a research pass.
-  const [turn, setTurn] = useState(0);
-  const [hover, setHover] = useState<number>();
-  useEffect(() => {
-    const timer = setInterval(
-      () => setTurn((t) => (t + 1) % team.length),
-      3200,
-    );
-    return () => clearInterval(timer);
-  }, [team.length]);
-  const busy = hover ?? turn;
   return (
     <div
       className="research-diagram"
@@ -374,33 +347,16 @@ function ResearchDiagram() {
           strokeOpacity=".28"
           strokeWidth="1.2"
         />
-        <path
-          className="diagram-pulse"
-          d={`M250 82H${[60, 187, 313, 440][busy]}V110`}
-          fill="none"
-          stroke="#002fa7"
-          strokeWidth="1.6"
-        />
         <circle cx="250" cy="82" r="3" fill="#002fa7" />
       </svg>
       <div className="director-node">
-        <Mascot profile={director} size={26} state="default" label="" />
+        <Mascot profile={director} size={26} label="" />
         Research director
       </div>
       <div className="specialist-nodes">
-        {team.map((profile, i) => (
-          <div
-            key={profile.id}
-            className={busy === i ? "busy" : ""}
-            onMouseEnter={() => setHover(i)}
-            onMouseLeave={() => setHover(undefined)}
-          >
-            <Mascot
-              profile={profile}
-              size={30}
-              state={busy === i ? "working" : "default"}
-              label=""
-            />
+        {team.map((profile) => (
+          <div key={profile.id}>
+            <Mascot profile={profile} size={30} label="" />
             <span>{profile.name.replace(" researcher", "")}</span>
           </div>
         ))}

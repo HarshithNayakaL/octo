@@ -52,8 +52,8 @@ import MiddleTruncate, { displayUrl } from "./MiddleTruncate";
 import SlideConfirm from "./SlideConfirm";
 import {
   Mascot,
-  TeamStack,
   agentState,
+  authorOf,
   crmProfile,
   director,
   directorState,
@@ -885,9 +885,16 @@ function NewResearch({
             })}
           </div>
           <div className="team-preview">
-            <TeamStack team={playbooks[kind]} size={28} />
+            <ul className="team-roster" aria-label="Research team">
+              {[director, ...playbooks[kind]].map((member) => (
+                <li key={member.id} title={member.role}>
+                  <Mascot profile={member} size={24} paused label="" />
+                  <span>{member.name}</span>
+                </li>
+              ))}
+            </ul>
             <p>
-              <b>Your research team</b>
+              <b>How the team works</b>
               {kind === "sales"
                 ? "Discovery and evidence specialists, then a final review."
                 : kind === "monitor"
@@ -1838,7 +1845,18 @@ function RunDetail({
               .slice(0, 30)
               .map((activity) => (
                 <div className="activity-item" key={activity.id}>
-                  <span className="timeline-dot" />
+                  {authorOf(activity.label) ? (
+                    <span className="timeline-author">
+                      <Mascot
+                        profile={authorOf(activity.label)!}
+                        size={18}
+                        paused
+                        label=""
+                      />
+                    </span>
+                  ) : (
+                    <span className="timeline-dot" />
+                  )}
                   <div>
                     <div>
                       <b>{activity.label}</b>

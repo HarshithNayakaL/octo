@@ -1,6 +1,6 @@
 # Octo
 
-A TypeScript research workspace supporting **Google Antigravity on Gemini Interactions** and the **OpenAI Agents API**. It can be run locally and adapted into a product later.
+A TypeScript research workspace built around the **OpenAI Agents API**: a research director delegates to specialist agents, works in a hosted sandbox with live web search, and returns cited reports and structured company records. **Google Antigravity (Gemini Interactions)** is supported as an alternative provider, useful for testing on a Google free-tier project. Octo runs locally and can be deployed to Vercel.
 
 ## Start locally
 
@@ -13,7 +13,21 @@ npm run dev
 
 Open **http://127.0.0.1:5173**. The API runs on port 3001. Without a key, the app works in clearly labelled demo mode; it does **not** research your brief or process attachments.
 
-For Google testing, add `GEMINI_API_KEY` from Google AI Studio to `.env` and restart. Google is the default for new research. Use a free-tier project and check its actual quotas in AI Studio; paid projects follow their billing settings. The app never falls back to OpenAI.
+## OpenAI Agents API (primary)
+
+Add your key to `.env` and restart:
+
+```dotenv
+DEFAULT_PROVIDER=openai
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-6-astra
+```
+
+The key needs `api.agents.read`, `api.agents.write`, and `api.responses.write`. OpenAI runs use durable saved sessions, managed multi-agent orchestration (up to two concurrent specialists), live web search, hosted sandbox files, published artifacts, and idempotent follow-ups. API usage is billed to your OpenAI project; a ChatGPT subscription does not cover it. See [Durable execution](#durable-execution) for how sessions are recovered.
+
+## Google Antigravity (alternative provider)
+
+Google can be selected per run in the research form, or made the default with `DEFAULT_PROVIDER=google`. The example `.env` uses Google so the workspace can be tested on a free-tier project before spending OpenAI credit; check your actual quotas in AI Studio.
 
 ```dotenv
 DEFAULT_PROVIDER=google
@@ -22,13 +36,14 @@ GEMINI_AGENT=antigravity-preview-09-2026
 GEMINI_MODEL=gemini-3.8-flash
 ```
 
-Choose Google or OpenAI in the research form. Provider, agent, and model settings are pinned to each run. Existing runs without a provider retain OpenAI. Keys stay on the server; never use a `VITE_` variable for credentials. A configured key does not prove access.
+Google uses background stored interactions, web search, a hosted sandbox, a best-effort native `max_total_tokens` budget, and chained follow-ups that reuse the environment. It performs specialist research passes inside one interaction; Octo does not show separate specialist activity for Google because the API does not report it. Documents are mounted as sandbox files. Completed outputs are frozen locally (or in Postgres on Vercel) so follow-ups cannot overwrite prior downloads. Polling backs off on HTTP 429. Google has no supported list-by-local-run recovery endpoint, so ambiguous create/follow-up submissions are never automatically repeated; inspect AI Studio before retrying manually. Expired environments or saved interactions can prevent continuation. This is a preview integration: tests mock Google responses. See the [Google Antigravity documentation](https://ai.google.dev/gemini-api/docs/antigravity-agent) and [environment documentation](https://ai.google.dev/gemini-api/docs/agent-environment).
 
-OpenAI remains available through `OPENAI_API_KEY` and `OPENAI_MODEL` (default `gpt-6-astra`). Its key needs `api.agents.read`, `api.agents.write`, and `api.responses.write`. Set `DEFAULT_PROVIDER=openai` to select it by default.
+## Choosing a provider
 
-Google uses background stored interactions, web search, a hosted sandbox, a best-effort native `max_total_tokens` budget, and chained follow-ups that reuse the environment. It performs specialist research passes; we do not fabricate managed subagent activity. Documents are mounted as sandbox files. Completed outputs are frozen under `data/google-artifacts` so follow-ups cannot overwrite prior downloads. Structured JSON is validated before company records are shown. Polling backs off on HTTP 429. Google has no supported list-by-local-run recovery endpoint: ambiguous create/follow-up submissions are never automatically repeated. Inspect AI Studio before retrying manually. Expired environments or saved interactions can prevent continuation.
-
-This is a preview integration. Tests mock Google responses; a real key is required to verify account access, actual research, document conversion, and CRM tools. See [Google Antigravity documentation](https://ai.google.dev/gemini-api/docs/antigravity-agent) and [environment documentation](https://ai.google.dev/gemini-api/docs/agent-environment).
+- Each run is pinned to the provider, agent, and model it started with. Runs created before provider selection existed stay on OpenAI.
+- **There is no automatic switching.** If the selected provider is unavailable or rejects a request, the run reports the error; it is never retried on the other provider.
+- Keys stay on the server. Never use a `VITE_` variable for credentials. A configured key does not prove access; the first live request does.
+- Structured JSON from either provider is validated before company records are shown.
 
 ## Workflows
 
@@ -42,7 +57,7 @@ User notes are stored locally; they are not automatically added to the remote pr
 
 ## A small first live test
 
-1. For Google, use a free-tier project and inspect AI Studio quotas. For OpenAI, add API credit and configure spend controls in your project. A ChatGPT subscription does not supply this app's API billing.
+1. For OpenAI, add API credit and configure spend controls in your project. A ChatGPT subscription does not supply this app's API billing. To test without spending credit first, use Google on a free-tier project and inspect its AI Studio quotas.
 2. Select **Live**, a **1 minute** time limit, a **5,000 token** limit, and a narrow brief such as “Find two Indian EV charging companies and compare their publicly documented business models. Cite their official websites. Identify unknown pricing.”
 3. Review the report, source links, artifacts, and project usage before making the task larger.
 
@@ -110,14 +125,16 @@ The repository is ready for Vercel: `vercel.json` builds the Vite frontend to th
 2. Add a Postgres database from the Vercel Marketplace (Neon). It provides `DATABASE_URL`; tables are created automatically on first use.
 3. Add environment variables (Production):
 
-| Variable | Value |
-| --- | --- |
-| `GEMINI_API_KEY` | Your Google AI Studio key (mark Sensitive) |
-| `APP_TOKEN` | A long random string, e.g. `openssl rand -hex 32` (mark Sensitive). Required: the API refuses to serve without it |
-| `CRON_SECRET` | Optional random string; enables the scheduled backstop (Vercel sends it automatically) |
-| `DEFAULT_PROVIDER` | `google` |
-| `GEMINI_AGENT` / `GEMINI_MODEL` | `antigravity-preview-09-2026` / `gemini-3.8-flash` |
-| `APP_ORIGIN` | Optional; your production URL. Same-host requests are always accepted |
+| Variable                        | Value                                                                                                             |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `OPENAI_API_KEY`                | Your OpenAI key with Agents API access (mark Sensitive)                                                           |
+| `GEMINI_API_KEY`                | Optional alternative provider: your Google AI Studio key (mark Sensitive)                                         |
+| `APP_TOKEN`                     | A long random string, e.g. `openssl rand -hex 32` (mark Sensitive). Required: the API refuses to serve without it |
+| `CRON_SECRET`                   | Optional random string; enables the scheduled backstop (Vercel sends it automatically)                            |
+| `DEFAULT_PROVIDER`              | `openai`, or `google` while testing on a Google free tier                                                         |
+| `OPENAI_MODEL`                  | `gpt-6-astra`                                                                                                     |
+| `GEMINI_AGENT` / `GEMINI_MODEL` | `antigravity-preview-09-2026` / `gemini-3.8-flash` (only with `GEMINI_API_KEY`)                                   |
+| `APP_ORIGIN`                    | Optional; your production URL. Same-host requests are always accepted                                             |
 
 4. Deploy. Without `DATABASE_URL` or `APP_TOKEN`, the API returns a clear setup message instead of data.
 
@@ -138,6 +155,11 @@ Model output is not guaranteed to be correct. Prompts require dated sources, unk
 - [Hosted files and artifacts](https://developers.openai.com/api/docs/guides/agents-api/environments/files)
 - [Usage and cost accounting](https://developers.openai.com/api/docs/guides/agents-api/observability)
 - [MCP connections](https://developers.openai.com/api/docs/guides/agents-api/tools/mcp)
+
+Alternative provider:
+
+- [Google Antigravity agent](https://ai.google.dev/gemini-api/docs/antigravity-agent)
+- [Antigravity environments](https://ai.google.dev/gemini-api/docs/agent-environment)
 
 ## Stack
 

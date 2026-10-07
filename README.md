@@ -45,6 +45,20 @@ Google uses background stored interactions, web search, a hosted sandbox, a best
 - Keys stay on the server. Never use a `VITE_` variable for credentials. A configured key does not prove access; the first live request does.
 - Structured JSON from either provider is validated before company records are shown.
 
+### OpenAI access word
+
+OpenAI is billed for every live run, so it is locked by default. In the research form it appears grayed out with an explanation; entering the access word unlocks it for that browser tab.
+
+```dotenv
+OPENAI_UNLOCK_WORD=choose-a-word
+```
+
+- The word is checked on the server. It is never sent to the browser bundle or stored in the browser; a successful unlock returns a signed token kept in tab session storage.
+- Without the token the API refuses live OpenAI runs, follow-ups on OpenAI runs (including runs from before provider selection), and CRM exports through OpenAI. Google runs and demo runs are unaffected.
+- If `OPENAI_UNLOCK_WORD` is empty, OpenAI cannot be unlocked at all. Changing the word invalidates earlier unlocks.
+- Five wrong attempts lock the form for 10 minutes (per server instance).
+- Scheduled checks on an OpenAI run that was started while unlocked continue to run; stop the schedule to stop their usage.
+
 ## Workflows
 
 - **Market intelligence:** market structure, company comparisons, public pricing, regulation, calculations, and an investor briefing.
@@ -133,6 +147,7 @@ The repository is ready for Vercel: `vercel.json` builds the Vite frontend to th
 | `CRON_SECRET`                   | Optional random string; enables the scheduled backstop (Vercel sends it automatically)                            |
 | `DEFAULT_PROVIDER`              | `openai`, or `google` while testing on a Google free tier                                                         |
 | `OPENAI_MODEL`                  | `gpt-6-astra`                                                                                                     |
+| `OPENAI_UNLOCK_WORD`            | The access word that unlocks OpenAI in the UI (mark Sensitive). Leave empty to keep OpenAI unavailable            |
 | `GEMINI_AGENT` / `GEMINI_MODEL` | `antigravity-preview-09-2026` / `gemini-3.8-flash` (only with `GEMINI_API_KEY`)                                   |
 | `APP_ORIGIN`                    | Optional; your production URL. Same-host requests are always accepted                                             |
 

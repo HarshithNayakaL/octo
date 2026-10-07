@@ -24,6 +24,7 @@ const { app, engine } = createApp({
   crmReady: setup.crmReady,
   origin: process.env.APP_ORIGIN ?? "http://127.0.0.1:5173",
   token: process.env.APP_TOKEN,
+  openaiGate: { word: process.env.OPENAI_UNLOCK_WORD || undefined },
   production:
     process.env.NODE_ENV === "production" ||
     process.argv.includes("--production"),

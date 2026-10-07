@@ -2,7 +2,7 @@ import express from "express";
 import helmet from "helmet";
 import multer from "multer";
 import { z } from "zod";
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { resolve, basename } from "node:path";
 import type { RunStore } from "./store.js";
 import { Engine, active, type EngineOptions } from "./engine.js";
@@ -68,7 +68,19 @@ interface AppOptions {
   engine?: EngineOptions;
   /** A configuration problem that makes the API unusable; reported instead of serving data. */
   setupError?: string;
+  /**
+   * When present, live OpenAI work needs an unlock token earned with this word.
+   * Without a word the gate stays closed. Omit the object to leave OpenAI open.
+   */
+  openaiGate?: { word?: string };
 }
+const sameSecret = (expected: string, received: string) => {
+  const a = Buffer.from(expected);
+  const b = Buffer.from(received);
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+export const openaiUnlockToken = (word: string) =>
+  createHmac("sha256", word).update("octo-openai-unlock:v1").digest("hex");
 export function createApp(options: AppOptions) {
   const { store, provider } = options;
   const registry = {
@@ -96,6 +108,26 @@ export function createApp(options: AppOptions) {
   const advance = (id?: string) =>
     background(id ? engine.process(id) : engine.tick());
   const uploadLimit = options.uploadLimitBytes ?? 5 * 1024 * 1024;
+  const gate = options.openaiGate;
+  const openaiAccess = !gate ? "open" : gate.word ? "word" : "disabled";
+  const openaiUnlocked = (req: express.Request) =>
+    !gate ||
+    Boolean(
+      gate.word &&
+        sameSecret(
+          openaiUnlockToken(gate.word),
+          String(req.headers["x-openai-unlock"] ?? ""),
+        ),
+    );
+  const openaiLocked = (res: express.Response) =>
+    res.status(403).json({
+      code: "openai_locked",
+      error:
+        openaiAccess === "disabled"
+          ? "OpenAI is not enabled on this server. Use Google Gemini, or ask the administrator to set an access word."
+          : "OpenAI is locked to control API costs. Enter the access word in the research form to unlock it, or use Google Gemini.",
+    });
+  const unlockFailures = new Map<string, { count: number; at: number }>();
   const app = express();
   app.disable("x-powered-by");
   if (options.deployment === "vercel") {
@@ -206,10 +238,44 @@ export function createApp(options: AppOptions) {
       authRequired: Boolean(options.token),
       api: defaultProfile.name,
       deployment: options.deployment ?? "local",
+      openaiAccess,
       storage: store.kind,
       uploadLimitMb: Math.floor(uploadLimit / (1024 * 1024)),
     }),
   );
+  app.post("/api/openai/unlock", (req, res) => {
+    const key = req.ip ?? "local";
+    const now = Date.now();
+    const prev = unlockFailures.get(key);
+    const failures =
+      prev && now - prev.at < 10 * 60000 ? prev : { count: 0, at: now };
+    if (failures.count >= 5) {
+      res.status(429).json({
+        error: "Too many incorrect attempts. Try again in 10 minutes.",
+      });
+      return;
+    }
+    const { word } = z
+      .object({ word: z.string().trim().min(1).max(200) })
+      .parse(req.body);
+    if (!gate || !gate.word) {
+      res.status(409).json({
+        error:
+          openaiAccess === "open"
+            ? "OpenAI is not locked on this server."
+            : "No access word is configured on this server.",
+      });
+      return;
+    }
+    if (!sameSecret(gate.word, word)) {
+      failures.count++;
+      unlockFailures.set(key, failures);
+      res.status(403).json({ error: "That word doesn’t match." });
+      return;
+    }
+    unlockFailures.delete(key);
+    res.json({ token: openaiUnlockToken(gate.word) });
+  });
   app.get("/api/runs", async (_req, res) => {
     const runs = await store.list();
     res.json(
@@ -237,6 +303,14 @@ export function createApp(options: AppOptions) {
     const profile = profiles.find((p) => p.id === providerId);
     if (!profile) {
       res.status(400).json({ error: "Unsupported research provider" });
+      return;
+    }
+    if (
+      providerId === "openai" &&
+      data.mode === "live" &&
+      !openaiUnlocked(req)
+    ) {
+      openaiLocked(res);
       return;
     }
     if (data.mode === "live" && !registry[providerId]) {
@@ -353,6 +427,14 @@ export function createApp(options: AppOptions) {
     const { message } = z
       .object({ message: z.string().trim().min(5).max(20000) })
       .parse(req.body);
+    if (
+      (run.provider ?? "openai") === "openai" &&
+      run.mode === "live" &&
+      !openaiUnlocked(req)
+    ) {
+      openaiLocked(res);
+      return;
+    }
     if (run.mode === "live" && !run.sessionId) {
       res
         .status(409)
@@ -476,6 +558,10 @@ export function createApp(options: AppOptions) {
       return;
     }
     z.object({ approved: z.literal(true) }).parse(req.body);
+    if ((run.provider ?? "openai") === "openai" && !openaiUnlocked(req)) {
+      openaiLocked(res);
+      return;
+    }
     if (!options.crmReady || !getProvider(run)) {
       res.status(409).json({
         error: "Configure the CRM MCP endpoint and allowed tools first.",

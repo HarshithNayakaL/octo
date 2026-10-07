@@ -560,3 +560,69 @@ canvas.mascot {
 .activity-feed .activity-item:before {
   left: 9px;
 }
+
+/* OpenAI cost gate in the research form */
+.openai-gate {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: -6px 0 20px;
+  padding: 13px 14px;
+  border: 1px solid #e3e6ee;
+  border-radius: 6px;
+  background: #f8f9fb;
+  color: #6f7686;
+}
+.openai-gate > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #8a93a6;
+}
+.openai-gate > div {
+  flex: 1;
+  min-width: 0;
+}
+.openai-gate p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.openai-gate b {
+  color: var(--ink);
+}
+.openai-gate-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.openai-gate-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid #e1e3eb;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fff;
+}
+.openai-gate-form button {
+  flex-shrink: 0;
+}
+.openai-gate .form-error {
+  margin-top: 8px;
+}
+.openai-gate.unlocked {
+  align-items: center;
+  border-color: var(--blue-line);
+  background: var(--blue-soft);
+}
+.openai-gate.unlocked > svg {
+  color: var(--blue);
+}
+.openai-gate.unlocked p {
+  flex: 1;
+}
+@media (max-width: 520px) {
+  .openai-gate-form {
+    flex-direction: column;
+  }
+}

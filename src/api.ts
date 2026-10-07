@@ -1,5 +1,12 @@
 export const accessToken = () =>
   sessionStorage.getItem("workspace-token") ?? "";
+const UNLOCK_KEY = "openai-unlock";
+/** Proof of the OpenAI access word for this tab. The word itself is never stored. */
+export const openaiUnlock = {
+  get: () => sessionStorage.getItem(UNLOCK_KEY) ?? "",
+  set: (token: string) => sessionStorage.setItem(UNLOCK_KEY, token),
+  clear: () => sessionStorage.removeItem(UNLOCK_KEY),
+};
 export async function api<T>(
   path: string,
   options: RequestInit = {},
@@ -11,11 +18,14 @@ export async function api<T>(
         ? {}
         : { "Content-Type": "application/json" }),
       ...(accessToken() ? { Authorization: "Bearer " + accessToken() } : {}),
+      ...(openaiUnlock.get() ? { "X-OpenAI-Unlock": openaiUnlock.get() } : {}),
       ...options.headers,
     },
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
+    // A changed word invalidates earlier unlocks; forget the stale one.
+    if (data.code === "openai_locked") openaiUnlock.clear();
     throw new Error(data.error ?? `Request failed (${response.status})`);
   }
   return response.json();

@@ -103,7 +103,13 @@ export interface Run {
   model?: string;
   crmState?: "pending" | "completed" | "failed";
 }
+/**
+ * OpenAI is billed per use, so live OpenAI work can be gated behind an access word.
+ * "open": no gate. "word": unlockable with the server's word. "disabled": gated, no word configured.
+ */
+export type OpenAIAccess = "open" | "word" | "disabled";
 export interface Configuration {
+  openaiAccess?: OpenAIAccess;
   /** Where runs are stored and how background work is driven. */
   deployment?: "local" | "vercel";
   storage?: "sqlite" | "postgres";

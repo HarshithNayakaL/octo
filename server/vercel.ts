@@ -51,6 +51,7 @@ const { app } = createApp({
   crmReady: setup.crmReady,
   origin: env.APP_ORIGIN ?? (production ? `https://${production}` : ""),
   token: env.APP_TOKEN,
+  openaiGate: { word: env.OPENAI_UNLOCK_WORD || undefined },
   deployment: "vercel",
   background: (work) => waitUntil(work.catch(() => undefined)),
   driveOnRequest: true,

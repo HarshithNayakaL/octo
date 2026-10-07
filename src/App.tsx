@@ -42,6 +42,8 @@ import {
   AlertCircle,
   Paperclip,
   RefreshCw,
+  Lock,
+  LockOpen,
 } from "lucide-react";
 import Overview from "./OriginalOverview";
 import SearchDialog from "./SearchDialog";
@@ -62,7 +64,7 @@ import {
 } from "./agents";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { api, download } from "./api";
+import { api, download, openaiUnlock } from "./api";
 import {
   workflowLabels,
   type Run,
@@ -773,10 +775,17 @@ function NewResearch({
       model: config?.model ?? "",
     },
   ];
-  const [provider, setProvider] = useState<ProviderId>(
-    config?.defaultProvider ?? "openai",
+  const [provider, setProvider] = useState<ProviderId>(() =>
+    (config?.defaultProvider ?? "openai") === "openai" &&
+    (config?.openaiAccess ?? "open") !== "open" &&
+    !openaiUnlock.get()
+      ? "google"
+      : (config?.defaultProvider ?? "openai"),
   );
   const profile = profiles.find((p) => p.id === provider);
+  const gated = (config?.openaiAccess ?? "open") !== "open";
+  const [unlocked, setUnlocked] = useState(Boolean(openaiUnlock.get()));
+  const openaiLocked = gated && !unlocked;
   const [mode, setMode] = useState<"demo" | "live">(
     profile?.ready ? "live" : "demo",
   );
@@ -1017,9 +1026,32 @@ function NewResearch({
                 if (!profiles.find((p) => p.id === value)?.ready)
                   setMode("demo");
               }}
-              options={profiles.map((p) => ({ value: p.id, label: p.name }))}
+              options={profiles.map((p) => ({
+                value: p.id,
+                label:
+                  p.id === "openai" && openaiLocked
+                    ? `${p.name} · locked`
+                    : p.name,
+                disabled: p.id === "openai" && openaiLocked,
+              }))}
             />
           </label>
+          {gated && (
+            <OpenAIGate
+              access={config?.openaiAccess ?? "open"}
+              unlocked={unlocked}
+              onUnlock={() => setUnlocked(true)}
+              onLock={() => {
+                openaiUnlock.clear();
+                setUnlocked(false);
+                if (provider === "openai") {
+                  setProvider("google");
+                  if (!profiles.find((p) => p.id === "google")?.ready)
+                    setMode("demo");
+                }
+              }}
+            />
+          )}
           <div className="run-options">
             <label className="field">
               Run mode
@@ -1122,6 +1154,104 @@ function NewResearch({
         </footer>
       </form>
     </Modal>
+  );
+}
+
+/** OpenAI is billed per use; it stays grayed out until someone enters the access word. */
+function OpenAIGate({
+  access,
+  unlocked,
+  onUnlock,
+  onLock,
+}: {
+  access: string;
+  unlocked: boolean;
+  onUnlock: () => void;
+  onLock: () => void;
+}) {
+  const [word, setWord] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (unlocked)
+    return (
+      <div className="openai-gate unlocked">
+        <LockOpen size={16} />
+        <p>
+          <b>OpenAI unlocked for this browser tab.</b> Live OpenAI runs are
+          billed to the project’s API credit.
+        </p>
+        <button type="button" className="text-link" onClick={onLock}>
+          Lock again
+        </button>
+      </div>
+    );
+  async function unlock() {
+    setBusy(true);
+    setError("");
+    try {
+      const { token } = await api<{ token: string }>("/openai/unlock", {
+        method: "POST",
+        body: JSON.stringify({ word }),
+      });
+      openaiUnlock.set(token);
+      setWord("");
+      onUnlock();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="openai-gate">
+      <Lock size={16} />
+      <div>
+        <p>
+          <b>OpenAI Agents API is locked.</b> OpenAI is billed for every live
+          run, so it is reserved for approved use. Google Gemini runs on a
+          free-tier key and is used by default.
+        </p>
+        {access === "word" ? (
+          <>
+            <div className="openai-gate-form">
+              <input
+                type="password"
+                autoComplete="off"
+                aria-label="OpenAI access word"
+                placeholder="Access word"
+                value={word}
+                onChange={(e) => setWord(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (word.trim()) void unlock();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy || !word.trim()}
+                onClick={() => void unlock()}
+              >
+                {busy ? <Arc size={14} /> : <LockOpen size={14} />}
+                Unlock OpenAI
+              </button>
+            </div>
+            {error && (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="muted">
+            No access word is configured on this server, so OpenAI cannot be
+            unlocked here.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -72,14 +72,16 @@ export function sourcesFromReport(report: string): Source[] {
   }
   return [...sources.values()];
 }
+/** A quoted CSV cell; leading formula characters are neutralised for spreadsheets. */
+export const csvCell = (value: string) =>
+  '"' +
+  (/^[\s]*[=+@\-\t\r]/.test(value) ? "'" + value : value).replaceAll(
+    '"',
+    '""',
+  ) +
+  '"';
 export function toCsv(leads: Lead[]): string {
-  const cell = (value: string) =>
-    '"' +
-    (/^[\s]*[=+@\-\t\r]/.test(value) ? "'" + value : value).replaceAll(
-      '"',
-      '""',
-    ) +
-    '"';
+  const cell = csvCell;
   return [
     "company,website,industry,size,fit,evidence,potential_needs,decision_maker,sources",
     ...leads.map((l) =>

@@ -16,5 +16,12 @@ export function initialInput(run: Run) {
       : run.workflow === "monitor"
         ? "Produce the initial research briefing. On subsequent checks, search for new evidence, compare against saved findings, and report meaningful changes with dates. Preserve prior context and notes."
         : "Prepare an investor briefing covering market structure, companies, competitor comparison, public pricing, regulations, risks, and investment questions. Avoid investment recommendations unsupported by evidence.";
-  return `${specifics}\n\nResearch brief:\n${run.brief}\n\nInput files: ${run.attachments.length ? run.attachments.map((x) => "/workspace/inputs/" + x.id + "-" + x.name).join(", ") : "None"}`;
+  const wanted = run.outputFormat ?? "auto";
+  const deliverable =
+    wanted === "csv"
+      ? "The user wants a CSV deliverable: put every tabular result in Markdown tables with one row per item and consistent columns."
+      : wanted === "pdf" || wanted === "docx"
+        ? `The user wants a ${wanted === "pdf" ? "PDF" : "Word"} document; Octo renders it from your Markdown report, so use clear headings, short paragraphs, and Markdown tables for comparisons.`
+        : "Octo turns your Markdown report into the user's chosen file format; use clear headings and Markdown tables for tabular data.";
+  return `${specifics}\n${deliverable}\n\nResearch brief:\n${run.brief}\n\nInput files: ${run.attachments.length ? run.attachments.map((x) => "/workspace/inputs/" + x.id + "-" + x.name).join(", ") : "None"}`;
 }

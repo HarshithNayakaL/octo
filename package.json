@@ -24,13 +24,18 @@
     "@vercel/functions": "^3.9.9",
     "bot-avatars": "^0.1.2",
     "cmdk": "^1.1.1",
+    "docx": "^9.9.0",
     "dotenv": "^16.6.1",
     "echarts": "^6.1.0",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "loading-dev": "^0.3.5",
     "lucide-react": "^0.468.0",
+    "mdast-util-from-markdown": "^2.0.3",
+    "mdast-util-gfm": "^3.1.0",
+    "micromark-extension-gfm": "^3.0.0",
     "multer": "^2.0.2",
+    "pdfkit": "^0.20.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
@@ -41,8 +46,10 @@
     "@electric-sql/pglite": "^0.5.8",
     "@playwright/test": "^1.55.0",
     "@types/express": "^5.0.3",
+    "@types/mdast": "^4.0.4",
     "@types/multer": "^2.0.0",
     "@types/node": "^22.18.0",
+    "@types/pdfkit": "^0.17.6",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@types/supertest": "^6.0.3",
@@ -54,5 +61,8 @@
     "typescript": "^5.9.2",
     "vite": "^6.3.5",
     "vitest": "^5.0.3"
+  },
+  "overrides": {
+    "shell-quote": "^1.12.0"
   }
 }

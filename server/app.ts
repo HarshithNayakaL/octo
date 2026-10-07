@@ -12,7 +12,8 @@ import type {
   ProviderId,
   ProviderConfiguration,
 } from "../shared/types.js";
-import { toCsv } from "./results.js";
+import { renderDeliverable } from "./deliverables.js";
+import { formatsFor, preferredFormat } from "../shared/formats.js";
 
 const creation = z
   .object({
@@ -21,6 +22,7 @@ const creation = z
     brief: z.string().trim().min(15).max(20000),
     icp: z.string().trim().max(20000).default(""),
     targetCount: z.number().int().min(1).max(100).default(10),
+    outputFormat: z.enum(["auto", "pdf", "docx", "csv", "md"]).default("auto"),
     mode: z.enum(["demo", "live"]).default("demo"),
     provider: z.enum(["openai", "google"]).optional(),
     attachmentIds: z.array(z.string().uuid()).max(5).default([]),
@@ -498,29 +500,32 @@ export function createApp(options: AppOptions) {
       res.status(404).json({ error: "Research not found" });
       return;
     }
-    const format = z
-      .enum(["md", "json", "csv"])
-      .parse(req.query.format ?? "md");
     if (!run.report) {
       res.status(409).json({ error: "No report is ready yet" });
       return;
     }
+    const format =
+      z
+        .enum(["pdf", "docx", "csv", "md", "json"])
+        .optional()
+        .parse(req.query.format) ?? preferredFormat(run);
+    if (!formatsFor(run).includes(format)) {
+      res.status(409).json({
+        error: "This report has no company records or tables to export as CSV.",
+      });
+      return;
+    }
+    const file = await renderDeliverable(run, format);
+    const name =
+      run.title
+        .replace(/[^a-zA-Z0-9-]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 80) || `research-${run.id}`;
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="research-${run.id}.${format}"`,
+      `attachment; filename="${name}.${file.extension}"`,
     );
-    if (format === "csv") res.type("text/csv").send(toCsv(run.leads));
-    else if (format === "json")
-      res.json({
-        title: run.title,
-        mode: run.mode,
-        brief: run.brief,
-        report: run.report,
-        sources: run.sources,
-        leads: run.leads,
-        notes: run.notes,
-      });
-    else res.type("text/markdown").send(run.report);
+    res.type(file.contentType).send(file.bytes);
   });
   app.get("/api/runs/:id/artifacts/:artifactId", async (req, res) => {
     const run = await store.get(req.params.id);

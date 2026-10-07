@@ -33,9 +33,13 @@ test("market research, notes, sources, and download work end to end in demo mode
     page.getByRole("textbox", { name: "Research notes" }),
   ).toHaveValue("Durable E2E note");
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download report" }).click();
+  await page.getByRole("button", { name: "Download PDF" }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/\.md$/);
+  expect(download.suggestedFilename()).toMatch(/\.pdf$/);
+  await page.getByRole("button", { name: "Other download formats" }).click();
+  const wordPromise = page.waitForEvent("download");
+  await page.getByRole("menuitem", { name: "Word (.docx)" }).click();
+  expect((await wordPromise).suggestedFilename()).toMatch(/\.docx$/);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,

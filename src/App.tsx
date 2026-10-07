@@ -65,6 +65,13 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api, download, openaiUnlock } from "./api";
+import DownloadMenu from "./DownloadMenu";
+import {
+  choiceLabels,
+  formatFromBrief,
+  formatLabels,
+  type OutputChoice,
+} from "../shared/formats";
 import {
   workflowLabels,
   type Run,
@@ -767,6 +774,9 @@ function NewResearch({
   const [brief, setBrief] = useState(initialBrief);
   const [icp, setIcp] = useState("");
   const [count, setCount] = useState(10);
+  const [outputFormat, setOutputFormat] = useState<OutputChoice>("auto");
+  const autoFormat =
+    formatFromBrief(brief) ?? (kind === "sales" ? "csv" : "pdf");
   const profiles = config?.providers ?? [
     {
       id: "openai" as const,
@@ -852,6 +862,7 @@ function NewResearch({
             brief,
             icp: kind === "sales" ? icp : "",
             targetCount: count,
+            outputFormat,
             mode,
             provider,
             attachmentIds: files.map((f) => f.id),
@@ -976,6 +987,28 @@ function NewResearch({
               </label>
             </>
           )}
+          <label className="field">
+            Deliverable
+            <Select
+              label="Deliverable"
+              value={outputFormat}
+              onChange={(value) => setOutputFormat(value as OutputChoice)}
+              options={(Object.keys(choiceLabels) as OutputChoice[]).map(
+                (value) => ({
+                  value,
+                  label:
+                    value === "auto"
+                      ? `${choiceLabels.auto} · ${formatLabels[autoFormat]}`
+                      : choiceLabels[value],
+                }),
+              )}
+            />
+            <small className="field-hint">
+              {outputFormat === "auto"
+                ? "Uses the format your brief asks for; otherwise CSV for company lists and PDF for briefings. Every other format stays available to download."
+                : "The main download uses this format. Every other format stays available to download."}
+            </small>
+          </label>
           <div className="file-attach">
             <input
               ref={fileInput}
@@ -1399,7 +1432,7 @@ function RunDetail({
     try {
       await download(
         `/runs/${run.id}/export?format=${format}`,
-        `${run.title.replace(/[^a-zA-Z0-9-]/g, "-")}.${format}`,
+        `${run.title.replace(/[^a-zA-Z0-9-]+/g, "-").replace(/^-|-$/g, "")}.${format}`,
       );
     } catch (e) {
       onError((e as Error).message);
@@ -1445,14 +1478,16 @@ function RunDetail({
               Schedule
             </button>
           ) : null}
-          <button
-            className="primary"
-            disabled={!run.report}
-            onClick={() => void exportFile("md")}
-          >
-            <Download size={15} />
-            Download report
-          </button>
+          <DownloadMenu
+            run={run}
+            onDownload={(format) => void exportFile(format)}
+            onArtifact={(artifactId, name) =>
+              void download(
+                `/runs/${run.id}/artifacts/${artifactId}`,
+                name,
+              ).catch((e) => onError(e.message))
+            }
+          />
         </div>
       </div>
       {run.mode === "demo" && (

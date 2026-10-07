@@ -8,15 +8,15 @@ import { seedRun } from "./demo.js";
 /*
  * Vercel entry. There is no long-running worker: research advances in short
  * leased steps triggered by API requests (the UI polls while a run is open),
- * kept alive with waitUntil, plus a scheduled backstop at /api/cron/tick.
+ * kept alive with waitUntil. /api/cron/tick is an optional backstop (CRON_SECRET).
  */
 const env = process.env;
 const databaseUrl = env.DATABASE_URL ?? env.POSTGRES_URL;
+// Neon from the Vercel Marketplace adds DATABASE_URL automatically.
+// APP_TOKEN is optional: without it the workspace is open to anyone with the URL.
 const missing = !databaseUrl
-  ? "Connect a Postgres database to this Vercel project (DATABASE_URL), then redeploy."
-  : !env.APP_TOKEN
-    ? "Set APP_TOKEN in the Vercel project's environment variables, then redeploy. A public deployment must be protected."
-    : undefined;
+  ? "Connect a Postgres database to this Vercel project (Storage → Neon), then redeploy."
+  : undefined;
 const sql: Query = databaseUrl
   ? (() => {
       const query = neon(databaseUrl);

@@ -626,3 +626,68 @@ canvas.mascot {
     flex-direction: column;
   }
 }
+
+/* Deliverable picker and download menu */
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8a91a3;
+  font-weight: 400;
+}
+.download-menu {
+  position: relative;
+  display: inline-flex;
+}
+.download-menu .download-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.download-menu .download-toggle {
+  padding-left: 10px;
+  padding-right: 10px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid #ffffff40;
+}
+.download-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 220px;
+  padding: 5px;
+  border: 1px solid #dde3ef;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 12px 32px #132b581c;
+}
+.download-group {
+  padding: 8px 10px 4px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a0a7b6;
+}
+.download-options button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #3f4656;
+  text-align: left;
+}
+.download-options button:hover,
+.download-options button:focus-visible {
+  background: #eff3fc;
+  color: var(--blue);
+  outline: none;
+}
+.download-options button svg {
+  color: #8a93a6;
+  flex-shrink: 0;
+}

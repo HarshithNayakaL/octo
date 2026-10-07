@@ -58,6 +58,8 @@ export interface Artifact {
 }
 export interface Run {
   provider?: ProviderId;
+  /** Requested deliverable; "auto" picks from the brief and workflow. */
+  outputFormat?: "auto" | "pdf" | "docx" | "csv" | "md";
   agentName?: string;
   baseModel?: string;
   creationAttempted?: boolean;

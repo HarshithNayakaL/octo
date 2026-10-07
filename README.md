@@ -69,6 +69,15 @@ Each workflow supports a brief, up to five context files (5 MB each), activity, 
 
 User notes are stored locally; they are not automatically added to the remote prompt. Include any notes you want used in your next follow-up.
 
+## Downloads
+
+Every finished run can be downloaded as **PDF**, **Word (.docx)**, **CSV**, **Markdown** or **JSON**. Choose the main format under **Deliverable** in the research form; **Best for the task** uses the format your brief asks for ("send it as a spreadsheet"), otherwise CSV for company lists and PDF for briefings. The run's download button uses that format, and the menu beside it offers the rest.
+
+- Octo renders these files itself from the agent's Markdown report, so downloads work without extra agent usage. PDFs embed the Inter font (OFL, `assets/fonts`), so characters such as ₹ print correctly.
+- Documents include the report, company records (sales), and the source list.
+- CSV contains company records when present, otherwise every table in the report; it is offered only when there are rows. Spreadsheet formulas are neutralised and the file opens as UTF-8 in Excel.
+- Files the agent writes itself (for example `/workspace/outputs/leads.csv`) are listed under **Files from the agent**.
+
 ## A small first live test
 
 1. For OpenAI, add API credit and configure spend controls in your project. A ChatGPT subscription does not supply this app's API billing. To test without spending credit first, use Google on a free-tier project and inspect its AI Studio quotas.
@@ -125,35 +134,29 @@ Production runs at **http://127.0.0.1:3001** and serves both the frontend and AP
 
 ## Deploy to Vercel
 
-The repository is ready for Vercel: `vercel.json` builds the Vite frontend to the CDN and serves the Express API as one Vercel Function (`api/index.js`, compiled from `server/vercel.ts`). Run locally exactly as before; Vercel mode only applies to the deployed function.
-
-**How it works without a server process.** Serverless functions stop between requests, so there is no background worker. Each run advances in short, leased steps:
-
-- While the workspace is open, the UI's regular refresh triggers the next step, kept alive after the response with `waitUntil`. A run therefore progresses while someone has the app open.
-- `/api/cron/tick` is a scheduled backstop. On the **Hobby plan Vercel allows cron at most once per day**, so scheduled ongoing-research checks run when someone opens the workspace or at the daily tick. On Pro, change the schedule in `vercel.json` (for example `*/5 * * * *`).
-- A database lease ensures only one function instance advances a run at a time, so concurrent requests can never create a duplicate paid session. Steps on one run are spaced at least 4 seconds apart.
+`vercel.json` builds the Vite frontend to the CDN and serves the Express API as one Vercel Function (`api/index.js`, compiled from `server/vercel.ts`). Local development is unchanged.
 
 **Setup**
 
-1. Import the repository in Vercel (framework detected from `vercel.json`).
-2. Add a Postgres database from the Vercel Marketplace (Neon). It provides `DATABASE_URL`; tables are created automatically on first use.
-3. Add environment variables (Production):
+1. Import the repository in Vercel. Framework and build settings come from `vercel.json`.
+2. **Storage → Create Database → Neon** (free plan) and connect it to the project. This adds `DATABASE_URL` automatically; you do not type it. Serverless functions keep no disk between requests, so runs, reports and notes are stored here. Tables are created on first use.
+3. Add your API keys under **Settings → Environment Variables** (Production):
 
-| Variable                        | Value                                                                                                             |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `OPENAI_API_KEY`                | Your OpenAI key with Agents API access (mark Sensitive)                                                           |
-| `GEMINI_API_KEY`                | Optional alternative provider: your Google AI Studio key (mark Sensitive)                                         |
-| `APP_TOKEN`                     | A long random string, e.g. `openssl rand -hex 32` (mark Sensitive). Required: the API refuses to serve without it |
-| `CRON_SECRET`                   | Optional random string; enables the scheduled backstop (Vercel sends it automatically)                            |
-| `DEFAULT_PROVIDER`              | `openai`, or `google` while testing on a Google free tier                                                         |
-| `OPENAI_MODEL`                  | `gpt-6-astra`                                                                                                     |
-| `OPENAI_UNLOCK_WORD`            | The access word that unlocks OpenAI in the UI (mark Sensitive). Leave empty to keep OpenAI unavailable            |
-| `GEMINI_AGENT` / `GEMINI_MODEL` | `antigravity-preview-09-2026` / `gemini-3.8-flash` (only with `GEMINI_API_KEY`)                                   |
-| `APP_ORIGIN`                    | Optional; your production URL. Same-host requests are always accepted                                             |
+| Variable             | When                                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`     | Always (default provider, free tier)                                                            |
+| `OPENAI_API_KEY`     | Only if OpenAI should be available                                                              |
+| `OPENAI_UNLOCK_WORD` | Only with an OpenAI key: the word that unlocks OpenAI in the UI. Without it OpenAI stays locked |
 
-4. Deploy. Without `DATABASE_URL` or `APP_TOKEN`, the API returns a clear setup message instead of data.
+4. Deploy. Changing variables later requires a redeploy.
 
-**Limits on Vercel.** Function request and response bodies are capped at 4.5 MB, so uploads are limited to 4 MB per file and Google output files are cached only up to 4 MB (larger outputs stay in your Google project). Files are stored in Postgres. Each step must finish within the 300-second function limit. The per-minute write rate limit is per function instance.
+Defaults cover everything else: Google is the default provider, `antigravity-preview-09-2026` / `gemini-3.8-flash` for Google and `gpt-6-astra` for OpenAI. Override with `DEFAULT_PROVIDER`, `GEMINI_AGENT`, `GEMINI_MODEL` or `OPENAI_MODEL` if needed.
+
+**Optional hardening.** Without `APP_TOKEN`, anyone with the URL can open the workspace, read saved research, and start Google runs on your key's free-tier quota (OpenAI stays protected by the unlock word). Set `APP_TOKEN` to require an access token. `CRON_SECRET` enables `/api/cron/tick`, a backstop you can call from any scheduler.
+
+**How work progresses.** There is no background worker on serverless. A run advances in short steps whenever the workspace is open (the UI refreshes every few seconds), kept alive with `waitUntil`. Close the tab and the run pauses until someone opens the app again. Scheduled ongoing-research checks run the same way. A database lease ensures only one function instance advances a run at a time, so concurrent requests never create a duplicate paid session.
+
+**Limits on Vercel.** Request and response bodies are capped at 4.5 MB: uploads are limited to 4 MB per file and Google output files are cached up to 4 MB. Each step must finish within the 300-second function limit.
 
 ## Product boundaries
 

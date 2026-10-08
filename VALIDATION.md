@@ -75,3 +75,9 @@ Not verified: a real Vercel deployment, Neon connectivity and latency, `waitUnti
 - In Chromium, a sales demo downloads CSV by default and PDF and Word from the menu; a market demo downloads PDF and Word in the committed e2e suite (4 of 4 passed).
 - `vercel build` succeeds. The fonts are traced into the function bundle, and that bundle renders PDF, Word and CSV on its own. The daily cron was removed; `APP_TOKEN` is optional on Vercel.
 - 65 backend tests pass, including 9 deliverable tests.
+
+## First Vercel deployment (October 8, 2026)
+
+https://octo-agents.vercel.app was deployed from `main` by the user. The first build could not find the database because the Neon integration had created its variables under a different prefix; Octo now accepts the connection string under any `*_URL` name (covered by a test). After the automatic redeploy, the live API reported `storage: postgres`, Google and OpenAI keys present, OpenAI locked behind the access word, a 4 MB upload limit, and no access token. The seeded sample run was read back from Neon, confirming database writes.
+
+Not yet verified on the live site: a demo or live research run, downloads, or the OpenAI unlock flow.

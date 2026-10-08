@@ -134,12 +134,14 @@ Production runs at **http://127.0.0.1:3001** and serves both the frontend and AP
 
 ## Deploy to Vercel
 
+Live deployment: **https://octo-agents.vercel.app** (Google Gemini by default, OpenAI behind the unlock word).
+
 `vercel.json` builds the Vite frontend to the CDN and serves the Express API as one Vercel Function (`api/index.js`, compiled from `server/vercel.ts`). Local development is unchanged.
 
 **Setup**
 
 1. Import the repository in Vercel. Framework and build settings come from `vercel.json`.
-2. **Storage → Create Database → Neon** (free plan) and connect it to the project. This adds `DATABASE_URL` automatically; you do not type it. Serverless functions keep no disk between requests, so runs, reports and notes are stored here. Tables are created on first use.
+2. **Storage → Create Database → Neon** (free plan) and connect it to the project for Production. The integration adds the connection string automatically; you do not type it. Any variable prefix works (`DATABASE_URL`, `STORAGE_URL`, `POSTGRES_URL`, …): Octo uses the first `*_URL` variable holding a `postgres://` connection string, preferring the pooled one. Serverless functions keep no disk between requests, so runs, reports and notes are stored here. Tables are created on first use.
 3. Add your API keys under **Settings → Environment Variables** (Production):
 
 | Variable             | When                                                                                            |

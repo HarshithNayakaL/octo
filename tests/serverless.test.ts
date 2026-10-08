@@ -13,6 +13,8 @@ import { seedRun } from "../server/demo";
 import type { Provider } from "../server/provider";
 import type { Run } from "../shared/types";
 
+// PGlite (Postgres in WebAssembly) can take several seconds to start cold.
+vi.setConfig({ testTimeout: 20_000 });
 let pg: PGlite;
 let store: PostgresStore;
 beforeEach(async () => {
@@ -311,4 +313,19 @@ it("restores API routes delivered through the platform rewrite", async () => {
   const res = await request(app).get("/api?path=runs/r-9").set(auth);
   expect(res.status).toBe(200);
   expect(res.body.id).toBe("r-9");
+});
+it("finds the Neon connection string under any integration prefix", async () => {
+  const { findDatabaseUrl } = await import("../server/vercel");
+  expect(findDatabaseUrl({ DATABASE_URL: "postgres://a" })).toBe(
+    "postgres://a",
+  );
+  expect(
+    findDatabaseUrl({
+      STORAGE_URL_UNPOOLED: "postgresql://direct",
+      STORAGE_URL: "postgresql://pooled",
+      GEMINI_API_KEY: "x",
+    }),
+  ).toBe("postgresql://pooled");
+  expect(findDatabaseUrl({ STORAGE_URL: "https://not-a-db" })).toBeUndefined();
+  expect(findDatabaseUrl({})).toBeUndefined();
 });

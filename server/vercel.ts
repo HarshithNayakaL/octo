@@ -11,11 +11,30 @@ import { seedRun } from "./demo.js";
  * kept alive with waitUntil. /api/cron/tick is an optional backstop (CRON_SECRET).
  */
 const env = process.env;
-const databaseUrl = env.DATABASE_URL ?? env.POSTGRES_URL;
+/**
+ * The Neon integration names its variables after the chosen prefix
+ * (DATABASE_URL, STORAGE_URL, POSTGRES_URL, …). Accept any of them, preferring
+ * the pooled connection string.
+ */
+export function findDatabaseUrl(vars: Record<string, string | undefined>) {
+  const isPostgres = (value?: string) =>
+    Boolean(value && /^postgres(ql)?:\/\//i.test(value.trim()));
+  for (const name of ["DATABASE_URL", "POSTGRES_URL"])
+    if (isPostgres(vars[name])) return vars[name]!.trim();
+  const candidates = Object.keys(vars)
+    .filter((name) => /_URL$/.test(name) && isPostgres(vars[name]))
+    .sort(
+      (a, b) =>
+        Number(/UNPOOLED|NON_POOLING|NO_SSL/.test(a)) -
+          Number(/UNPOOLED|NON_POOLING|NO_SSL/.test(b)) || a.localeCompare(b),
+    );
+  return candidates[0] ? vars[candidates[0]]!.trim() : undefined;
+}
+const databaseUrl = findDatabaseUrl(env);
 // Neon from the Vercel Marketplace adds DATABASE_URL automatically.
 // APP_TOKEN is optional: without it the workspace is open to anyone with the URL.
 const missing = !databaseUrl
-  ? "Connect a Postgres database to this Vercel project (Storage → Neon), then redeploy."
+  ? "No Postgres connection string found. In Vercel, open Storage → your Neon database → Connect Project, select this project for Production, then redeploy."
   : undefined;
 const sql: Query = databaseUrl
   ? (() => {

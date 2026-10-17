@@ -1,4 +1,6 @@
 import { existsSync } from "node:fs";
+import { sourceKindLabels } from "../shared/types.js";
+import { classifySource } from "../shared/sources.js";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import {
@@ -136,11 +138,39 @@ function appendix(run: Run): string {
           .join("\n"),
     );
   }
+  const pulse = run.community;
+  if (pulse?.status === "done" && pulse.themes.length) {
+    const byId = new Map(pulse.items.map((i) => [i.id, i]));
+    parts.push(
+      `## What people say\n\nThemes from ${pulse.items.length} public Reddit and Hacker News posts gathered by Octo${run.mode === "demo" ? " (illustrative in this demo)" : ""}. Quotes are verbatim; treat them as first-hand experience, not proof.${pulse.takeaway ? `\n\n${pulse.takeaway}` : ""}\n\n` +
+        pulse.themes
+          .map(
+            (t) =>
+              `### ${t.title} (${t.itemIds.length} posts)\n\n${t.summary}\n\n` +
+              t.quoteIds
+                .map((id) => byId.get(id))
+                .filter(Boolean)
+                .map(
+                  (i) =>
+                    `> ${i!.text.slice(0, 400).replace(/\n/g, " ")}\n> — [${i!.where}](${i!.url})`,
+                )
+                .join("\n\n"),
+          )
+          .join("\n\n"),
+    );
+  }
   if (run.sources.length)
     parts.push(
       "## Sources\n\n" +
         run.sources
-          .map((s, i) => `${i + 1}. [${s.title}](${s.url})`)
+          .map((s, i) => {
+            const kind =
+              sourceKindLabels[
+                run.sourceInfo?.[s.url]?.kind ?? classifySource(s.url, s.title)
+              ];
+            const date = run.sourceInfo?.[s.url]?.published;
+            return `${i + 1}. [${s.title}](${s.url}) · ${kind}${date ? ` · ${date}` : ""}`;
+          })
           .join("\n"),
     );
   return parts.join("\n\n");
@@ -599,7 +629,12 @@ export async function renderDeliverable(
       return {
         bytes: Buffer.from(
           run.evidence?.status === "done" && run.evidence.claims.length
-            ? fullMarkdown({ ...run, leads: [], sources: [] })
+            ? fullMarkdown({
+                ...run,
+                leads: [],
+                sources: [],
+                community: undefined,
+              })
             : run.report,
           "utf8",
         ),
@@ -618,6 +653,8 @@ export async function renderDeliverable(
               sources: run.sources,
               leads: run.leads,
               evidence: run.evidence,
+              community: run.community,
+              sourceInfo: run.sourceInfo,
               questions: run.questions,
               notes: run.notes,
             },

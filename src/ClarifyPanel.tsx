@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Check, Lightbulb, Target } from "lucide-react";
+import { ArrowRight, Check, Lightbulb, Target, Users } from "lucide-react";
 import type { Run } from "../shared/types";
 import { Mascot, areaProfile, director } from "./agents";
 
@@ -7,6 +7,7 @@ export interface ClarifySubmission {
   answers?: { questionId: string; selected: string[]; note?: string }[];
   areas?: string[];
   extraContext?: string;
+  community?: boolean;
 }
 
 /** Octo's reading of the brief, its proposed areas, and questions to answer before research. */
@@ -28,6 +29,7 @@ export default function ClarifyPanel({
     plan?.areas.filter((a) => a.selected !== false).map((a) => a.title) ?? [],
   );
   const [extra, setExtra] = useState("");
+  const [community, setCommunity] = useState(Boolean(run.community));
   const toggle = (questionId: string, option: string, multiple: boolean) =>
     setSelected((current) => {
       const list = current[questionId] ?? [];
@@ -41,8 +43,9 @@ export default function ClarifyPanel({
   const submit = (skip = false) =>
     onSubmit(
       skip
-        ? {}
+        ? { community }
         : {
+            community,
             answers: (plan?.questions ?? []).map((q) => ({
               questionId: q.id,
               selected: selected[q.id] ?? [],
@@ -200,6 +203,24 @@ export default function ClarifyPanel({
           placeholder="Constraints, sources to trust or avoid, what you will do with the result…"
         />
       </section>
+      {run.workflow !== "sales" && (
+        <label className="clarify-toggle">
+          <input
+            type="checkbox"
+            checked={community}
+            onChange={(e) => setCommunity(e.target.checked)}
+          />
+          <Users size={16} />
+          <span>
+            <b>Include what real people say</b>
+            {run.community?.status === "done"
+              ? `Gathered ${run.community.items.length} relevant posts from Reddit and Hacker News while you read this. Their themes go to the research agent.`
+              : run.community
+                ? "Searching Reddit and Hacker News now. Research waits for it to finish."
+                : "Search Reddit and Hacker News for first-hand experience and give the themes to the research agent."}
+          </span>
+        </label>
+      )}
       <div className="clarify-actions">
         <button
           className="quiet"

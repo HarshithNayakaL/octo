@@ -1069,6 +1069,124 @@
   background: #171a23;
   color: #7ddeae;
 }
+:root[data-theme="dark"] .voices-stats {
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .theme-card {
+  border: 1px solid #373e4f;
+  background: #0f1117;
+}
+:root[data-theme="dark"] .theme-kind {
+  background: #151820;
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .theme-kind.pain {
+  background: #351714;
+  color: #ec786f;
+}
+:root[data-theme="dark"] .theme-kind.wish {
+  background: #1b1333;
+  color: #9c81d9;
+}
+:root[data-theme="dark"] .theme-kind.praise {
+  background: #171a23;
+  color: #7ddeae;
+}
+:root[data-theme="dark"] .theme-kind.workaround {
+  background: #382c15;
+  color: #f3c368;
+}
+:root[data-theme="dark"] .theme-card > p {
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .theme-bar {
+  background: #161921;
+}
+:root[data-theme="dark"] .voice-quote {
+  background: #12151b;
+}
+:root[data-theme="dark"] .voice-quote p {
+  color: #d1d4d9;
+}
+:root[data-theme="dark"] .source-mix {
+  border: 1px solid #373e4f;
+  background: #0f1117;
+}
+:root[data-theme="dark"] .mix-bar {
+  background: #161921;
+}
+:root[data-theme="dark"] .mix-legend {
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .mix-bar .mix-government,
+:root[data-theme="dark"] .mix-legend .mix-government {
+  background: #223d86;
+}
+:root[data-theme="dark"] .mix-bar .mix-academic,
+:root[data-theme="dark"] .mix-legend .mix-academic {
+  background: #12b8a5;
+}
+:root[data-theme="dark"] .mix-bar .mix-news,
+:root[data-theme="dark"] .mix-legend .mix-news {
+  background: #254ed2;
+}
+:root[data-theme="dark"] .mix-bar .mix-reference,
+:root[data-theme="dark"] .mix-legend .mix-reference {
+  background: #292e3d;
+}
+:root[data-theme="dark"] .mix-bar .mix-company,
+:root[data-theme="dark"] .mix-legend .mix-company {
+  background: #431fcd;
+}
+:root[data-theme="dark"] .mix-bar .mix-forum,
+:root[data-theme="dark"] .mix-legend .mix-forum {
+  background: #9d6316;
+}
+:root[data-theme="dark"] .mix-bar .mix-blog,
+:root[data-theme="dark"] .mix-legend .mix-blog {
+  background: #af2a20;
+}
+:root[data-theme="dark"] .mix-bar .mix-other,
+:root[data-theme="dark"] .mix-legend .mix-other {
+  background: #232734;
+}
+:root[data-theme="dark"] .kind-tag,
+:root[data-theme="dark"] .date-tag {
+  background: #151820;
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .kind-tag.mix-government {
+  background: #141d34;
+  color: #7192ea;
+}
+:root[data-theme="dark"] .kind-tag.mix-academic {
+  background: #171b23;
+  color: #69f2e3;
+}
+:root[data-theme="dark"] .kind-tag.mix-blog {
+  background: #351714;
+  color: #ec786f;
+}
+:root[data-theme="dark"] .kind-tag.mix-forum {
+  background: #362814;
+  color: #f3ba68;
+}
+:root[data-theme="dark"] .kind-tag.blocked {
+  background: #d82a1d;
+  color: #676e7e;
+}
+:root[data-theme="dark"] .kind-tag.trusted {
+  background: #171a23;
+  color: #7ddeae;
+}
+:root[data-theme="dark"] .date-tag.old {
+  background: #382c15;
+  color: #f3c368;
+}
+:root[data-theme="dark"] .source-policy {
+  border: 1px solid #373e4f;
+  background: #0f1117;
+}
 :root[data-theme="dark"] {
   color-scheme: dark;
   --blue: #7f9cff;

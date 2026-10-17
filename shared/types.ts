@@ -97,6 +97,78 @@ export interface EvidenceCheck {
   score?: number;
   error?: string;
 }
+/** A post or comment from a public community, quoted verbatim. */
+export interface CommunityItem {
+  id: string;
+  source: "reddit" | "hackernews";
+  /** Subreddit or story title, for context. */
+  where: string;
+  url: string;
+  text: string;
+  score?: number;
+  at: string;
+}
+export interface CommunityTheme {
+  title: string;
+  summary: string;
+  sentiment: "negative" | "mixed" | "positive" | "neutral";
+  kind: "pain" | "wish" | "praise" | "workaround" | "other";
+  /** Items that discuss this theme; quotes come from them verbatim. */
+  itemIds: string[];
+  quoteIds: string[];
+}
+/** What real people say about the topic, gathered from public discussions. */
+export interface CommunityPulse {
+  status: "pending" | "running" | "done" | "failed";
+  requestedAt: string;
+  finishedAt?: string;
+  queries: string[];
+  /** Items gathered per source before filtering. */
+  scanned: Partial<Record<CommunityItem["source"], number>>;
+  items: CommunityItem[];
+  themes: CommunityTheme[];
+  takeaway?: string;
+  method?: "model" | "keywords";
+  error?: string;
+  /** Feed the findings into the research when it starts. */
+  beforeResearch?: boolean;
+}
+export type SourceKind =
+  | "government"
+  | "academic"
+  | "news"
+  | "reference"
+  | "company"
+  | "forum"
+  | "blog"
+  | "other";
+export const sourceKindLabels: Record<SourceKind, string> = {
+  government: "Government & regulator",
+  academic: "Research & official data",
+  news: "News",
+  reference: "Reference",
+  company: "Company",
+  forum: "Forum & social",
+  blog: "Blog or review site",
+  other: "Other",
+};
+/** What Octo knows about a source beyond its link. */
+export interface SourceInfo {
+  kind: SourceKind;
+  /** Publication or last-updated date found on the page. */
+  published?: string;
+  /** The domain is on the run's blocked list. */
+  blocked?: boolean;
+  trusted?: boolean;
+}
+/** The user's rules for which sources the research should rely on. */
+export interface SourcePolicy {
+  prefer: "balanced" | "primary" | "academic";
+  trust: string[];
+  block: string[];
+  /** Flag sources older than this many months. */
+  freshMonths?: number;
+}
 /** A question answered only from this research. */
 export interface QuestionAnswer {
   id: string;
@@ -172,6 +244,10 @@ export interface Run {
   /** Requested deliverable; "auto" picks from the brief and workflow. */
   outputFormat?: "auto" | "pdf" | "docx" | "csv" | "md";
   evidence?: EvidenceCheck;
+  community?: CommunityPulse;
+  sourcePolicy?: SourcePolicy;
+  /** Keyed by URL. */
+  sourceInfo?: Record<string, SourceInfo>;
   questions?: QuestionAnswer[];
   versions?: ReportVersion[];
   priorResearch?: PriorResearch[];

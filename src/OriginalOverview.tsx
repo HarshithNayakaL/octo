@@ -19,6 +19,9 @@ import {
   History,
   Library,
   FileDown,
+  Users,
+  Scale,
+  Layers,
 } from "lucide-react";
 import { Arc, Orbit } from "loading-dev";
 import Select from "./Select";
@@ -493,6 +496,21 @@ const reasons = [
     icon: ShieldCheck,
     title: "Checks its own citations",
     text: "Opens every cited page and PDF itself and flags claims the source doesn't back. Each report gets an evidence score.",
+  },
+  {
+    icon: Users,
+    title: "Hears what real people say",
+    text: "Searches Reddit and Hacker News for first-hand experience, groups it into themes, and quotes people word for word with links.",
+  },
+  {
+    icon: Scale,
+    title: "Argues with itself",
+    text: "Asks for both sides on contested questions, and Challenge searches for the strongest evidence against its own report.",
+  },
+  {
+    icon: Layers,
+    title: "Knows a regulator from a blog",
+    text: "Labels every source by kind and date, flags SEO and review sites, and follows your source policy: primary first, trusted, blocked.",
   },
   {
     icon: MessagesSquare,

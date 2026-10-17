@@ -11,6 +11,7 @@ import type {
 import type { Provider } from "./provider.js";
 import type { JsonSchema } from "./structured.js";
 import { sourcesFromReport } from "./results.js";
+import { publishedDate } from "./sources.js";
 
 /*
  * Chat assistants cite; Octo checks. After a report is written, Octo lists its
@@ -289,9 +290,18 @@ async function pdfText(bytes: Uint8Array) {
 /** Fetch a cited page as plain text, re-checking the address on every redirect. */
 export async function fetchSourceText(
   raw: string,
-  { request = fetch, lookup = defaultLookup }: CheckOptions = {},
+  options: CheckOptions = {},
   timeoutMs = 12_000,
 ): Promise<string> {
+  return (await fetchSource(raw, options, timeoutMs)).text;
+}
+
+/** A cited page's text and the publication date it declares. */
+export async function fetchSource(
+  raw: string,
+  { request = fetch, lookup = defaultLookup }: CheckOptions = {},
+  timeoutMs = 12_000,
+): Promise<{ text: string; published?: string }> {
   let url = await assertPublicUrl(raw, lookup);
   const signal = AbortSignal.timeout(timeoutMs);
   for (let hop = 0; hop < 5; hop++) {
@@ -333,11 +343,11 @@ export async function fetchSourceText(
     const bytes = Buffer.concat(chunks);
     const type = response.headers.get("content-type") ?? "";
     if (/pdf/i.test(type) || bytes.subarray(0, 5).toString() === "%PDF-")
-      return pdfText(new Uint8Array(bytes));
+      return { text: await pdfText(new Uint8Array(bytes)) };
     const text = bytes.toString("utf8");
     return /html|xml/i.test(type) || /^\s*</.test(text)
-      ? htmlToText(text)
-      : text;
+      ? { text: htmlToText(text), published: publishedDate(text) }
+      : { text };
   }
   throw new Error("Too many redirects.");
 }
@@ -482,7 +492,11 @@ export async function checkEvidence(
   run: Run,
   provider: Provider | undefined,
   options: CheckOptions = {},
-): Promise<Pick<EvidenceCheck, "claims" | "score" | "method">> {
+): Promise<
+  Pick<EvidenceCheck, "claims" | "score" | "method"> & {
+    published?: Record<string, string>;
+  }
+> {
   const max = options.maxClaims ?? 20;
   if (run.mode === "demo") {
     const claims = demoCheck(heuristicClaims(run.report, 8, run.sources));
@@ -513,7 +527,10 @@ export async function checkEvidence(
   const urls = [
     ...new Set(candidates.map((c) => c.sourceUrl).filter(Boolean)),
   ].slice(0, options.maxSources ?? 15) as string[];
-  const pages = new Map<string, { text?: string; error?: string }>();
+  const pages = new Map<
+    string,
+    { text?: string; published?: string; error?: string }
+  >();
   const deadline = Date.now() + (options.deadlineMs ?? 90_000);
   await pool(urls, 4, async (url) => {
     const left = deadline - Date.now();
@@ -522,9 +539,7 @@ export async function checkEvidence(
       return;
     }
     try {
-      pages.set(url, {
-        text: await fetchSourceText(url, options, Math.min(12_000, left)),
-      });
+      pages.set(url, await fetchSource(url, options, Math.min(12_000, left)));
     } catch (err) {
       pages.set(url, {
         error:
@@ -565,7 +580,12 @@ export async function checkEvidence(
       };
     return { ...base, ...match };
   });
-  return { claims, score: scoreOf(claims), method };
+  const published = Object.fromEntries(
+    [...pages]
+      .filter(([, p]) => p.published)
+      .map(([url, p]) => [url, p.published!]),
+  );
+  return { claims, score: scoreOf(claims), method, published };
 }
 
 export const evidenceDue = (run: Run) =>

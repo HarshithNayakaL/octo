@@ -11,7 +11,13 @@ import {
 import { demoResult } from "./demo.js";
 import { demoPlan } from "./planner.js";
 import { checkEvidence, evidenceDue, requestEvidence } from "./evidence.js";
+import { describeSources } from "./sources.js";
 import type { CheckOptions } from "./evidence.js";
+import {
+  communityDue,
+  runCommunityPulse,
+  type GatherOptions,
+} from "./community.js";
 
 export const active = (r: Run) =>
   ["planning", "starting", "running", "requires_action"].includes(r.status);
@@ -41,6 +47,8 @@ export function archiveReport(run: Run, next: string) {
 export interface EngineOptions {
   /** How cited sources are fetched for evidence checks (tests inject this). */
   evidence?: CheckOptions;
+  /** How community discussions are fetched (tests inject this). */
+  community?: GatherOptions;
   /** Longest a single step may hold a run. Must stay below the host's request limit. */
   leaseMs?: number;
   /** Minimum gap between steps on one run, so frequent triggers don't over-poll providers. */
@@ -53,6 +61,7 @@ export class Engine {
   readonly leaseMs: number;
   readonly pollGapMs: number;
   readonly evidenceOptions?: CheckOptions;
+  readonly communityOptions?: GatherOptions;
   constructor(
     readonly store: RunStore,
     readonly provider?: Provider,
@@ -62,6 +71,7 @@ export class Engine {
     this.leaseMs = options.leaseMs ?? 240_000;
     this.pollGapMs = options.pollGapMs ?? 0;
     this.evidenceOptions = options.evidence;
+    this.communityOptions = options.community;
   }
   log(run: Run, label: string, text: string, type = "system") {
     run.activities.push({
@@ -103,6 +113,7 @@ export class Engine {
         active(row) ||
         row.pendingInput ||
         evidenceDue(row) ||
+        communityDue(row) ||
         (row.nextCheckAt && Date.parse(row.nextCheckAt) <= Date.now())
       )
         await this.process(row.id);
@@ -126,6 +137,23 @@ export class Engine {
     try {
       let run = (await this.store.get(id))!;
       if (!run) return;
+      // Research waits for community voices it was asked to include.
+      if (
+        run.status === "starting" &&
+        run.community?.beforeResearch &&
+        run.community.status === "running" &&
+        !communityDue(run)
+      )
+        return;
+      // Community voices run before research when asked, or any time after.
+      if (
+        communityDue(run) &&
+        !run.pendingInput &&
+        (run.status === "starting" || !active(run))
+      ) {
+        await this.communityStep(run);
+        return;
+      }
       if (
         !active(run) &&
         !run.pendingInput &&
@@ -665,11 +693,15 @@ export class Engine {
     };
     await this.store.save(run);
     let update: Partial<NonNullable<Run["evidence"]>>;
+    let published: Record<string, string> = {};
     try {
-      update = {
-        status: "done",
-        ...(await checkEvidence(run, provider, this.evidenceOptions)),
-      };
+      const { published: dates, ...result } = await checkEvidence(
+        run,
+        provider,
+        this.evidenceOptions,
+      );
+      published = dates ?? {};
+      update = { status: "done", ...result };
     } catch (err) {
       update = {
         status: "failed",
@@ -686,6 +718,9 @@ export class Engine {
       ...update,
       finishedAt: new Date().toISOString(),
     } as NonNullable<Run["evidence"]>;
+    latest.sourceInfo = describeSources(latest);
+    for (const [url, date] of Object.entries(published))
+      if (latest.sourceInfo[url]) latest.sourceInfo[url].published = date;
     const e = latest.evidence;
     if (e.status === "done")
       this.log(
@@ -693,6 +728,51 @@ export class Engine {
         "Evidence checked",
         `${e.claims.filter((c) => c.status === "supported").length} of ${e.claims.length} claims supported by their cited page${e.score === undefined ? "" : ` · evidence score ${e.score}`}.`,
       );
+    await this.store.save(latest);
+  }
+  /** Gather and group public discussions about the brief. */
+  private async communityStep(run: Run) {
+    const provider =
+      this.providers?.[run.provider ?? "openai"] ??
+      ((run.provider ?? "openai") === "openai" ? this.provider : undefined);
+    const requestedAt = new Date().toISOString();
+    run.community = { ...run.community!, status: "running", requestedAt };
+    await this.store.save(run);
+    let update: Partial<NonNullable<Run["community"]>>;
+    try {
+      const result = await runCommunityPulse(
+        run,
+        provider,
+        this.communityOptions,
+      );
+      update = {
+        ...result,
+        status: result.items.length || run.mode === "demo" ? "done" : "failed",
+      };
+    } catch (err) {
+      update = {
+        status: "failed",
+        error: err instanceof Error ? err.message : "Community search failed.",
+      };
+    }
+    const latest = await this.store.get(run.id);
+    if (!latest || latest.community?.requestedAt !== requestedAt) return;
+    latest.community = {
+      ...latest.community,
+      ...update,
+      finishedAt: new Date().toISOString(),
+    } as NonNullable<Run["community"]>;
+    const c = latest.community;
+    this.log(
+      latest,
+      c.status === "done"
+        ? "Community voices gathered"
+        : "Community search failed",
+      c.status === "done"
+        ? `${c.items.length} relevant posts from ${Object.values(c.scanned).reduce((a, b) => a + (b ?? 0), 0)} scanned, grouped into ${c.themes.length} themes.${c.beforeResearch && latest.status === "starting" ? " Their summary goes to the research agent." : ""}`
+        : (c.error ?? "No discussions were collected."),
+      c.status === "done" ? "system" : "warning",
+    );
     await this.store.save(latest);
   }
   async queueMessage(run: Run, text: string) {

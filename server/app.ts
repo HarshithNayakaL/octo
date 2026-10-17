@@ -13,11 +13,33 @@ import type {
   ProviderConfiguration,
 } from "../shared/types.js";
 import { renderDeliverable } from "./deliverables.js";
-import { continuationInput, refreshInput } from "./prompts.js";
+import { challengeInput, continuationInput, refreshInput } from "./prompts.js";
+import { requestCommunity } from "./community.js";
 import { requestEvidence } from "./evidence.js";
 import { answerQuestion } from "./ask.js";
 import { formatsFor, preferredFormat } from "../shared/formats.js";
 
+const domain = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(200)
+  .transform((d) =>
+    d
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .replace(/\/.*$/, ""),
+  )
+  .refine(
+    (d) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d),
+    "Enter domains like example.com",
+  );
+const sourcePolicySchema = z.object({
+  prefer: z.enum(["balanced", "primary", "academic"]).default("balanced"),
+  trust: z.array(domain).max(30).default([]),
+  block: z.array(domain).max(30).default([]),
+  freshMonths: z.number().int().min(1).max(240).optional(),
+});
 const creation = z
   .object({
     title: z.string().trim().min(3).max(140),
@@ -37,6 +59,9 @@ const creation = z
     remainingChecks: z.number().int().min(0).max(30).default(0),
     /** Earlier completed runs in this workspace to build on. */
     buildOn: z.array(z.string().uuid()).max(3).default([]),
+    /** Gather Reddit and Hacker News discussions before researching. */
+    community: z.boolean().default(false),
+    sourcePolicy: sourcePolicySchema.optional(),
   })
   .superRefine((r, ctx) => {
     if (r.workflow === "sales" && r.icp.length < 15)
@@ -298,6 +323,8 @@ export function createApp(options: AppOptions) {
           priorResearch,
           evidence,
           reportParts,
+          community,
+          sourceInfo,
           ...run
         }) => ({
           ...run,
@@ -308,6 +335,7 @@ export function createApp(options: AppOptions) {
             ...evidence,
             claims: [],
           },
+          community: community && { ...community, items: [], themes: [] },
           versionCount: versions?.length ?? 0,
           hasReport: Boolean(report.trim()),
         }),
@@ -382,7 +410,13 @@ export function createApp(options: AppOptions) {
       });
     }
     const now = new Date().toISOString();
-    const { clarify, buildOn: _buildOn, ...fields } = data;
+    const {
+      clarify,
+      buildOn: _buildOn,
+      community,
+      sourcePolicy,
+      ...fields
+    } = data;
     const run: Run = {
       ...fields,
       provider: providerId,
@@ -403,7 +437,17 @@ export function createApp(options: AppOptions) {
       notes: "",
       model: data.mode === "live" ? profile.model : undefined,
       priorResearch: priorResearch.length ? priorResearch : undefined,
+      sourcePolicy:
+        sourcePolicy &&
+        (sourcePolicy.prefer !== "balanced" ||
+          sourcePolicy.trust.length ||
+          sourcePolicy.block.length ||
+          sourcePolicy.freshMonths)
+          ? sourcePolicy
+          : undefined,
+      community: community ? requestCommunity(true) : undefined,
     };
+    // With questions first, voices are gathered while the user answers.
     engine.log(
       run,
       data.mode === "demo" ? "Demo queued" : "Research queued",
@@ -485,6 +529,7 @@ export function createApp(options: AppOptions) {
           .default([]),
         areas: z.array(z.string().max(120)).max(12).optional(),
         extraContext: z.string().trim().max(10000).optional(),
+        community: z.boolean().optional(),
       })
       .parse(req.body);
     if (
@@ -527,6 +572,10 @@ export function createApp(options: AppOptions) {
       if (areas.some((a) => a.selected)) run.plan = { ...run.plan, areas };
     }
     run.extraContext = body.extraContext || undefined;
+    if (body.community === false && run.community?.beforeResearch)
+      run.community = undefined;
+    else if (body.community && !run.community)
+      run.community = requestCommunity(true);
     run.status = "starting";
     run.startedAt = new Date().toISOString();
     engine.log(
@@ -698,6 +747,83 @@ export function createApp(options: AppOptions) {
       .object({ note: z.string().trim().max(5000).optional() })
       .parse(req.body ?? {});
     await engine.queueMessage(run, refreshInput(run, note));
+    res.json(await store.get(run.id));
+    advance(run.id);
+  });
+  /** Gather what people say about the topic on Reddit and Hacker News. */
+  app.post("/api/runs/:id/community", async (req, res) => {
+    const run = await store.get(req.params.id);
+    if (!run) {
+      res.status(404).json({ error: "Research not found" });
+      return;
+    }
+    if (
+      active(run) ||
+      run.purpose === "crm" ||
+      run.status === "awaiting_input"
+    ) {
+      res.status(409).json({
+        error: "Community voices can be gathered when no research is running.",
+      });
+      return;
+    }
+    if (
+      run.community?.status === "pending" ||
+      run.community?.status === "running"
+    ) {
+      res.json(run);
+      return;
+    }
+    if (
+      (run.provider ?? "openai") === "openai" &&
+      run.mode === "live" &&
+      !openaiUnlocked(req)
+    ) {
+      openaiLocked(res);
+      return;
+    }
+    run.community = requestCommunity(false);
+    await store.save(run);
+    res.json(run);
+    advance(run.id);
+  });
+  /** Ask the agent to look for the strongest evidence against its own report. */
+  app.post("/api/runs/:id/challenge", async (req, res) => {
+    const run = await store.get(req.params.id);
+    if (!run) {
+      res.status(404).json({ error: "Research not found" });
+      return;
+    }
+    if (
+      run.status !== "completed" ||
+      !run.report.trim() ||
+      run.purpose === "crm"
+    ) {
+      res
+        .status(409)
+        .json({ error: "Only completed research can be challenged." });
+      return;
+    }
+    if (run.mode === "live" && !run.sessionId) {
+      res.status(409).json({ error: "This run has no remote session." });
+      return;
+    }
+    if (
+      (run.provider ?? "openai") === "openai" &&
+      run.mode === "live" &&
+      !openaiUnlocked(req)
+    ) {
+      openaiLocked(res);
+      return;
+    }
+    if ((await store.list()).some(active)) {
+      res.status(409).json({ error: "A research run is already active." });
+      return;
+    }
+    const { note } = z
+      .object({ note: z.string().trim().max(5000).optional() })
+      .parse(req.body ?? {});
+    await engine.queueMessage(run, challengeInput(run, note));
     res.json(await store.get(run.id));
     advance(run.id);
   });

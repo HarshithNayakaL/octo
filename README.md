@@ -10,11 +10,16 @@ A chat assistant can research a question. Octo is built around what happens arou
 |---|---|---|
 | Before research | Starts searching immediately | Says what it understood, proposes areas for this brief, and asks questions with options before spending a search |
 | Citations | Shows links; you check them | **Evidence check:** opens every cited page and PDF itself and marks each claim Supported, Partly supported, Not found, No source cited or Could not check, with an evidence score |
+| Real experience | Rarely reads Reddit; some assistants can't | **Community voices:** themes from public Reddit and Hacker News discussions with verbatim, linked quotes, optionally given to the agent |
+| Source quality | SEO pages and blogs cited as evidence | Every source labelled by kind and date, blogs and review sites flagged, and a **source policy**: primary first, trusted and blocked domains |
+| Contested questions | Often one-sided | Balanced by default; **Challenge this report** searches for counter-evidence and records a verdict for each challenge |
 | Follow-up questions | Answered from the model's memory | **Ask this research:** answered only from the report and its checked claims; unanswered questions become one-click follow-up research |
 | Over time | A one-off answer | **Refresh** any report, or schedule checks; every version is kept with a line-by-line **what changed** view |
 | Across projects | Starts from zero | **Build on earlier research:** new runs can reuse related reports from your workspace and re-check what changed |
 | Long work | Stops when it stops | Runs up to 3 hours; a run cut off by a limit keeps its partial report and continues into one report |
 | Output | Text in a chat | PDF, Word, CSV, Markdown or JSON files, including the evidence check |
+
+The user research behind these choices (3,314 Reddit and Hacker News posts plus published studies) is in [docs/research-findings.md](docs/research-findings.md).
 
 ## Start locally
 
@@ -101,6 +106,27 @@ The **Ask** tab answers questions using only the report, its checked claims and 
 
 Whenever a follow-up, continuation, scheduled check or **Refresh research** replaces a report, the old one is kept (up to 10 versions). The **Versions** tab compares the current report with any earlier version line by line, and lists added and dropped sources and the change in evidence score. **Refresh research** asks the agent to look for evidence published since the report, re-check its figures, and return one updated report ending with a "What changed" section.
 
+### Community voices
+
+People add "reddit" to their searches because forums hold first-hand experience. Some AI assistants can't read Reddit at all. With **Include what real people say** (in the research form or the question step), or **Gather voices** on any finished run, Octo:
+
+1. Turns the brief into 3–6 keyword searches with a small model call (falling back to keywords from the brief).
+2. Searches Hacker News through its official Algolia API and Reddit through the public [PullPush](https://pullpush.io) archive, over the last two years.
+3. Keeps posts that match a search (up to 150) and asks the model to group them into 3–8 themes: pain points, unmet needs, what works, and workarounds. Each theme lists the posts that discuss it.
+4. Shows each theme with its post count, a summary, and 1–3 quotes. Quotes are always the posts' own words with a link; only ids the model returns from the collected posts are accepted. Without a model, posts are grouped by keywords.
+
+When requested before research, the run waits for the voices, and a summary with quotes and links goes to the research agent as anecdotal evidence. With questions first, the search runs while you answer. Results appear in the **Voices** tab and in PDF, Word and JSON downloads. The archive can lag, and vocal users are not a representative sample; the tab says so.
+
+### Source quality and source policy
+
+The **Sources** tab shows the source mix (government and regulator, research and official data, news, reference, company, forum and social, blog or review site) and tags every source with its kind. The evidence check also reads each page's publication date from its metadata and flags sources older than two years (or your own limit). Classification uses the address only, so it is a guide, not a verdict.
+
+Under **Source policy** in the research form, choose **Balanced**, **Primary** (regulators, filings, official data) or **Research** (papers and statistics), and list domains to trust first or never use. The policy goes into the agent's instructions, and sources from blocked domains are marked. Every run is also told to prefer primary sources over blogs and SEO pages, date its sources, present the main positions on contested questions, and say when sources conflict.
+
+### Challenge this report
+
+**Challenge this report** (in the report toolbar) asks the agent to act as a sceptical reviewer. It searches for the strongest counter-evidence, newer data and dissenting views; checks for outdated, secondary or SEO sources; and flags conclusions that rest on one source. It then returns a revised report with a "Challenges and counter-evidence" section that gives each challenge a verdict: stands, weakened, or overturned. The earlier report is kept as a version, so the Versions tab shows what the challenge changed. It is a full research turn and is billed like one.
+
 ### Build on earlier research
 
 When a new brief overlaps earlier reports in your workspace, the research form suggests them under **Build on earlier research**. Each one you select (up to three) is copied into the new run (up to 12,000 characters of its report). It is given to the question step and to the agent, which is told to reuse what is established, re-check figures that may have changed, and say where new findings confirm, update or contradict it.
@@ -133,7 +159,7 @@ User notes are stored in the workspace; they are not automatically added to the 
 Every finished run can be downloaded as **PDF**, **Word (.docx)**, **CSV**, **Markdown** or **JSON**. Choose the main format under **Deliverable** in the research form; **Best for the task** uses the format your brief asks for ("send it as a spreadsheet"), otherwise CSV for company lists and PDF for briefings. The run's download button uses that format, and the menu beside it offers the rest.
 
 - Octo renders these files itself from the agent's Markdown report, so downloads work without extra agent usage. PDFs embed the Inter font (OFL, `assets/fonts`), so characters such as ₹ print correctly.
-- Documents include the report, company records (sales), the evidence check, and the source list. JSON also includes your Ask answers.
+- Documents include the report, company records (sales), the evidence check, community voices, and the source list with each source's kind and date. JSON also includes your Ask answers.
 - CSV contains company records when present, otherwise every table in the report; it is offered only when there are rows. Spreadsheet formulas are neutralised and the file opens as UTF-8 in Excel.
 - Files the agent writes itself (for example `/workspace/outputs/leads.csv`) are listed under **Files from the agent**.
 

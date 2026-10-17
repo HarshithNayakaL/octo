@@ -58,6 +58,8 @@ import EvidencePanel, { ClaimBadge, EvidenceSummary } from "./EvidencePanel";
 import AskPanel from "./AskPanel";
 import VersionsPanel from "./VersionsPanel";
 import { relatedRuns } from "./related";
+import VoicesPanel from "./VoicesPanel";
+import { classifySource, monthsOld } from "../shared/sources";
 import { deletable, isActive as activeRun, statusLabel } from "./status";
 import Overview from "./OriginalOverview";
 import SearchDialog from "./SearchDialog";
@@ -93,6 +95,8 @@ import {
   type Workflow,
   type Configuration,
   type ProviderId,
+  type SourceKind,
+  sourceKindLabels,
 } from "../shared/types";
 
 const EvidenceRadar = lazy(() => import("./EvidenceRadar"));
@@ -904,6 +908,18 @@ function NewResearch({
   const [tokens, setTokens] = useState(limitsFor(provider).tokens);
   const [clarify, setClarify] = useState(true);
   const [buildOn, setBuildOn] = useState<string[]>([]);
+  const [community, setCommunity] = useState(false);
+  const [prefer, setPrefer] = useState<"balanced" | "primary" | "academic">(
+    "balanced",
+  );
+  const [trust, setTrust] = useState("");
+  const [block, setBlock] = useState("");
+  const domains = (text: string) =>
+    text
+      .split(/[\s,]+/)
+      .map((d) => d.trim())
+      .filter(Boolean)
+      .slice(0, 30);
   const related = relatedRuns(runs, title, brief);
   const relatedIds = related.map((r) => r.run.id);
   const chosen = buildOn.filter((id) => relatedIds.includes(id));
@@ -976,6 +992,12 @@ function NewResearch({
             maxTokens: tokens,
             clarify,
             buildOn: chosen,
+            community: kind !== "sales" && community,
+            sourcePolicy: {
+              prefer,
+              trust: domains(trust),
+              block: domains(block),
+            },
             intervalHours: interval,
             remainingChecks: kind === "monitor" ? checks : 0,
           }),
@@ -1316,6 +1338,73 @@ function NewResearch({
               ))}
             </fieldset>
           )}
+          {kind !== "sales" && (
+            <label className="clarify-toggle">
+              <input
+                type="checkbox"
+                checked={community}
+                onChange={(e) => setCommunity(e.target.checked)}
+              />
+              <Users size={16} />
+              <span>
+                <b>Include what real people say</b>
+                Octo searches Reddit and Hacker News for first-hand experiences,
+                quotes them with links, and gives the themes to the research
+                agent.
+              </span>
+            </label>
+          )}
+          <details className="source-policy">
+            <summary>
+              <ShieldCheck size={15} />
+              Source policy
+              <span>
+                {prefer === "balanced"
+                  ? "Balanced"
+                  : prefer === "primary"
+                    ? "Primary sources first"
+                    : "Research first"}
+                {domains(block).length
+                  ? ` · ${domains(block).length} blocked`
+                  : ""}
+              </span>
+            </summary>
+            <div className="policy-grid">
+              <label className="field">
+                Prefer
+                <select
+                  value={prefer}
+                  onChange={(e) => setPrefer(e.target.value as typeof prefer)}
+                >
+                  <option value="balanced">
+                    Balanced: best available sources
+                  </option>
+                  <option value="primary">
+                    Primary: regulators, filings, official data
+                  </option>
+                  <option value="academic">
+                    Research: papers and statistics
+                  </option>
+                </select>
+              </label>
+              <label className="field">
+                Trust first
+                <input
+                  value={trust}
+                  onChange={(e) => setTrust(e.target.value)}
+                  placeholder="rbi.org.in, sec.gov"
+                />
+              </label>
+              <label className="field">
+                Never use
+                <input
+                  value={block}
+                  onChange={(e) => setBlock(e.target.value)}
+                  placeholder="forbes.com/sites, medium.com"
+                />
+              </label>
+            </div>
+          </details>
           <label className="clarify-toggle">
             <input
               type="checkbox"
@@ -1775,6 +1864,14 @@ function RunDetail({
                         ],
                         ["ask", "Ask", MessageCircleQuestion],
                         [
+                          "voices",
+                          run.community?.status === "done" &&
+                          run.community.items.length
+                            ? `Voices (${run.community.items.length})`
+                            : "Voices",
+                          Users,
+                        ],
+                        [
                           "versions",
                           run.versions?.length
                             ? `Versions (${run.versions.length + 1})`
@@ -1820,10 +1917,24 @@ function RunDetail({
                             ? "CRM EXPORT RESULTS"
                             : "RESEARCH BRIEFING"}
                         </span>
-                        <button onClick={() => void exportFile("json")}>
-                          Export JSON
-                          <Download size={14} />
-                        </button>
+                        <span className="toolbar-actions">
+                          {run.status === "completed" &&
+                            run.purpose !== "crm" &&
+                            (run.mode === "demo" || run.sessionId) && (
+                              <button
+                                disabled={busy}
+                                title="Search for the strongest evidence against this report and revise it"
+                                onClick={() => void action("challenge")}
+                              >
+                                Challenge this report
+                                <ShieldCheck size={14} />
+                              </button>
+                            )}
+                          <button onClick={() => void exportFile("json")}>
+                            Export JSON
+                            <Download size={14} />
+                          </button>
+                        </span>
                       </div>
                       <EvidenceSummary
                         run={run}
@@ -1919,6 +2030,13 @@ function RunDetail({
                       Questions can be asked once a report is ready.
                     </p>
                   ))}
+                {tab === "voices" && (
+                  <VoicesPanel
+                    run={run}
+                    busy={busy}
+                    onGather={() => void action("community")}
+                  />
+                )}
                 {tab === "versions" && (
                   <VersionsPanel
                     run={run}
@@ -1941,6 +2059,7 @@ function RunDetail({
                         ? "Demo links illustrate the format and are not researched sources."
                         : "Source links extracted from the report and structured research output. Verify the cited claim against the original."}
                     </p>
+                    {run.sources.length > 0 && <SourceMix run={run} />}
                     {run.sources.map((source, i) => (
                       <a
                         key={source.url + i}
@@ -1957,6 +2076,11 @@ function RunDetail({
                           <MiddleTruncate
                             text={displayUrl(source.url)}
                             tail={18}
+                          />
+                          <SourceTags
+                            run={run}
+                            url={source.url}
+                            title={source.title}
                           />
                         </div>
                         {(() => {
@@ -2502,5 +2626,110 @@ function RunDetail({
         </Modal>
       )}
     </main>
+  );
+}
+
+const kindOrder: SourceKind[] = [
+  "government",
+  "academic",
+  "news",
+  "reference",
+  "company",
+  "forum",
+  "blog",
+  "other",
+];
+const kindOf = (run: Run, url: string, title?: string) =>
+  run.sourceInfo?.[url]?.kind ?? classifySource(url, title);
+
+/** How the report's sources split by kind, and how many are blocked or old. */
+function SourceMix({ run }: { run: Run }) {
+  const counts = new Map<SourceKind, number>();
+  for (const s of run.sources)
+    counts.set(
+      kindOf(run, s.url, s.title),
+      (counts.get(kindOf(run, s.url, s.title)) ?? 0) + 1,
+    );
+  const total = run.sources.length;
+  const fresh = run.sourcePolicy?.freshMonths ?? 24;
+  const dated = run.sources.filter((s) => run.sourceInfo?.[s.url]?.published);
+  const old = dated.filter(
+    (s) => monthsOld(run.sourceInfo![s.url].published!) > fresh,
+  ).length;
+  const weak = (counts.get("blog") ?? 0) + (counts.get("forum") ?? 0);
+  const blocked = run.sources.filter(
+    (s) => run.sourceInfo?.[s.url]?.blocked,
+  ).length;
+  return (
+    <div className="source-mix">
+      <div className="mix-bar" role="img" aria-label="Sources by kind">
+        {kindOrder
+          .filter((k) => counts.get(k))
+          .map((k) => (
+            <span
+              key={k}
+              className={`mix-${k}`}
+              style={{ width: `${((counts.get(k) ?? 0) / total) * 100}%` }}
+              title={`${sourceKindLabels[k]}: ${counts.get(k)}`}
+            />
+          ))}
+      </div>
+      <div className="mix-legend">
+        {kindOrder
+          .filter((k) => counts.get(k))
+          .map((k) => (
+            <span key={k}>
+              <i className={`mix-${k}`} />
+              {sourceKindLabels[k]} {counts.get(k)}
+            </span>
+          ))}
+      </div>
+      <p className="muted small">
+        {weak
+          ? `${weak} of ${total} sources are blogs, review sites or forums; check that key claims also rest on primary sources. `
+          : "No blogs, review sites or forums among the sources. "}
+        {dated.length
+          ? `${dated.length} pages give a date${old ? `; ${old} are older than ${fresh} months` : ""}. `
+          : run.evidence?.status === "done"
+            ? "No publication dates were found on the checked pages. "
+            : "Dates appear after the evidence check reads the pages. "}
+        {blocked ? `${blocked} cite domains you blocked.` : ""}
+        {run.sourcePolicy?.prefer === "primary"
+          ? " Source policy: primary sources first."
+          : run.sourcePolicy?.prefer === "academic"
+            ? " Source policy: research first."
+            : ""}
+      </p>
+    </div>
+  );
+}
+
+function SourceTags({
+  run,
+  url,
+  title,
+}: {
+  run: Run;
+  url: string;
+  title?: string;
+}) {
+  const info = run.sourceInfo?.[url];
+  const kind = kindOf(run, url, title);
+  const fresh = run.sourcePolicy?.freshMonths ?? 24;
+  const age = info?.published ? monthsOld(info.published) : undefined;
+  return (
+    <span className="source-tags">
+      <span className={`kind-tag mix-${kind}`}>{sourceKindLabels[kind]}</span>
+      {info?.published && (
+        <span className={`date-tag ${age! > fresh ? "old" : ""}`}>
+          {info.published}
+          {age! > fresh ? ` · over ${Math.floor(age! / 12) || 1} yr old` : ""}
+        </span>
+      )}
+      {info?.blocked && (
+        <span className="kind-tag blocked">Blocked domain</span>
+      )}
+      {info?.trusted && <span className="kind-tag trusted">Trusted</span>}
+    </span>
   );
 }

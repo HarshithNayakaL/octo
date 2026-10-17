@@ -80,3 +80,49 @@ test("sales workflow produces clearly labelled sample records and blocks CRM exp
   await page.getByRole("button", { name: "CSV", exact: true }).click();
   expect((await downloadPromise).suggestedFilename()).toMatch(/\.csv$/);
 });
+test("evidence check, grounded questions and versions work in demo mode", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "What a chat window can't do" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Open research" }).first().click();
+  const title = "E2E Evidence " + Date.now();
+  await page.getByLabel("Research title").fill(title);
+  await page
+    .getByLabel("Research brief")
+    .fill(
+      "How are EV charging operators priced in India and which tariffs apply?",
+    );
+  await page.getByRole("combobox", { name: "Run mode", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Demo · no API usage", exact: true })
+    .click();
+  await page.getByText("Ask me questions before researching").click();
+  await page.getByRole("button", { name: "Start demo", exact: true }).click();
+  await expect(
+    page.locator(".evidence-strip").getByText("Evidence checked"),
+  ).toBeVisible({
+    timeout: 30000,
+  });
+  await page.getByRole("tab", { name: /Evidence/ }).click();
+  await expect(page.getByText("No source cited").first()).toBeVisible();
+  await page.getByRole("tab", { name: "Ask", exact: true }).click();
+  await page
+    .getByLabel("Ask a question about this research")
+    .fill("Who regulates hydrogen fuel stations?");
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
+  await expect(page.getByText("Not in this research")).toBeVisible();
+  await page.getByRole("button", { name: "Research this" }).click();
+  await expect(page.getByLabel("Keep the research going")).toHaveValue(
+    /hydrogen/,
+  );
+  await page.getByRole("tab", { name: /Versions/ }).click();
+  await page.getByRole("button", { name: "Refresh research" }).click();
+  await expect(page.getByRole("tab", { name: "Versions (2)" })).toBeVisible({
+    timeout: 30000,
+  });
+  await page.getByRole("tab", { name: "Versions (2)" }).click();
+  await expect(page.getByText(/\+\d+ lines/)).toBeVisible();
+});

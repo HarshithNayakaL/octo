@@ -14,6 +14,11 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  MessageCircleQuestion,
+  MessagesSquare,
+  History,
+  Library,
+  FileDown,
 } from "lucide-react";
 import { Arc, Orbit } from "loading-dev";
 import Select from "./Select";
@@ -99,7 +104,7 @@ export default function OriginalOverview({
         </div>
         <button
           className="primary"
-          onClick={() => onCreate(page === "monitors" ? "monitor" : "market")}
+          onClick={() => onCreate(page === "monitors" ? "monitor" : "general")}
         >
           <Plus size={17} />
           New research
@@ -118,11 +123,11 @@ export default function OriginalOverview({
                 Multiple perspectives.
               </h2>
               <p>
-                From the first question to the final report,
-                <br className="desktop-break" /> keep the research and the
-                reasoning together.
+                Octo asks before it researches, checks every citation
+                <br className="desktop-break" /> against its source, and keeps
+                the report current.
               </p>
-              <button onClick={() => onCreate("market")}>
+              <button onClick={() => onCreate("general")}>
                 Start with a question
                 <ArrowRight size={17} />
               </button>
@@ -130,6 +135,7 @@ export default function OriginalOverview({
             <ResearchDiagram />
             <div className="hero-folio">01 / A WORKSPACE FOR DISCOVERY</div>
           </section>
+          <WhyOcto />
           <div className="section-top">
             <h2>What would you like to explore?</h2>
             <span>Choose a research workflow</span>
@@ -255,6 +261,16 @@ export default function OriginalOverview({
                             {run.nextCheckAt
                               ? ` · Next check ${date(run.nextCheckAt)}`
                               : ""}
+                            {run.evidence?.status === "done" &&
+                              run.evidence.score !== undefined && (
+                                <b
+                                  className="row-score"
+                                  title="Share of checked claims backed by their cited page"
+                                >
+                                  <ShieldCheck size={11} />
+                                  {run.evidence.score}
+                                </b>
+                              )}
                           </span>
                         </div>
                       </div>
@@ -462,6 +478,62 @@ function ResearchPulse({ runs }: { runs: Run[] }) {
           ))}
           More
         </div>
+      </div>
+    </section>
+  );
+}
+
+const reasons = [
+  {
+    icon: MessageCircleQuestion,
+    title: "Asks before it researches",
+    text: "Reads your brief and files, says what it understood, and asks what you need before spending a single search.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Checks its own citations",
+    text: "Opens every cited page and PDF itself and flags claims the source doesn't back. Each report gets an evidence score.",
+  },
+  {
+    icon: MessagesSquare,
+    title: "Answers only from your research",
+    text: "Ask follow-up questions answered from the report, never from memory. Gaps become one-click follow-up research.",
+  },
+  {
+    icon: History,
+    title: "Keeps research current",
+    text: "Refresh any report or schedule checks. Every version is kept, with a clear view of what changed and why.",
+  },
+  {
+    icon: Library,
+    title: "Builds on what you know",
+    text: "New research can reuse earlier reports in your workspace, so it re-checks what changed instead of starting over.",
+  },
+  {
+    icon: FileDown,
+    title: "Survives limits, ships files",
+    text: "Runs for up to three hours. If a limit hits, the half report is saved and continues into one report. Export PDF, Word or CSV.",
+  },
+];
+
+/** What Octo does that a chat assistant does not. */
+function WhyOcto() {
+  return (
+    <section className="why-octo" aria-labelledby="why-octo-title">
+      <div className="section-top">
+        <h2 id="why-octo-title">What a chat window can't do</h2>
+        <span>Why research in Octo</span>
+      </div>
+      <div className="why-grid">
+        {reasons.map(({ icon: Icon, title, text }) => (
+          <div className="why-card" key={title}>
+            <span className="why-icon">
+              <Icon size={18} />
+            </span>
+            <h3>{title}</h3>
+            <p>{text}</p>
+          </div>
+        ))}
       </div>
     </section>
   );

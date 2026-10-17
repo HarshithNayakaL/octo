@@ -892,6 +892,183 @@
 :root[data-theme="dark"] .row-delete:hover {
   color: #ec786f;
 }
+:root[data-theme="dark"] .why-card {
+  border: 1px solid #373e4f;
+  background: #0f1117;
+}
+:root[data-theme="dark"] .why-card p {
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .claim-badge.supported,
+:root[data-theme="dark"] .claim-filters .supported.on {
+  background: #171a23;
+  color: #7ddeae;
+}
+:root[data-theme="dark"] .claim-badge.partial,
+:root[data-theme="dark"] .claim-filters .partial.on {
+  background: #382c15;
+  color: #f3c368;
+}
+:root[data-theme="dark"] .claim-badge.not_found,
+:root[data-theme="dark"] .claim-filters .not_found.on {
+  background: #351714;
+  color: #ec786f;
+}
+:root[data-theme="dark"] .claim-badge.unreachable,
+:root[data-theme="dark"] .claim-filters .unreachable.on {
+  background: #151820;
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .claim-badge.uncited,
+:root[data-theme="dark"] .claim-filters .uncited.on {
+  background: #1b1333;
+  color: #9c81d9;
+}
+:root[data-theme="dark"] .evidence-strip {
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .evidence-strip.good svg {
+  color: #7ddeae;
+}
+:root[data-theme="dark"] .evidence-strip.flagged {
+  border-color: #82662b;
+  background: #322813;
+}
+:root[data-theme="dark"] .evidence-strip.flagged svg {
+  color: #f3c368;
+}
+:root[data-theme="dark"] .score-pill {
+  background: #0f1117;
+}
+:root[data-theme="dark"] .score-ring {
+  background: conic-gradient(var(--ring) var(--score), #171b23 0);
+}
+:root[data-theme="dark"] .score-ring.good {
+  --ring: #26bf70;
+}
+:root[data-theme="dark"] .score-ring.mid {
+  --ring: #8b6822;
+}
+:root[data-theme="dark"] .score-ring.low {
+  --ring: #8f362c;
+}
+:root[data-theme="dark"] .score-ring span {
+  background: #0f1117;
+}
+:root[data-theme="dark"] .empty-note {
+  border: 1px dashed #394560;
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .claim-filters button {
+  border: 1px solid #394560;
+  background: #0f1117;
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .claim-row {
+  border: 1px solid #373e4f;
+  border-left: 3px solid #434a60;
+  background: #0f1117;
+}
+:root[data-theme="dark"] .claim-row.supported {
+  border-left-color: #29d07a;
+}
+:root[data-theme="dark"] .claim-row.partial {
+  border-left-color: #e6b24c;
+}
+:root[data-theme="dark"] .claim-row.not_found {
+  border-left-color: #dd6355;
+}
+:root[data-theme="dark"] .claim-row.uncited {
+  border-left-color: #4f3399;
+}
+:root[data-theme="dark"] .claim-row.highlight {
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.36);
+}
+:root[data-theme="dark"] .claim-note {
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .claim-excerpt {
+  background: #12151b;
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .ask-form input {
+  border: 1px solid #394560;
+  background: #0f1117;
+}
+:root[data-theme="dark"] .ask-suggestions button {
+  border: 1px solid #394560;
+  background: #0f1117;
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .ask-suggestions button:hover {
+  border-color: #2a417f;
+}
+:root[data-theme="dark"] .answer {
+  border: 1px solid #373e4f;
+  background: #0f1117;
+}
+:root[data-theme="dark"] .coverage.covered {
+  background: #171a23;
+  color: #7ddeae;
+}
+:root[data-theme="dark"] .coverage.partly {
+  background: #382c15;
+  color: #f3c368;
+}
+:root[data-theme="dark"] .coverage.not_covered {
+  background: #151820;
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .answer-gap {
+  background: #12151b;
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .version-row label {
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .version-row select {
+  border: 1px solid #394560;
+  background: #0f1117;
+}
+:root[data-theme="dark"] .change-stats {
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .change-stats .plus,
+:root[data-theme="dark"] .source-changes .plus {
+  color: #7ddeae;
+}
+:root[data-theme="dark"] .change-stats .minus,
+:root[data-theme="dark"] .source-changes .minus {
+  color: #ec786f;
+}
+:root[data-theme="dark"] .diff-view {
+  border: 1px solid #373e4f;
+}
+:root[data-theme="dark"] .diff-same {
+  color: #828898;
+}
+:root[data-theme="dark"] .diff-added {
+  background: #171a23;
+  color: #7bdfa3;
+}
+:root[data-theme="dark"] .diff-removed {
+  background: #351714;
+  color: #e17a7a;
+  text-decoration-color: rgba(225, 122, 122, 0.35);
+}
+:root[data-theme="dark"] .diff-gap {
+  color: #676e7e;
+}
+:root[data-theme="dark"] .build-on > p {
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .build-on-row small {
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .row-score {
+  background: #171a23;
+  color: #7ddeae;
+}
 :root[data-theme="dark"] {
   color-scheme: dark;
   --blue: #7f9cff;

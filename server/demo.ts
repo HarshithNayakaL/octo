@@ -1,4 +1,5 @@
 import type { Run, Lead } from "../shared/types.js";
+import { sourcesFromReport } from "./results.js";
 
 const sampleLeads: Lead[] = [
   {
@@ -58,13 +59,10 @@ export function demoResult(run: Run) {
       leads: sampleLeads,
       sources: sampleLeads.flatMap((l) => l.sources),
     };
-  return {
-    report:
-      introduction +
-      `# ${run.title}\n\n## Executive briefing\n\nThis sample shows how your research will be organized. A live session will investigate the brief, preserve research notes, compare evidence, and produce a cited report.\n\n## Research question\n\n${run.brief}\n\n## Research plan\n\n${demoPlanSection(run)}\n\n## Evidence standard\n\n| Claim | Required evidence | Treatment of missing data |\n|---|---|---|\n| Market size | Dated primary data and explicit scope | Report as unknown |\n| Company coverage | Company disclosure or verified location data | State verification gap |\n| Unit economics | Published inputs and calculation method | Label scenario, not fact |\n| Regulatory requirement | Current government document | Verify jurisdiction and date |\n\n## Questions for an investor\n\n- What is the utilization needed for break-even?\n- Which revenue comes from hardware, energy, software, or services?\n- How do land, electricity, maintenance, and financing affect unit economics?\n- Which claims are independently corroborated?\n\n## Calculation method\n\nAnnual gross contribution = charging sessions per day × kWh per session × contribution per kWh × operating days. A live report must source each input and show sensitivity; this example supplies no invented figures.\n\n## Next steps\n\n${run.workflow === "monitor" ? "Follow-up checks compare new evidence against this session’s saved context. The scheduler runs while the server is online." : "Start a live run to collect evidence and answer these questions."}`,
-    leads: [],
-    sources: [],
-  };
+  const report =
+    introduction +
+    `# ${run.title}\n\n## Executive briefing\n\nThis sample shows how your research will be organized. A live session will investigate the brief, preserve research notes, compare evidence, and produce a cited report.\n\n## Research question\n\n${run.brief}\n\n## Research plan\n\n${demoPlanSection(run)}\n\n## Evidence standard\n\n| Claim | Required evidence | Treatment of missing data |\n|---|---|---|\n| Market size | Dated primary data and explicit scope | Report as unknown |\n| Company coverage | Company disclosure or verified location data | State verification gap |\n| Unit economics | Published inputs and calculation method | Label scenario, not fact |\n| Regulatory requirement | Current government document | Verify jurisdiction and date |\n\n## Questions for an investor\n\n- What is the utilization needed for break-even?\n- Which revenue comes from hardware, energy, software, or services?\n- How do land, electricity, maintenance, and financing affect unit economics?\n- Which claims are independently corroborated?\n\n## Calculation method\n\nAnnual gross contribution = charging sessions per day × kWh per session × contribution per kWh × operating days. A live report must source each input and show sensitivity; this example supplies no invented figures.\n\n## Illustrative claims\n\nAfter every live report, Octo fetches each cited page and checks claims like these against it. These examples are fictional:\n\n- Example: the sample operator lists 1,200 public charging points across 40 cities ([Illustrative operator page](https://example.com/operator)).\n- Example: the sample tariff page quotes 18 rupees per kWh for fast charging ([Illustrative tariff](https://example.com/tariff)).\n- Example: the sample regulator notice took effect on 1 April 2025 ([Illustrative notice](https://example.com/notice)).\n- Example: one sample analyst describes 15% utilisation as the break-even point ([Illustrative analyst note](https://example.com/analyst)).\n- Example: installed capacity doubled over 3 years, but no source is cited for it.\n\n## Next steps\n\n${run.workflow === "monitor" ? "Follow-up checks compare new evidence against this session’s saved context. The scheduler runs while the server is online." : "Start a live run to collect evidence and answer these questions."}`;
+  return { report, leads: [], sources: sourcesFromReport(report) };
 }
 export function seedRun(): Run {
   const now = new Date().toISOString();

@@ -24,3 +24,13 @@ References studied: Inspo (Gumloop, Statsig, Calendly), libraries.dev bot avatar
 - **Questions before research** use the existing card language: two summary cards (what Octo understood, the outcome it assumes), area chips with checkboxes, option chips per question with a free-text detail field, and one "anything else" box. Demo runs label their questions as illustrative.
 - **Partial reports** use an amber banner distinct from errors, with a single Continue action and an optional note.
 - **Dark mode** is generated, not hand-written: `scripts/build-dark-theme.mjs` maps every colour in the light stylesheets (neutrals to cool navy-tinted darks, light tints to dark tints, accent text lightened, primary fills kept) into `src/dark.css`. Charts, the ASCII scan and mascots read the active theme. System preference is the default.
+
+## Evidence, grounded questions, versions and workspace memory (October 2026)
+
+Octo's positioning moved from "runs research" to "research you can check and keep". The overview now has a "What a chat window can't do" section with six cards: asks first, checks its own citations, answers only from your research, keeps research current, builds on what you know, and survives limits and ships files.
+
+- **Evidence** is a tab on every report. A strip above the report shows the result at a glance: "Evidence checked · 12 of 16 claims backed by their cited page · 2 to review", plus a score pill. The tab shows a score ring (green 75 and up, amber 50 and up, red below), filters by status, and one card per claim. Each card has a coloured left edge, a status badge, the check's note, the matching excerpt and the source link. Flagged claims sort first.
+- **Ask** answers sit below a single input with suggested starter questions. Coverage badges say whether the research answered the question. Claim chips jump to the Evidence tab and highlight that claim. A gap row offers "Research this", which fills the follow-up box but does not start research by itself.
+- **Versions** pairs "Refresh research" (with an optional focus) with a compare selector, change counts, source changes and a monospace line diff. Long unchanged stretches collapse.
+- **Build on earlier research** appears in the research form only when related reports exist, as a tinted fieldset with checkboxes and the shared terms.
+- The status colours (green, amber, red, grey, violet) carry into dark mode through the generated `dark.css`.

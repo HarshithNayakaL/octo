@@ -47,12 +47,17 @@ import {
   Compass,
   Trash2,
   MessageCircleQuestion,
+  History,
   Moon,
   Sun,
   Monitor,
 } from "lucide-react";
 import { useTheme } from "./theme";
 import ClarifyPanel from "./ClarifyPanel";
+import EvidencePanel, { ClaimBadge, EvidenceSummary } from "./EvidencePanel";
+import AskPanel from "./AskPanel";
+import VersionsPanel from "./VersionsPanel";
+import { relatedRuns } from "./related";
 import { deletable, isActive as activeRun, statusLabel } from "./status";
 import Overview from "./OriginalOverview";
 import SearchDialog from "./SearchDialog";
@@ -609,6 +614,7 @@ export default function App() {
           workflow={newWorkflow}
           initialBrief={initialBrief}
           config={config}
+          runs={runs}
           onClose={() => {
             setNewWorkflow(undefined);
             setInitialBrief("");
@@ -846,12 +852,14 @@ function NewResearch({
   workflow,
   initialBrief = "",
   config,
+  runs = [],
   onClose,
   onCreated,
 }: {
   workflow: Workflow;
   initialBrief?: string;
   config?: Configuration;
+  runs?: Run[];
   onClose: () => void;
   onCreated: (run: Run) => void;
 }) {
@@ -895,6 +903,10 @@ function NewResearch({
   const [minutes, setMinutes] = useState(limitsFor(provider).minutes);
   const [tokens, setTokens] = useState(limitsFor(provider).tokens);
   const [clarify, setClarify] = useState(true);
+  const [buildOn, setBuildOn] = useState<string[]>([]);
+  const related = relatedRuns(runs, title, brief);
+  const relatedIds = related.map((r) => r.run.id);
+  const chosen = buildOn.filter((id) => relatedIds.includes(id));
   const [interval, setIntervalHours] = useState(24);
   const [checks, setChecks] = useState(3);
   const [files, setFiles] = useState<
@@ -963,6 +975,7 @@ function NewResearch({
             maxMinutes: minutes,
             maxTokens: tokens,
             clarify,
+            buildOn: chosen,
             intervalHours: interval,
             remainingChecks: kind === "monitor" ? checks : 0,
           }),
@@ -1268,6 +1281,41 @@ function NewResearch({
               </p>
             </div>
           )}
+          {related.length > 0 && (
+            <fieldset className="build-on">
+              <legend>
+                <History size={15} />
+                Build on earlier research
+              </legend>
+              <p>
+                Octo found related work in your workspace. Selected reports are
+                given to the agent so it reuses what is known, re-checks what
+                may have changed, and skips repeat work.
+              </p>
+              {related.map(({ run: r, shared }) => (
+                <label key={r.id} className="build-on-row">
+                  <input
+                    type="checkbox"
+                    checked={chosen.includes(r.id)}
+                    onChange={(e) =>
+                      setBuildOn((list) =>
+                        e.target.checked
+                          ? [...list, r.id]
+                          : list.filter((id) => id !== r.id),
+                      )
+                    }
+                  />
+                  <span>
+                    <b>{r.title}</b>
+                    <small>
+                      {date(r.updatedAt)} · shares “
+                      {shared.slice(0, 3).join(", ")}”
+                    </small>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          )}
           <label className="clarify-toggle">
             <input
               type="checkbox"
@@ -1506,6 +1554,7 @@ function RunDetail({
   onDelete: (run: Run) => void;
 }) {
   const [tab, setTab] = useState("report");
+  const [highlight, setHighlight] = useState<string>();
   const [continueNote, setContinueNote] = useState("");
   const team = teamFor(run);
   const [notes, setNotes] = useState(run.notes);
@@ -1587,6 +1636,13 @@ function RunDetail({
             {run.tokenUsage !== undefined && (
               <span>{run.tokenUsage.toLocaleString()} tokens reported</span>
             )}
+            {run.priorResearch?.length ? (
+              <span className="builds-on">
+                <History size={13} />
+                Builds on{" "}
+                {run.priorResearch.map((p) => `“${p.title}”`).join(", ")}
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="detail-actions">
@@ -1706,6 +1762,26 @@ function RunDetail({
               >
                 {[
                   ["report", "Report", FileText],
+                  ...(run.purpose === "crm"
+                    ? []
+                    : [
+                        [
+                          "evidence",
+                          run.evidence?.status === "done" &&
+                          run.evidence.score !== undefined
+                            ? `Evidence · ${run.evidence.score}`
+                            : "Evidence",
+                          ShieldCheck,
+                        ],
+                        ["ask", "Ask", MessageCircleQuestion],
+                        [
+                          "versions",
+                          run.versions?.length
+                            ? `Versions (${run.versions.length + 1})`
+                            : "Versions",
+                          History,
+                        ],
+                      ]),
                   ["sources", `Sources (${run.sources.length})`, Link2],
                   ...(run.workflow === "sales"
                     ? [
@@ -1749,6 +1825,10 @@ function RunDetail({
                           <Download size={14} />
                         </button>
                       </div>
+                      <EvidenceSummary
+                        run={run}
+                        onOpen={() => setTab("evidence")}
+                      />
                       <div className="markdown">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
@@ -1800,6 +1880,59 @@ function RunDetail({
                       </div>
                     </div>
                   ))}
+                {tab === "evidence" && (
+                  <EvidencePanel
+                    run={run}
+                    busy={busy}
+                    highlight={highlight}
+                    onRecheck={() => void action("evidence")}
+                  />
+                )}
+                {tab === "ask" &&
+                  (run.report.trim() ? (
+                    <AskPanel
+                      run={run}
+                      onChange={onChange}
+                      onError={onError}
+                      onClaim={(id) => {
+                        setHighlight(id);
+                        setTab("evidence");
+                        setTimeout(
+                          () =>
+                            document
+                              .getElementById(`claim-${id}`)
+                              ?.scrollIntoView({ block: "center" }),
+                          50,
+                        );
+                      }}
+                      onResearchGap={(gap) => {
+                        setFollowup(gap);
+                        setTimeout(() => {
+                          const input = document.getElementById("follow-up");
+                          input?.scrollIntoView({ block: "center" });
+                          input?.focus();
+                        }, 50);
+                      }}
+                    />
+                  ) : (
+                    <p className="empty-note">
+                      Questions can be asked once a report is ready.
+                    </p>
+                  ))}
+                {tab === "versions" && (
+                  <VersionsPanel
+                    run={run}
+                    busy={busy}
+                    onRefresh={
+                      run.status === "completed" &&
+                      run.report.trim() &&
+                      (run.mode === "demo" || run.sessionId)
+                        ? (note) =>
+                            void action("refresh", note.trim() ? { note } : {})
+                        : undefined
+                    }
+                  />
+                )}
                 {tab === "sources" && (
                   <div className="source-list">
                     <h2>The evidence behind the report</h2>
@@ -1826,6 +1959,18 @@ function RunDetail({
                             tail={18}
                           />
                         </div>
+                        {(() => {
+                          const checked = run.evidence?.claims.filter(
+                            (c) => c.sourceUrl === source.url,
+                          );
+                          if (!checked?.length) return null;
+                          const worst =
+                            checked.find((c) => c.status === "not_found") ??
+                            checked.find((c) => c.status === "partial") ??
+                            checked.find((c) => c.status === "unreachable") ??
+                            checked[0];
+                          return <ClaimBadge status={worst.status} />;
+                        })()}
                         <ExternalLink size={16} />
                       </a>
                     ))}

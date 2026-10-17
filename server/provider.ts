@@ -9,6 +9,7 @@ import {
   planPrompt,
   strictPlanSchema,
 } from "./planner.js";
+import { parseJsonText, strictSchema, type JsonSchema } from "./structured.js";
 
 export class ProviderError extends Error {
   constructor(
@@ -46,6 +47,13 @@ export interface Provider {
   exportCrm(run: Run): Promise<ApiObject>;
   /** Questions and proposed research areas before research starts. */
   plan?(run: Run): Promise<ResearchPlan>;
+  /** A short structured model call without tools, e.g. claim extraction or a grounded answer. */
+  structured?(
+    run: Run,
+    prompt: string,
+    schema: JsonSchema,
+    name: string,
+  ): Promise<unknown>;
 }
 export class OpenAIProvider implements Provider {
   constructor(
@@ -141,6 +149,36 @@ export class OpenAIProvider implements Provider {
       run.attachments,
       this.readAttachment,
     );
+    return parsePlanText(
+      await this.respond(
+        [
+          ...pdfs.map((p) => ({
+            type: "input_file",
+            filename: p.name,
+            file_data: `data:application/pdf;base64,${p.data}`,
+          })),
+          { type: "input_text", text: planPrompt(run) + fileContext(texts) },
+        ],
+        strictPlanSchema,
+        "research_plan",
+      ),
+    );
+  }
+  async structured(
+    _run: Run,
+    prompt: string,
+    schema: JsonSchema,
+    name: string,
+  ) {
+    return parseJsonText(
+      await this.respond(
+        [{ type: "input_text", text: prompt }],
+        strictSchema(schema),
+        name,
+      ),
+    );
+  }
+  private async respond(content: unknown[], schema: unknown, name: string) {
     const response = await this.request("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -149,29 +187,9 @@ export class OpenAIProvider implements Provider {
       },
       body: JSON.stringify({
         model: this.model,
-        input: [
-          {
-            role: "user",
-            content: [
-              ...pdfs.map((p) => ({
-                type: "input_file",
-                filename: p.name,
-                file_data: `data:application/pdf;base64,${p.data}`,
-              })),
-              {
-                type: "input_text",
-                text: planPrompt(run) + fileContext(texts),
-              },
-            ],
-          },
-        ],
+        input: [{ role: "user", content }],
         text: {
-          format: {
-            type: "json_schema",
-            name: "research_plan",
-            schema: strictPlanSchema,
-            strict: true,
-          },
+          format: { type: "json_schema", name, schema, strict: true },
         },
       }),
       signal: AbortSignal.timeout(120000),
@@ -186,15 +204,13 @@ export class OpenAIProvider implements Provider {
           .slice(0, 1500),
         response.status,
       );
-    const text =
-      typeof payload.output_text === "string"
-        ? payload.output_text
-        : (payload.output ?? [])
-            .flatMap((o: any) => o?.content ?? [])
-            .filter((c: any) => c?.type === "output_text")
-            .map((c: any) => c.text)
-            .join("");
-    return parsePlanText(text);
+    return typeof payload.output_text === "string"
+      ? payload.output_text
+      : (payload.output ?? [])
+          .flatMap((o: any) => o?.content ?? [])
+          .filter((c: any) => c?.type === "output_text")
+          .map((c: any) => c.text)
+          .join("");
   }
   async recover(localId: string) {
     const sessions = await this.pages("/sessions?order=desc");

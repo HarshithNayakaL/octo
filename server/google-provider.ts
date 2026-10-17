@@ -17,6 +17,7 @@ import {
   planPrompt,
   planSchema,
 } from "./planner.js";
+import { parseJsonText, type JsonSchema } from "./structured.js";
 import type { ResearchPlan } from "../shared/types.js";
 
 /** Text of a finished model interaction, across the response shapes in use. */
@@ -207,6 +208,23 @@ export class GoogleProvider implements Provider {
       120000,
     );
     return parsePlanText(interactionText(interaction));
+  }
+  async structured(run: Run, prompt: string, schema: JsonSchema) {
+    const interaction = await this.call(
+      "/interactions",
+      {
+        model: run.baseModel ?? this.model,
+        input: [{ type: "text", text: prompt }],
+        response_format: {
+          type: "text",
+          mime_type: "application/json",
+          schema,
+        },
+      },
+      false,
+      120000,
+    );
+    return parseJsonText(interactionText(interaction));
   }
   async message(id: string, text: string, _key: string, run?: Run) {
     if (!run)

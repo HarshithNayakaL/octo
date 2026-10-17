@@ -14,7 +14,11 @@ export function planPrompt(run: Run) {
   return `You are preparing a research engagement in Octo, an evidence-led research workspace. Do not research yet.
 Workflow: ${workflowLabels[run.workflow]}.${run.workflow === "sales" && run.icp ? `\nIdeal customer profile: ${run.icp}` : ""}
 Brief: ${run.brief}
-${files}
+${files}${
+    run.priorResearch?.length
+      ? `\nThe user will build on earlier workspace research: ${run.priorResearch.map((p) => `"${p.title}"`).join(", ")}. Do not ask about what it already settles.`
+      : ""
+  }
 
 Return JSON with:
 - understanding: 2-4 sentences on what you understood from the brief and files, in plain language.

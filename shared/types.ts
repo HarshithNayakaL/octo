@@ -65,6 +65,65 @@ export interface ReportPart {
   reason: string;
   at: string;
 }
+/** How well a cited source backs a claim, checked by fetching the source. */
+export type ClaimStatus =
+  | "supported"
+  | "partial"
+  | "not_found"
+  | "unreachable"
+  | "uncited";
+export interface ClaimCheck {
+  id: string;
+  claim: string;
+  /** Words or figures that should appear in the source if it backs the claim. */
+  quote?: string;
+  sourceUrl?: string;
+  sourceTitle?: string;
+  status: ClaimStatus;
+  /** What the check found: a matching excerpt or why it could not check. */
+  note?: string;
+  excerpt?: string;
+}
+/** Octo's own check of the report's citations against the cited pages. */
+export interface EvidenceCheck {
+  status: "pending" | "running" | "done" | "failed";
+  /** Report length when checked, so a stale check can be detected. */
+  reportLength: number;
+  requestedAt: string;
+  finishedAt?: string;
+  method?: "model" | "heuristic";
+  claims: ClaimCheck[];
+  /** 0-100: supported claims count fully, partial ones half. */
+  score?: number;
+  error?: string;
+}
+/** A question answered only from this research. */
+export interface QuestionAnswer {
+  id: string;
+  question: string;
+  answer: string;
+  coverage: "covered" | "partly" | "not_covered";
+  claimIds: string[];
+  /** A follow-up research instruction when the research does not answer it. */
+  gap?: string;
+  at: string;
+}
+/** An earlier report, kept when research is refreshed or followed up. */
+export interface ReportVersion {
+  id: string;
+  at: string;
+  label: string;
+  report: string;
+  sources: Source[];
+  score?: number;
+}
+/** Earlier workspace research this run builds on, copied at creation. */
+export interface PriorResearch {
+  runId: string;
+  title: string;
+  at: string;
+  summary: string;
+}
 export interface Source {
   title: string;
   url: string;
@@ -112,6 +171,10 @@ export interface Run {
   stopReason?: string;
   /** Requested deliverable; "auto" picks from the brief and workflow. */
   outputFormat?: "auto" | "pdf" | "docx" | "csv" | "md";
+  evidence?: EvidenceCheck;
+  questions?: QuestionAnswer[];
+  versions?: ReportVersion[];
+  priorResearch?: PriorResearch[];
   agentName?: string;
   baseModel?: string;
   creationAttempted?: boolean;

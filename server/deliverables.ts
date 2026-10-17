@@ -115,6 +115,27 @@ function appendix(run: Run): string {
         ].join("\n\n"),
       );
   }
+  const evidence = run.evidence;
+  if (evidence?.status === "done" && evidence.claims.length) {
+    const label: Record<string, string> = {
+      supported: "Supported",
+      partial: "Partly supported",
+      not_found: "Not found in source",
+      unreachable: "Could not check",
+      uncited: "No source cited",
+    };
+    const cell = (text: string) =>
+      text.replace(/\|/g, "\\|").replace(/\s+/g, " ");
+    parts.push(
+      `## Evidence check\n\nOcto opened each cited page and looked for the figures and wording each claim depends on${evidence.score === undefined ? "" : ` (evidence score ${evidence.score}/100)`}. This is an automatic first pass${run.mode === "demo" ? "; in this demo the statuses are illustrative" : ""}. Review flagged claims before relying on them.\n\n| # | Claim | Result | Source |\n|---|---|---|---|\n` +
+        evidence.claims
+          .map(
+            (c) =>
+              `| ${c.id} | ${cell(c.claim)} | ${label[c.status]} | ${c.sourceUrl ? `[${cell(c.sourceTitle ?? "Source")}](${c.sourceUrl})` : "—"} |`,
+          )
+          .join("\n"),
+    );
+  }
   if (run.sources.length)
     parts.push(
       "## Sources\n\n" +
@@ -576,7 +597,12 @@ export async function renderDeliverable(
       };
     case "md":
       return {
-        bytes: Buffer.from(run.report, "utf8"),
+        bytes: Buffer.from(
+          run.evidence?.status === "done" && run.evidence.claims.length
+            ? fullMarkdown({ ...run, leads: [], sources: [] })
+            : run.report,
+          "utf8",
+        ),
         contentType: "text/markdown; charset=utf-8",
         extension: "md",
       };
@@ -591,6 +617,8 @@ export async function renderDeliverable(
               report: run.report,
               sources: run.sources,
               leads: run.leads,
+              evidence: run.evidence,
+              questions: run.questions,
               notes: run.notes,
             },
             null,

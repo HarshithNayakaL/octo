@@ -10,10 +10,37 @@ import {
 } from "./results.js";
 import { demoResult } from "./demo.js";
 import { demoPlan } from "./planner.js";
+import { checkEvidence, evidenceDue, requestEvidence } from "./evidence.js";
+import type { CheckOptions } from "./evidence.js";
 
 export const active = (r: Run) =>
   ["planning", "starting", "running", "requires_action"].includes(r.status);
+/** Keep the report being replaced, so users can compare versions. */
+export function archiveReport(run: Run, next: string) {
+  if (!run.report.trim() || run.report === next || run.purpose === "crm")
+    return;
+  const versions = run.versions ?? [];
+  run.versions = [
+    ...versions,
+    {
+      id: randomUUID(),
+      at: run.updatedAt,
+      label:
+        run.status === "partial" ||
+        run.reportParts?.at(-1)?.report === run.report
+          ? "Partial report"
+          : versions.length
+            ? "Earlier report"
+            : "First report",
+      report: run.report,
+      sources: run.sources,
+      score: run.evidence?.status === "done" ? run.evidence.score : undefined,
+    },
+  ].slice(-10);
+}
 export interface EngineOptions {
+  /** How cited sources are fetched for evidence checks (tests inject this). */
+  evidence?: CheckOptions;
   /** Longest a single step may hold a run. Must stay below the host's request limit. */
   leaseMs?: number;
   /** Minimum gap between steps on one run, so frequent triggers don't over-poll providers. */
@@ -25,6 +52,7 @@ export class Engine {
   private ticking?: Promise<void>;
   readonly leaseMs: number;
   readonly pollGapMs: number;
+  readonly evidenceOptions?: CheckOptions;
   constructor(
     readonly store: RunStore,
     readonly provider?: Provider,
@@ -33,6 +61,7 @@ export class Engine {
   ) {
     this.leaseMs = options.leaseMs ?? 240_000;
     this.pollGapMs = options.pollGapMs ?? 0;
+    this.evidenceOptions = options.evidence;
   }
   log(run: Run, label: string, text: string, type = "system") {
     run.activities.push({
@@ -73,6 +102,7 @@ export class Engine {
       if (
         active(row) ||
         row.pendingInput ||
+        evidenceDue(row) ||
         (row.nextCheckAt && Date.parse(row.nextCheckAt) <= Date.now())
       )
         await this.process(row.id);
@@ -96,6 +126,15 @@ export class Engine {
     try {
       let run = (await this.store.get(id))!;
       if (!run) return;
+      if (
+        !active(run) &&
+        !run.pendingInput &&
+        evidenceDue(run) &&
+        !(run.nextCheckAt && Date.parse(run.nextCheckAt) <= Date.now())
+      ) {
+        await this.evidenceStep(run);
+        return;
+      }
       if (
         !active(run) &&
         !run.pendingInput &&
@@ -280,6 +319,8 @@ export class Engine {
       ) {
         run.lastTurnId = latest.id;
         if (latest.status === "completed") {
+          const previous = run.report;
+          archiveReport(run, "");
           run.report = finalReport(
             snap.items.filter((item) => item.turn_id === latest.id),
           );
@@ -310,13 +351,27 @@ export class Engine {
               );
             }
           }
-          if (!run.report.trim()) {
+          const produced = Boolean(run.report.trim());
+          if (
+            previous.trim() &&
+            run.versions?.at(-1)?.report === previous &&
+            (!produced || run.report === previous)
+          ) {
+            // Nothing new to compare: keep the earlier report in place.
+            run.versions.pop();
+            if (!produced) {
+              run.report = previous;
+              run.sources = sourcesFromReport(previous);
+            }
+          }
+          if (!produced) {
             run.status = "failed";
             run.error =
               "The turn completed without a readable report. Inspect activity and artifacts before continuing.";
           } else {
             run.status = "completed";
             run.error = undefined;
+            if (run.purpose !== "crm") run.evidence = requestEvidence(run);
             this.log(
               run,
               "Report ready",
@@ -336,7 +391,9 @@ export class Engine {
                 ? (run.stopReason ?? "you stopped it")
                 : (latest.error?.message ?? "the agent turn failed");
           if (partial.trim()) {
+            archiveReport(run, partial);
             run.report = partial;
+            run.evidence = requestEvidence(run);
             run.sources = sourcesFromReport(partial);
             run.reportParts = [
               ...(run.reportParts ?? []),
@@ -572,8 +629,19 @@ export class Engine {
         age > 6000 ? "completed" : count > i + 1 ? "in_progress" : "queued",
     }));
     if (age > 6000) {
-      Object.assign(run, demoResult(run));
+      const result = demoResult(run);
+      // Demo follow-ups record the request so the versions view has a change to show.
+      const asked = run.report.trim()
+        ? [...run.activities]
+            .reverse()
+            .find((a) => a.label === "Follow-up queued")
+        : undefined;
+      if (asked)
+        result.report += `\n\n## Follow-up ${(run.versions?.length ?? 0) + 1} (illustrative)\n\nYou asked: “${asked.text.split("\n")[0].slice(0, 300)}” A live run researches this and updates the sections above; the demo only records the request.`;
+      archiveReport(run, result.report);
+      Object.assign(run, result);
       run.status = "completed";
+      run.evidence = requestEvidence(run);
       this.log(
         run,
         "Demo report ready",
@@ -582,6 +650,50 @@ export class Engine {
       this.schedule(run);
     }
     await this.store.save(run);
+  }
+  /** Check the report's citations against the cited pages, outside any research turn. */
+  private async evidenceStep(run: Run) {
+    const provider =
+      this.providers?.[run.provider ?? "openai"] ??
+      ((run.provider ?? "openai") === "openai" ? this.provider : undefined);
+    const requestedAt = new Date().toISOString();
+    run.evidence = {
+      ...run.evidence!,
+      status: "running",
+      requestedAt,
+      reportLength: run.report.length,
+    };
+    await this.store.save(run);
+    let update: Partial<NonNullable<Run["evidence"]>>;
+    try {
+      update = {
+        status: "done",
+        ...(await checkEvidence(run, provider, this.evidenceOptions)),
+      };
+    } catch (err) {
+      update = {
+        status: "failed",
+        claims: [],
+        error:
+          err instanceof Error ? err.message : "The evidence check failed.",
+      };
+    }
+    // Save onto the latest copy so notes or a queued follow-up are not lost.
+    const latest = await this.store.get(run.id);
+    if (!latest || latest.evidence?.requestedAt !== requestedAt) return;
+    latest.evidence = {
+      ...latest.evidence,
+      ...update,
+      finishedAt: new Date().toISOString(),
+    } as NonNullable<Run["evidence"]>;
+    const e = latest.evidence;
+    if (e.status === "done")
+      this.log(
+        latest,
+        "Evidence checked",
+        `${e.claims.filter((c) => c.status === "supported").length} of ${e.claims.length} claims supported by their cited page${e.score === undefined ? "" : ` · evidence score ${e.score}`}.`,
+      );
+    await this.store.save(latest);
   }
   async queueMessage(run: Run, text: string) {
     run.pendingInput = { text, key: randomUUID(), kind: "followup" };

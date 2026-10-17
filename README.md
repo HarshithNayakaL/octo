@@ -2,6 +2,20 @@
 
 A TypeScript research workspace built around the **OpenAI Agents API**: a research director delegates to specialist agents, works in a hosted sandbox with live web search, and returns cited reports and structured company records. **Google Antigravity (Gemini Interactions)** is supported as an alternative provider, useful for testing on a Google free-tier project. Octo runs locally and can be deployed to Vercel.
 
+## Why Octo instead of a chat assistant
+
+A chat assistant can research a question. Octo is built around what happens around the research: aiming it, checking it, and keeping it useful.
+
+| | Chat assistant | Octo |
+|---|---|---|
+| Before research | Starts searching immediately | Says what it understood, proposes areas for this brief, and asks questions with options before spending a search |
+| Citations | Shows links; you check them | **Evidence check:** opens every cited page and PDF itself and marks each claim Supported, Partly supported, Not found, No source cited or Could not check, with an evidence score |
+| Follow-up questions | Answered from the model's memory | **Ask this research:** answered only from the report and its checked claims; unanswered questions become one-click follow-up research |
+| Over time | A one-off answer | **Refresh** any report, or schedule checks; every version is kept with a line-by-line **what changed** view |
+| Across projects | Starts from zero | **Build on earlier research:** new runs can reuse related reports from your workspace and re-check what changed |
+| Long work | Stops when it stops | Runs up to 3 hours; a run cut off by a limit keeps its partial report and continues into one report |
+| Output | Text in a chat | PDF, Word, CSV, Markdown or JSON files, including the evidence check |
+
 ## Start locally
 
 Requires Node.js **22.14 or newer** and npm. Node's built-in SQLite is experimental on Node 22; use a current supported Node version when deploying.
@@ -65,7 +79,31 @@ OPENAI_UNLOCK_WORD=choose-a-word
 2. **Questions first** (on by default). Before any research, Octo reads the brief and files and shows what it understood, the outcome it thinks you want, the research areas this topic needs, and two to five questions. Each question has suggested answers plus a box for your own detail, and there is a final "anything else" field. Turn areas off, answer what matters, or skip the questions. Google uses Gemini structured output for this step; OpenAI uses a strict JSON schema; demo runs show labelled example questions without calling a model. If the step fails, you can still start the research.
 3. **Research.** One specialist covers each area you kept (Google runs them as passes in one session). Areas are planned per brief, never a fixed template. Your answers, notes and the agreed outcome go into the agent's instructions.
 4. **Report.** A cited report, source list, company records where relevant, and downloads in your chosen format.
-5. **Continue.** Ask follow-ups in the same session. If a run stopped early, continue it (below).
+5. **Evidence check.** Octo checks the report's citations itself (below) and shows an evidence score.
+6. **Ask, refresh, build on.** Ask questions answered only from the report, refresh it later to see what changed, ask follow-ups in the same session, or start related research that builds on it. If a run stopped early, continue it (below).
+
+### Evidence check
+
+After every report (and on **Check again**), Octo:
+
+1. Lists up to 20 material claims. Live runs ask the run's model (Gemini structured output or an OpenAI strict schema) for each claim, the words or figure the source should contain, and the URL the report cites for it. Only URLs the report or its source list actually cite are accepted. If that call fails, Octo falls back to reading the report itself: sentences and table cells with figures or citations, with a bullet's citation applying to every sentence in it, and numbered citations such as `[3]` mapped to the source list.
+2. Fetches each cited page once (up to 15 pages, 4 at a time, 12 seconds each, 5 MB cap). HTML is reduced to text and PDFs are read with `unpdf`. Only public addresses on standard ports are fetched; private, loopback, link-local and metadata addresses are refused, including after redirects.
+3. Compares figures (ignoring thousands separators) and key terms with the page and marks the claim **Supported**, **Partly supported**, **Not found in source**, **No source cited** or **Could not check** (blocked, failed, or a page with almost no readable text, which usually means it needs JavaScript or a sign-in).
+4. Scores the report from 0 to 100: supported claims count fully, partly supported ones half. Pages Octo could not check are left out of the score.
+
+This is an automatic first pass that flags what to review; it is not proof. The check runs outside the research session, costs one small model call on live runs, and is included as a table in PDF, Word, Markdown and JSON downloads. Demo runs show labelled illustrative statuses and fetch nothing.
+
+### Ask this research
+
+The **Ask** tab answers questions using only the report, its checked claims and your notes, never new searches or the model's own memory. Each answer says whether the research covers the question (answered, partly, or not in this research), cites the checked claims it used (click one to see it in Evidence), and, when the research falls short, proposes a follow-up instruction you can send with **Research this**. Live runs use one small structured model call per question (up to 30 per run); demo runs quote the matching report passages without a model.
+
+### Versions and refresh
+
+Whenever a follow-up, continuation, scheduled check or **Refresh research** replaces a report, the old one is kept (up to 10 versions). The **Versions** tab compares the current report with any earlier version line by line, and lists added and dropped sources and the change in evidence score. **Refresh research** asks the agent to look for evidence published since the report, re-check its figures, and return one updated report ending with a "What changed" section.
+
+### Build on earlier research
+
+When a new brief overlaps earlier reports in your workspace, the research form suggests them under **Build on earlier research**. Each one you select (up to three) is copied into the new run (up to 12,000 characters of its report). It is given to the question step and to the agent, which is told to reuse what is established, re-check figures that may have changed, and say where new findings confirm, update or contradict it.
 
 ## Workflows
 
@@ -95,7 +133,7 @@ User notes are stored in the workspace; they are not automatically added to the 
 Every finished run can be downloaded as **PDF**, **Word (.docx)**, **CSV**, **Markdown** or **JSON**. Choose the main format under **Deliverable** in the research form; **Best for the task** uses the format your brief asks for ("send it as a spreadsheet"), otherwise CSV for company lists and PDF for briefings. The run's download button uses that format, and the menu beside it offers the rest.
 
 - Octo renders these files itself from the agent's Markdown report, so downloads work without extra agent usage. PDFs embed the Inter font (OFL, `assets/fonts`), so characters such as ₹ print correctly.
-- Documents include the report, company records (sales), and the source list.
+- Documents include the report, company records (sales), the evidence check, and the source list. JSON also includes your Ask answers.
 - CSV contains company records when present, otherwise every table in the report; it is offered only when there are rows. Spreadsheet formulas are neutralised and the file opens as UTF-8 in Excel.
 - Files the agent writes itself (for example `/workspace/outputs/leads.csv`) are listed under **Files from the agent**.
 

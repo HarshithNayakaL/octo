@@ -6,14 +6,16 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { resolve, basename } from "node:path";
 import type { RunStore } from "./store.js";
 import { Engine, active, type EngineOptions } from "./engine.js";
-import type { Provider } from "./provider.js";
+import { ProviderError, type Provider } from "./provider.js";
 import type {
   Run,
   ProviderId,
   ProviderConfiguration,
 } from "../shared/types.js";
 import { renderDeliverable } from "./deliverables.js";
-import { continuationInput } from "./prompts.js";
+import { continuationInput, refreshInput } from "./prompts.js";
+import { requestEvidence } from "./evidence.js";
+import { answerQuestion } from "./ask.js";
 import { formatsFor, preferredFormat } from "../shared/formats.js";
 
 const creation = z
@@ -33,6 +35,8 @@ const creation = z
     clarify: z.boolean().default(true),
     intervalHours: z.number().int().min(1).max(168).default(24),
     remainingChecks: z.number().int().min(0).max(30).default(0),
+    /** Earlier completed runs in this workspace to build on. */
+    buildOn: z.array(z.string().uuid()).max(3).default([]),
   })
   .superRefine((r, ctx) => {
     if (r.workflow === "sales" && r.icp.length < 15)
@@ -284,12 +288,30 @@ export function createApp(options: AppOptions) {
   app.get("/api/runs", async (_req, res) => {
     const runs = await store.list();
     res.json(
-      runs.map(({ activities, report, leads, ...run }) => ({
-        ...run,
-        report: "",
-        leads: [],
-        activities: [],
-      })),
+      runs.map(
+        ({
+          activities,
+          report,
+          leads,
+          versions,
+          questions,
+          priorResearch,
+          evidence,
+          reportParts,
+          ...run
+        }) => ({
+          ...run,
+          report: "",
+          leads: [],
+          activities: [],
+          evidence: evidence && {
+            ...evidence,
+            claims: [],
+          },
+          versionCount: versions?.length ?? 0,
+          hasReport: Boolean(report.trim()),
+        }),
+      ),
     );
     if (options.driveOnRequest) advance();
   });
@@ -343,8 +365,24 @@ export function createApp(options: AppOptions) {
         return file;
       }),
     );
+    const priorResearch: Run["priorResearch"] = [];
+    for (const id of new Set(data.buildOn)) {
+      const prior = await store.get(id);
+      if (!prior?.report.trim() || prior.purpose === "crm") {
+        res
+          .status(400)
+          .json({ error: "Earlier research to build on must have a report." });
+        return;
+      }
+      priorResearch.push({
+        runId: prior.id,
+        title: prior.title,
+        at: prior.updatedAt,
+        summary: prior.report.slice(0, 12_000),
+      });
+    }
     const now = new Date().toISOString();
-    const { clarify, ...fields } = data;
+    const { clarify, buildOn: _buildOn, ...fields } = data;
     const run: Run = {
       ...fields,
       provider: providerId,
@@ -364,6 +402,7 @@ export function createApp(options: AppOptions) {
       artifacts: [],
       notes: "",
       model: data.mode === "live" ? profile.model : undefined,
+      priorResearch: priorResearch.length ? priorResearch : undefined,
     };
     engine.log(
       run,
@@ -536,6 +575,129 @@ export function createApp(options: AppOptions) {
       .object({ note: z.string().trim().max(5000).optional() })
       .parse(req.body ?? {});
     await engine.queueMessage(run, continuationInput(run, note));
+    res.json(await store.get(run.id));
+    advance(run.id);
+  });
+  /** Re-run Octo's citation check on the current report. */
+  app.post("/api/runs/:id/evidence", async (req, res) => {
+    const run = await store.get(req.params.id);
+    if (!run) {
+      res.status(404).json({ error: "Research not found" });
+      return;
+    }
+    if (!run.report.trim() || active(run) || run.purpose === "crm") {
+      res
+        .status(409)
+        .json({ error: "Evidence can be checked once a report is ready." });
+      return;
+    }
+    if (
+      run.evidence?.status === "pending" ||
+      run.evidence?.status === "running"
+    ) {
+      res.json(run);
+      return;
+    }
+    if (
+      (run.provider ?? "openai") === "openai" &&
+      run.mode === "live" &&
+      !openaiUnlocked(req)
+    ) {
+      openaiLocked(res);
+      return;
+    }
+    run.evidence = requestEvidence(run);
+    await store.save(run);
+    res.json(run);
+    advance(run.id);
+  });
+  /** Answer a question from this research only. */
+  app.post("/api/runs/:id/ask", async (req, res) => {
+    const run = await store.get(req.params.id);
+    if (!run) {
+      res.status(404).json({ error: "Research not found" });
+      return;
+    }
+    if (!run.report.trim()) {
+      res.status(409).json({ error: "Ask questions once a report is ready." });
+      return;
+    }
+    if ((run.questions?.length ?? 0) >= 30) {
+      res.status(409).json({
+        error:
+          "This research has 30 answered questions. Start new research to ask more.",
+      });
+      return;
+    }
+    if (
+      (run.provider ?? "openai") === "openai" &&
+      run.mode === "live" &&
+      !openaiUnlocked(req)
+    ) {
+      openaiLocked(res);
+      return;
+    }
+    const { question } = z
+      .object({ question: z.string().trim().min(3).max(1000) })
+      .parse(req.body);
+    let answer;
+    try {
+      answer = await answerQuestion(run, getProvider(run), question);
+    } catch (err) {
+      const status =
+        err instanceof ProviderError && err.status === 429 ? 429 : 502;
+      res.status(status).json({
+        error:
+          status === 429
+            ? "The provider's rate limit was reached. Try again in a minute."
+            : `The question could not be answered: ${err instanceof Error ? err.message : "provider error"}`,
+      });
+      return;
+    }
+    const latest = (await store.get(run.id)) ?? run;
+    latest.questions = [...(latest.questions ?? []), answer].slice(-30);
+    await store.save(latest);
+    res.json(latest);
+  });
+  /** Bring a finished report up to date and keep the old one as a version. */
+  app.post("/api/runs/:id/refresh", async (req, res) => {
+    const run = await store.get(req.params.id);
+    if (!run) {
+      res.status(404).json({ error: "Research not found" });
+      return;
+    }
+    if (
+      run.status !== "completed" ||
+      !run.report.trim() ||
+      run.purpose === "crm"
+    ) {
+      res
+        .status(409)
+        .json({ error: "Only completed research can be refreshed." });
+      return;
+    }
+    if (run.mode === "live" && !run.sessionId) {
+      res
+        .status(409)
+        .json({ error: "This run has no remote session to refresh." });
+      return;
+    }
+    if (
+      (run.provider ?? "openai") === "openai" &&
+      run.mode === "live" &&
+      !openaiUnlocked(req)
+    ) {
+      openaiLocked(res);
+      return;
+    }
+    if ((await store.list()).some(active)) {
+      res.status(409).json({ error: "A research run is already active." });
+      return;
+    }
+    const { note } = z
+      .object({ note: z.string().trim().max(5000).optional() })
+      .parse(req.body ?? {});
+    await engine.queueMessage(run, refreshInput(run, note));
     res.json(await store.get(run.id));
     advance(run.id);
   });

@@ -4,6 +4,7 @@ import { RadarChart } from "echarts/charts";
 import { RadarComponent, TooltipComponent } from "echarts/components";
 import { SVGRenderer } from "echarts/renderers";
 import type { Lead } from "../shared/types";
+import { useTheme } from "./theme";
 echarts.use([RadarChart, RadarComponent, TooltipComponent, SVGRenderer]);
 
 const known = (value: string) =>
@@ -32,7 +33,13 @@ export function evidenceProfile(leads: Lead[]) {
 export default function EvidenceRadar({ leads }: { leads: Lead[] }) {
   const element = useRef<HTMLDivElement>(null);
   const profile = evidenceProfile(leads);
-  const signature = profile.map((p) => p.value).join(",");
+  const dark = useTheme().resolved === "dark";
+  const signature =
+    profile.map((p) => p.value).join(",") + (dark ? ":dark" : "");
+  const ink = dark ? "#9aa3b8" : "#7b7e88";
+  const grid = dark ? "#2a3144" : "#e6e9f1";
+  const accent = dark ? "#8fa8ff" : "#002fa7";
+  const accentRgb = dark ? "143,168,255" : "0,47,167";
   useEffect(() => {
     if (!element.current) return;
     const chart = echarts.init(element.current, undefined, { renderer: "svg" });
@@ -52,25 +59,33 @@ export default function EvidenceRadar({ leads }: { leads: Lead[] }) {
         shape: "polygon",
         indicator: profile.map((p) => ({ name: p.name, max: 100 })),
         axisName: {
-          color: "#7b7e88",
+          color: ink,
           fontSize: 10,
           fontFamily: "Inter Variable, sans-serif",
         },
-        splitLine: { lineStyle: { color: "#e6e9f1" } },
-        splitArea: { areaStyle: { color: ["#ffffff", "#f8f9fc"] } },
-        axisLine: { lineStyle: { color: "#e6e9f1" } },
+        splitLine: { lineStyle: { color: grid } },
+        splitArea: {
+          areaStyle: {
+            color: dark ? ["#121622", "#151a28"] : ["#ffffff", "#f8f9fc"],
+          },
+        },
+        axisLine: { lineStyle: { color: grid } },
       },
       series: [
         {
           type: "radar",
           symbol: "circle",
           symbolSize: 7,
-          itemStyle: { color: "#fff", borderColor: "#002fa7", borderWidth: 2 },
-          lineStyle: { color: "#002fa7", width: 1.6 },
+          itemStyle: {
+            color: dark ? "#121622" : "#fff",
+            borderColor: accent,
+            borderWidth: 2,
+          },
+          lineStyle: { color: accent, width: 1.6 },
           areaStyle: {
             color: new echarts.graphic.RadialGradient(0.5, 0.5, 0.7, [
-              { offset: 0, color: "rgba(0,47,167,0.04)" },
-              { offset: 1, color: "rgba(0,47,167,0.22)" },
+              { offset: 0, color: `rgba(${accentRgb},0.04)` },
+              { offset: 1, color: `rgba(${accentRgb},0.24)` },
             ]),
           },
           emphasis: { lineStyle: { width: 2.2 } },

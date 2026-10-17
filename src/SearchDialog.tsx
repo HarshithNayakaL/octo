@@ -2,6 +2,7 @@ import { Command } from "cmdk";
 import {
   ArrowUpRight,
   Building2,
+  Compass,
   FileText,
   Globe2,
   Radio,
@@ -50,6 +51,7 @@ export default function SearchDialog({
         <Command.Group heading="Create research">
           {(
             [
+              { key: "general", name: "Open research", icon: Compass },
               { key: "market", name: "Market intelligence", icon: Globe2 },
               { key: "sales", name: "Sales research", icon: Building2 },
               { key: "monitor", name: "Ongoing research", icon: Radio },

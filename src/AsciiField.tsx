@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
+import { useTheme } from "./theme";
 
 const ramp = " .·:-=+*#%";
 
 /** A quiet ASCII scan used while research is in progress. Decorative only. */
 export default function AsciiField({ className = "" }: { className?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const rgb = useTheme().resolved === "dark" ? "143, 168, 255" : "0, 47, 167";
   useEffect(() => {
     const node = canvas.current;
     const context = node?.getContext("2d");
@@ -46,7 +48,7 @@ export default function AsciiField({ className = "" }: { className?: string }) {
           );
           const glyph = ramp[Math.floor(level * (ramp.length - 1))];
           if (glyph === " ") continue;
-          context.fillStyle = `rgba(0, 47, 167, ${0.08 + level * 0.32})`;
+          context.fillStyle = `rgba(${rgb}, ${0.08 + level * 0.32})`;
           context.fillText(glyph, x * cell + cell / 2, y * cell + cell / 2);
         }
     };
@@ -66,7 +68,7 @@ export default function AsciiField({ className = "" }: { className?: string }) {
       cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, []);
+  }, [rgb]);
   return (
     <canvas
       ref={canvas}

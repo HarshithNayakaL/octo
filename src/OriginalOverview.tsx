@@ -3,6 +3,8 @@ import {
   ArrowUpRight,
   BookOpen,
   Building2,
+  Compass,
+  Trash2,
   Command,
   FileText,
   FolderOpen,
@@ -15,7 +17,8 @@ import {
 } from "lucide-react";
 import { Arc, Orbit } from "loading-dev";
 import Select from "./Select";
-import { Mascot, director, playbooks } from "./agents";
+import { Mascot, areaProfile, director } from "./agents";
+import { deletable, isActive, statusLabel } from "./status";
 import {
   workflowLabels,
   type Configuration,
@@ -35,12 +38,19 @@ interface Props {
   setFilter: (value: string) => void;
   onCreate: (workflow: Workflow, brief?: string) => void;
   onOpen: (id: string) => void;
+  onDelete: (run: Run) => void;
   onSettings: () => void;
 }
-const icons = { market: Globe2, sales: Building2, monitor: Radio };
-const active = (run: Run) =>
-  ["starting", "running", "requires_action"].includes(run.status);
+const icons = {
+  general: Compass,
+  market: Globe2,
+  sales: Building2,
+  monitor: Radio,
+};
+const active = isActive;
 const descriptions = {
+  general:
+    "Ask anything. Octo reads your brief, asks what you need, and plans the research around it.",
   market: "Understand markets. Map competitors. Find the signals that matter.",
   sales: "Find the right companies, with evidence behind every match.",
   monitor: "Follow a topic over time. Build on what you already know.",
@@ -64,6 +74,7 @@ export default function OriginalOverview({
   setFilter,
   onCreate,
   onOpen,
+  onDelete,
   onSettings,
 }: Props) {
   return (
@@ -124,7 +135,7 @@ export default function OriginalOverview({
             <span>Choose a research workflow</span>
           </div>
           <section className="workflow-grid">
-            {(["market", "sales", "monitor"] as Workflow[]).map(
+            {(["general", "market", "sales", "monitor"] as Workflow[]).map(
               (workflow, i) => {
                 const Icon = icons[workflow];
                 return (
@@ -146,11 +157,13 @@ export default function OriginalOverview({
                     <p>{descriptions[workflow]}</p>
                     <div className="card-footer">
                       <span>
-                        {workflow === "market"
-                          ? "Investor briefings & competitors"
-                          : workflow === "sales"
-                            ? "ICP matching & company evidence"
-                            : "Saved context & scheduled checks"}
+                        {workflow === "general"
+                          ? "Any topic · questions first"
+                          : workflow === "market"
+                            ? "Decision-ready market briefings"
+                            : workflow === "sales"
+                              ? "ICP matching & company evidence"
+                              : "Saved context & scheduled checks"}
                       </span>
                     </div>
                   </button>
@@ -194,6 +207,7 @@ export default function OriginalOverview({
                 onChange={setFilter}
                 options={[
                   { value: "all", label: "All workflows" },
+                  { value: "general", label: "Open" },
                   { value: "market", label: "Market" },
                   { value: "sales", label: "Sales" },
                   { value: "monitor", label: "Ongoing" },
@@ -258,13 +272,23 @@ export default function OriginalOverview({
                         ) : (
                           <span />
                         )}
-                        {run.cancelRequested && active(run)
-                          ? "Stopping"
-                          : run.status.replaceAll("_", " ")}
+                        {statusLabel(run)}
                       </span>
                     </td>
                     <td className="date-cell">{date(run.updatedAt)}</td>
-                    <td>
+                    <td className="row-actions">
+                      {deletable(run) && (
+                        <button
+                          className="icon-button row-delete"
+                          aria-label={`Delete ${run.title}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(run);
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
                       <ArrowUpRight size={17} />
                     </td>
                   </tr>
@@ -326,12 +350,15 @@ export default function OriginalOverview({
 }
 
 function ResearchDiagram() {
-  const team = playbooks.market.slice(0, 4);
+  // Example plan: real runs get areas chosen for their own brief.
+  const team = ["Context", "Evidence", "Analysis", "Implications"].map(
+    (title, i) => areaProfile(title, i),
+  );
   return (
     <div
       className="research-diagram"
       role="img"
-      aria-label="Illustration: a research director coordinates market, competitor, pricing, and regulation research to produce a report"
+      aria-label="Illustration: a research director coordinates one specialist per research area planned for your brief, then produces a report"
     >
       <div className="diagram-grid" />
       <svg

@@ -16,6 +16,8 @@ export interface RunStore {
   list(): Promise<Run[]>;
   get(id: string): Promise<Run | undefined>;
   save(run: Run): Promise<Run>;
+  /** Remove a run and its lease. Remote sessions and shared uploads are untouched. */
+  delete(id: string): Promise<void>;
   /**
    * Take an exclusive, expiring lease on a run. Only one worker in any instance
    * may advance a run at a time; this is what prevents duplicate paid sessions.
@@ -62,6 +64,10 @@ export class Store implements RunStore {
       )
       .run(run.id, JSON.stringify(run));
     return run;
+  }
+  async delete(id: string) {
+    this.db.prepare("DELETE FROM runs WHERE id=?").run(id);
+    this.db.prepare("DELETE FROM leases WHERE id=?").run(id);
   }
   async claim(id: string, leaseMs: number) {
     const now = Date.now();

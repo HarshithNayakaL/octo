@@ -44,7 +44,16 @@ import {
   RefreshCw,
   Lock,
   LockOpen,
+  Compass,
+  Trash2,
+  MessageCircleQuestion,
+  Moon,
+  Sun,
+  Monitor,
 } from "lucide-react";
+import { useTheme } from "./theme";
+import ClarifyPanel from "./ClarifyPanel";
+import { deletable, isActive as activeRun, statusLabel } from "./status";
 import Overview from "./OriginalOverview";
 import SearchDialog from "./SearchDialog";
 import Select from "./Select";
@@ -59,8 +68,9 @@ import {
   crmProfile,
   director,
   directorState,
-  playbooks,
   profileFor,
+  reviewer,
+  teamFor,
 } from "./agents";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -82,9 +92,13 @@ import {
 
 const EvidenceRadar = lazy(() => import("./EvidenceRadar"));
 type Page = "research" | "reports" | "monitors" | "connections";
-const isActive = (run: Run) =>
-  ["starting", "running", "requires_action"].includes(run.status);
-const icons = { market: Globe2, sales: Building2, monitor: Radio };
+const isActive = activeRun;
+const icons = {
+  general: Compass,
+  market: Globe2,
+  sales: Building2,
+  monitor: Radio,
+};
 const date = (value: string) =>
   new Intl.DateTimeFormat("en-IN", {
     month: "short",
@@ -97,9 +111,7 @@ function Status({ run }: { run: Run }) {
   return (
     <span className={`status ${run.status}`}>
       <span />
-      {run.cancelRequested && isActive(run)
-        ? "Stopping"
-        : run.status.replaceAll("_", " ")}
+      {statusLabel(run)}
     </span>
   );
 }
@@ -219,6 +231,30 @@ export default function App() {
   const [sidebar, setSidebar] = useState(false);
   const [token, setToken] = useState("");
   const [locked, setLocked] = useState(false);
+  const theme = useTheme();
+  const nextTheme =
+    theme.choice === "system"
+      ? "dark"
+      : theme.choice === "dark"
+        ? "light"
+        : "system";
+  const [pendingDelete, setPendingDelete] = useState<Run>();
+  const [deleting, setDeleting] = useState(false);
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await api(`/runs/${pendingDelete.id}`, { method: "DELETE" });
+      if (selectedId.current === pendingDelete.id) setSelected(undefined);
+      setPendingDelete(undefined);
+      void refresh();
+    } catch (e) {
+      setError((e as Error).message);
+      setPendingDelete(undefined);
+    } finally {
+      setDeleting(false);
+    }
+  }
   const selectedId = useRef<string | undefined>(undefined);
   selectedId.current = selected?.id;
   async function refresh() {
@@ -459,6 +495,20 @@ export default function App() {
             </span>
             <button
               className="icon-button"
+              onClick={() => theme.setChoice(nextTheme)}
+              aria-label={`Theme: ${theme.choice}. Switch to ${nextTheme}`}
+              title={`Theme: ${theme.choice === "system" ? "system" : theme.choice} · click for ${nextTheme}`}
+            >
+              {theme.choice === "dark" ? (
+                <Moon size={18} />
+              ) : theme.choice === "light" ? (
+                <Sun size={18} />
+              ) : (
+                <Monitor size={18} />
+              )}
+            </button>
+            <button
+              className="icon-button help-button"
               onClick={() => setHelp(true)}
               aria-label="Help"
             >
@@ -518,6 +568,7 @@ export default function App() {
             onBack={() => setSelected(undefined)}
             onChange={changed}
             onError={setError}
+            onDelete={setPendingDelete}
           />
         ) : page === "connections" ? (
           <Connections config={config} onSettings={() => setSettings(true)} />
@@ -537,6 +588,7 @@ export default function App() {
               setNewWorkflow(workflow);
             }}
             onOpen={(id) => void open(id)}
+            onDelete={setPendingDelete}
             onSettings={() => setSettings(true)}
           />
         )}
@@ -568,6 +620,42 @@ export default function App() {
             changed(run);
           }}
         />
+      )}
+      {pendingDelete && (
+        <Modal
+          title="Delete this research?"
+          onClose={() => setPendingDelete(undefined)}
+        >
+          <div className="modal-body">
+            <p>
+              <b>{pendingDelete.title}</b> and its report, notes and activity
+              will be removed from this workspace. This cannot be undone.
+            </p>
+            {pendingDelete.mode === "live" && (
+              <p className="muted">
+                Saved sessions in your{" "}
+                {pendingDelete.provider === "google" ? "Google" : "OpenAI"}{" "}
+                project are not deleted; manage them there if needed.
+              </p>
+            )}
+          </div>
+          <footer className="modal-footer">
+            <button
+              className="quiet"
+              onClick={() => setPendingDelete(undefined)}
+            >
+              Cancel
+            </button>
+            <button
+              className="primary danger"
+              disabled={deleting}
+              onClick={() => void confirmDelete()}
+            >
+              <Trash2 size={15} />
+              Delete research
+            </button>
+          </footer>
+        </Modal>
       )}
       {settings && (
         <Modal title="Workspace settings" onClose={() => setSettings(false)}>
@@ -799,8 +887,14 @@ function NewResearch({
   const [mode, setMode] = useState<"demo" | "live">(
     profile?.ready ? "live" : "demo",
   );
-  const [minutes, setMinutes] = useState(5);
-  const [tokens, setTokens] = useState(20000);
+  // Google defaults to the most we can request on the free tier; OpenAI is billed, so it starts small.
+  const limitsFor = (id: ProviderId) =>
+    id === "google"
+      ? { minutes: 120, tokens: 1_000_000 }
+      : { minutes: 10, tokens: 50_000 };
+  const [minutes, setMinutes] = useState(limitsFor(provider).minutes);
+  const [tokens, setTokens] = useState(limitsFor(provider).tokens);
+  const [clarify, setClarify] = useState(true);
   const [interval, setIntervalHours] = useState(24);
   const [checks, setChecks] = useState(3);
   const [files, setFiles] = useState<
@@ -868,6 +962,7 @@ function NewResearch({
             attachmentIds: files.map((f) => f.id),
             maxMinutes: minutes,
             maxTokens: tokens,
+            clarify,
             intervalHours: interval,
             remainingChecks: kind === "monitor" ? checks : 0,
           }),
@@ -888,40 +983,45 @@ function NewResearch({
             should go.
           </p>
           <div className="workflow-tabs">
-            {(["market", "sales", "monitor"] as Workflow[]).map((w) => {
-              const Icon = icons[w];
-              return (
-                <button
-                  key={w}
-                  type="button"
-                  aria-pressed={kind === w}
-                  className={kind === w ? "selected" : ""}
-                  onClick={() => setKind(w)}
-                >
-                  <Icon size={17} />
-                  {workflowLabels[w]}
-                </button>
-              );
-            })}
+            {(["general", "market", "sales", "monitor"] as Workflow[]).map(
+              (w) => {
+                const Icon = icons[w];
+                return (
+                  <button
+                    key={w}
+                    type="button"
+                    aria-pressed={kind === w}
+                    className={kind === w ? "selected" : ""}
+                    onClick={() => setKind(w)}
+                  >
+                    <Icon size={17} />
+                    {workflowLabels[w]}
+                  </button>
+                );
+              },
+            )}
           </div>
           <div className="team-preview">
             <ul className="team-roster" aria-label="Research team">
-              {[director, ...playbooks[kind]].map((member) => (
-                <li key={member.id} title={member.role}>
-                  <Mascot profile={member} size={24} paused label="" />
-                  <span>{member.name}</span>
-                </li>
-              ))}
+              <li title={director.role}>
+                <Mascot profile={director} size={24} paused label="" />
+                <span>{director.name}</span>
+              </li>
+              <li className="team-roster-planned">
+                <span>+ one specialist per area of your brief</span>
+              </li>
+              <li title={reviewer.role}>
+                <Mascot profile={reviewer} size={24} paused label="" />
+                <span>{reviewer.name}</span>
+              </li>
             </ul>
             <p>
               <b>How the team works</b>
-              {kind === "sales"
-                ? "Discovery and evidence specialists, then a final review."
-                : kind === "monitor"
-                  ? "Builds the first briefing, then compares each check with saved findings."
-                  : "Market, competitor, pricing and regulation passes, then a final review."}
+              Research areas are not fixed. Octo reads your brief and files,
+              proposes the areas this topic needs, and you choose what to keep
+              before any research runs.
               {provider === "google" &&
-                " Google runs these as passes inside one Antigravity session."}
+                " Google runs each area as a pass inside one Antigravity session."}
             </p>
           </div>
           <div className="form-topline">
@@ -1056,6 +1156,8 @@ function NewResearch({
               value={provider}
               onChange={(value) => {
                 setProvider(value as ProviderId);
+                setMinutes(limitsFor(value as ProviderId).minutes);
+                setTokens(limitsFor(value as ProviderId).tokens);
                 if (!profiles.find((p) => p.id === value)?.ready)
                   setMode("demo");
               }}
@@ -1108,9 +1210,12 @@ function NewResearch({
                 label="Time limit"
                 value={String(minutes)}
                 onChange={(value) => setMinutes(Number(value))}
-                options={[1, 3, 5, 10, 20, 30].map((n) => ({
+                options={[5, 10, 20, 30, 60, 90, 120, 180].map((n) => ({
                   value: String(n),
-                  label: `${n} minute${n > 1 ? "s" : ""}`,
+                  label:
+                    n >= 60
+                      ? `${n / 60} hour${n > 60 ? "s" : ""}`
+                      : `${n} minutes`,
                 }))}
               />
             </label>
@@ -1120,9 +1225,12 @@ function NewResearch({
                 label="Token limit"
                 value={String(tokens)}
                 onChange={(value) => setTokens(Number(value))}
-                options={[5000, 10000, 20000, 50000, 100000].map((n) => ({
+                options={[
+                  20_000, 50_000, 100_000, 200_000, 500_000, 1_000_000,
+                  2_000_000,
+                ].map((n) => ({
                   value: String(n),
-                  label: n.toLocaleString(),
+                  label: n >= 1_000_000 ? `${n / 1_000_000}M` : `${n / 1000}k`,
                 }))}
               />
             </label>
@@ -1160,13 +1268,26 @@ function NewResearch({
               </p>
             </div>
           )}
+          <label className="clarify-toggle">
+            <input
+              type="checkbox"
+              checked={clarify}
+              onChange={(e) => setClarify(e.target.checked)}
+            />
+            <MessageCircleQuestion size={16} />
+            <span>
+              <b>Ask me questions before researching</b>
+              Octo reads your brief and files, explains what it understood, and
+              asks what you need so the research fits your goal.
+            </span>
+          </label>
           <div className="notice">
             <ShieldCheck size={17} />
             <p>
               {mode === "demo"
                 ? "Demo mode produces clearly labelled illustrative output. It does not research your topic or process attachments."
                 : provider === "google"
-                  ? "Google uses web search, a hosted sandbox, and saved interaction context. The native token budget is best effort. Free-tier availability and quotas depend on your Google project."
+                  ? "Google uses web search, a hosted sandbox, and saved interaction context. Limits default to the maximum; your Google project's own free-tier quotas still apply. If any limit stops the research, the partial report is saved and you can continue it."
                   : "OpenAI uses web search, specialist agents, and a hosted sandbox. Limits request cancellation; they are not exact dollar caps."}
             </p>
           </div>
@@ -1182,7 +1303,9 @@ function NewResearch({
           </button>
           <button className="primary" disabled={submitting || uploading}>
             {submitting ? <Arc size={16} /> : <ArrowRight size={16} />}
-            Start {mode === "demo" ? "demo" : "research"}
+            {clarify
+              ? "Continue"
+              : `Start ${mode === "demo" ? "demo" : "research"}`}
           </button>
         </footer>
       </form>
@@ -1373,14 +1496,18 @@ function RunDetail({
   onBack,
   onChange,
   onError,
+  onDelete,
 }: {
   run: Run;
   config?: Configuration;
   onBack: () => void;
   onChange: (run: Run) => void;
   onError: (error: string) => void;
+  onDelete: (run: Run) => void;
 }) {
   const [tab, setTab] = useState("report");
+  const [continueNote, setContinueNote] = useState("");
+  const team = teamFor(run);
   const [notes, setNotes] = useState(run.notes);
   const [noteDirty, setNoteDirty] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1478,6 +1605,16 @@ function RunDetail({
               Schedule
             </button>
           ) : null}
+          {deletable(run) && (
+            <button
+              className="secondary icon-only"
+              aria-label="Delete research"
+              title="Delete research"
+              onClick={() => onDelete(run)}
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
           <DownloadMenu
             run={run}
             onDownload={(format) => void exportFile(format)}
@@ -1511,6 +1648,38 @@ function RunDetail({
           </p>
         </div>
       )}
+      {run.status === "partial" && (
+        <div className="partial-banner">
+          <div>
+            <b>Partial report saved</b>
+            <p>
+              Research stopped because{" "}
+              {run.reportParts?.at(-1)?.reason ?? "a limit was reached"}. The
+              unfinished report below is kept. Continue to complete it; the
+              agent merges both parts into one full report.
+            </p>
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void action("continue", {
+                note: continueNote.trim() || undefined,
+              }).then(() => setContinueNote(""));
+            }}
+          >
+            <input
+              aria-label="Add guidance for the continuation"
+              placeholder="Optional: anything to focus on next…"
+              value={continueNote}
+              onChange={(e) => setContinueNote(e.target.value)}
+            />
+            <button className="primary" disabled={busy}>
+              <RefreshCw size={15} />
+              Continue research
+            </button>
+          </form>
+        </div>
+      )}
       {run.nextCheckAt && (
         <div className="schedule-banner">
           <Radio size={16} />
@@ -1521,407 +1690,440 @@ function RunDetail({
       )}
       <div className="detail-layout">
         <section className="report-panel">
-          <div
-            className="report-tabs"
-            role="tablist"
-            aria-label="Research output"
-          >
-            {[
-              ["report", "Report", FileText],
-              ["sources", `Sources (${run.sources.length})`, Link2],
-              ...(run.workflow === "sales"
-                ? [["companies", `Companies (${run.leads.length})`, Building2]]
-                : []),
-              ["notes", "Notes", BookOpen],
-              ["files", "Files", FolderOpen],
-            ].map(([key, label, Glyph]) => {
-              const G = Glyph as typeof FileText;
-              return (
-                <button
-                  role="tab"
-                  aria-selected={tab === key}
-                  className={tab === key ? "active" : ""}
-                  key={key as string}
-                  onClick={() => setTab(key as string)}
-                >
-                  <G size={15} />
-                  {label as string}
-                </button>
-              );
-            })}
-          </div>
-          <div className="report-content" role="tabpanel">
-            {tab === "report" &&
-              (run.report ? (
-                <>
-                  <div className="report-toolbar">
-                    <span>
-                      {run.purpose === "crm"
-                        ? "CRM EXPORT RESULTS"
-                        : "RESEARCH BRIEFING"}
-                    </span>
-                    <button onClick={() => void exportFile("json")}>
-                      Export JSON
-                      <Download size={14} />
-                    </button>
-                  </div>
-                  <div className="markdown">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        a: ({ href, children }) => (
-                          <a href={href} target="_blank" rel="noreferrer">
-                            {children}
-                          </a>
-                        ),
-                      }}
-                    >
-                      {run.report}
-                    </ReactMarkdown>
-                  </div>
-                </>
-              ) : (
-                <div className={`working-state ${isActive(run) ? "live" : ""}`}>
-                  {isActive(run) ? (
-                    <div className="working-scan">
-                      <AsciiField />
-                      <Mascot
-                        profile={director}
-                        size={64}
-                        state={run.cancelRequested ? "default" : "working"}
-                      />
-                    </div>
-                  ) : (
-                    <AlertCircle size={32} />
-                  )}
-                  <h2>
-                    {isActive(run)
-                      ? "Looking at the bigger picture."
-                      : "No report available yet."}
-                  </h2>
-                  <p>
-                    {isActive(run)
-                      ? "Your research director is coordinating the work. Saved activity appears as the API makes it available."
-                      : "Review the activity and error details. You can continue a saved session or start new research."}
-                  </p>
-                  <div className="brief-preview">
-                    <span>YOUR BRIEF</span>
-                    <p>{run.brief}</p>
-                  </div>
-                </div>
-              ))}
-            {tab === "sources" && (
-              <div className="source-list">
-                <h2>The evidence behind the report</h2>
-                <p className="muted">
-                  {run.mode === "demo"
-                    ? "Demo links illustrate the format and are not researched sources."
-                    : "Source links extracted from the report and structured research output. Verify the cited claim against the original."}
-                </p>
-                {run.sources.map((source, i) => (
-                  <a
-                    key={source.url + i}
-                    className="source-row"
-                    href={source.url}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <span className="source-index">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <div>
-                      <b>{source.title}</b>
-                      <MiddleTruncate text={displayUrl(source.url)} tail={18} />
-                    </div>
-                    <ExternalLink size={16} />
-                  </a>
-                ))}
-                {!run.sources.length && (
-                  <div className="empty compact">
-                    <Link2 size={28} />
-                    <p>
-                      {isActive(run)
-                        ? "Sources will appear with the saved report."
-                        : "No source links were returned for this report."}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-            {tab === "companies" && (
-              <>
-                <div className="companies-top">
-                  <div>
-                    <h2>Company shortlist</h2>
-                    <p>
-                      {run.leads.length} records · target {run.targetCount}
-                    </p>
-                  </div>
-                  <button
-                    className="secondary"
-                    onClick={() => void exportFile("csv")}
-                    disabled={!run.leads.length}
-                  >
-                    <Download size={15} />
-                    CSV
-                  </button>
-                </div>
-                {run.leads.length > 0 && (
-                  <div className="evidence-panel">
-                    <div>
-                      <h3>Evidence coverage</h3>
-                      <p>
-                        Share of the {run.leads.length} saved records carrying
-                        each kind of evidence. Low coverage means verify before
-                        outreach.
-                      </p>
-                      <div className="fit-bars">
-                        {(["high", "medium", "low", "unknown"] as const).map(
-                          (fit) => {
-                            const n = run.leads.filter(
-                              (l) => l.fit === fit,
-                            ).length;
-                            return (
-                              <div key={fit}>
-                                <span>
-                                  {fit[0].toUpperCase() + fit.slice(1)} fit
-                                </span>
-                                <i>
-                                  <em
-                                    className={`fit-bar ${fit}`}
-                                    style={{
-                                      width: `${(n / run.leads.length) * 100}%`,
-                                    }}
-                                  />
-                                </i>
-                                <b>{n}</b>
-                              </div>
-                            );
-                          },
-                        )}
-                      </div>
-                    </div>
-                    <Suspense fallback={<div className="evidence-radar" />}>
-                      <EvidenceRadar leads={run.leads} />
-                    </Suspense>
-                  </div>
-                )}
-                <div className="lead-list">
-                  {run.leads.map((lead, i) => (
-                    <article className="lead-card" key={lead.company + i}>
-                      <div>
-                        <a href={lead.website} target="_blank" rel="noreferrer">
-                          <h3>
-                            {lead.company}
-                            <ArrowUpRight size={15} />
-                          </h3>
-                        </a>
-                        <span className={`fit ${lead.fit}`}>
-                          {lead.fit} fit
-                        </span>
-                      </div>
-                      <p className="muted">
-                        {lead.industry} · {lead.size}
-                      </p>
-                      <dl>
-                        <dt>Fit evidence</dt>
-                        <dd>{lead.evidence}</dd>
-                        <dt>Potential need · hypothesis</dt>
-                        <dd>{lead.needs}</dd>
-                        <dt>Decision maker</dt>
-                        <dd>{lead.decisionMaker}</dd>
-                      </dl>
-                      <div className="lead-sources">
-                        {lead.sources.map((s, j) => (
-                          <a
-                            key={j}
-                            href={s.url}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <Link2 size={12} />
-                            {s.title}
-                          </a>
-                        ))}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-                {!run.leads.length && (
-                  <div className="empty compact">
-                    <Building2 size={28} />
-                    <p>
-                      No structured company records yet. A partial report may
-                      still be available.
-                    </p>
-                  </div>
-                )}
-                {run.leads.length > 0 && (
-                  <div className="crm-footer">
-                    <div>
-                      <h3>Ready for your CRM?</h3>
-                      <p>
-                        Review every company and its evidence before exporting.
-                      </p>
-                    </div>
+          {run.status === "awaiting_input" ? (
+            <ClarifyPanel
+              run={run}
+              busy={busy}
+              onSubmit={(submission) => void action("answers", submission)}
+              onCancel={() => void action("cancel")}
+            />
+          ) : (
+            <>
+              <div
+                className="report-tabs"
+                role="tablist"
+                aria-label="Research output"
+              >
+                {[
+                  ["report", "Report", FileText],
+                  ["sources", `Sources (${run.sources.length})`, Link2],
+                  ...(run.workflow === "sales"
+                    ? [
+                        [
+                          "companies",
+                          `Companies (${run.leads.length})`,
+                          Building2,
+                        ],
+                      ]
+                    : []),
+                  ["notes", "Notes", BookOpen],
+                  ["files", "Files", FolderOpen],
+                ].map(([key, label, Glyph]) => {
+                  const G = Glyph as typeof FileText;
+                  return (
                     <button
-                      className="primary"
-                      disabled={
-                        run.mode === "demo" ||
-                        !config?.crmReady ||
-                        run.status !== "completed"
-                      }
-                      onClick={() => {
-                        setApproved(false);
-                        setCrm(true);
-                      }}
+                      role="tab"
+                      aria-selected={tab === key}
+                      className={tab === key ? "active" : ""}
+                      key={key as string}
+                      onClick={() => setTab(key as string)}
                     >
-                      Review export
-                      <ArrowRight size={15} />
+                      <G size={15} />
+                      {label as string}
                     </button>
-                    {(!config?.crmReady || run.mode === "demo") && (
-                      <small>
-                        {run.mode === "demo"
-                          ? "Demo companies cannot be sent to your CRM."
-                          : "Configure a CRM MCP in Connections to enable export."}
-                      </small>
+                  );
+                })}
+              </div>
+              <div className="report-content" role="tabpanel">
+                {tab === "report" &&
+                  (run.report ? (
+                    <>
+                      <div className="report-toolbar">
+                        <span>
+                          {run.purpose === "crm"
+                            ? "CRM EXPORT RESULTS"
+                            : "RESEARCH BRIEFING"}
+                        </span>
+                        <button onClick={() => void exportFile("json")}>
+                          Export JSON
+                          <Download size={14} />
+                        </button>
+                      </div>
+                      <div className="markdown">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            a: ({ href, children }) => (
+                              <a href={href} target="_blank" rel="noreferrer">
+                                {children}
+                              </a>
+                            ),
+                          }}
+                        >
+                          {run.report}
+                        </ReactMarkdown>
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      className={`working-state ${isActive(run) ? "live" : ""}`}
+                    >
+                      {isActive(run) ? (
+                        <div className="working-scan">
+                          <AsciiField />
+                          <Mascot
+                            profile={director}
+                            size={64}
+                            state={run.cancelRequested ? "default" : "working"}
+                          />
+                        </div>
+                      ) : (
+                        <AlertCircle size={32} />
+                      )}
+                      <h2>
+                        {run.status === "planning"
+                          ? "Reading your brief."
+                          : isActive(run)
+                            ? "Looking at the bigger picture."
+                            : "No report available yet."}
+                      </h2>
+                      <p>
+                        {run.status === "planning"
+                          ? "Octo is reading your brief and files to explain what it understood and prepare a few questions. No research runs until you answer."
+                          : isActive(run)
+                            ? "Your research director is coordinating the work. Saved activity appears as the API makes it available."
+                            : "Review the activity and error details. You can continue a saved session or start new research."}
+                      </p>
+                      <div className="brief-preview">
+                        <span>YOUR BRIEF</span>
+                        <p>{run.brief}</p>
+                      </div>
+                    </div>
+                  ))}
+                {tab === "sources" && (
+                  <div className="source-list">
+                    <h2>The evidence behind the report</h2>
+                    <p className="muted">
+                      {run.mode === "demo"
+                        ? "Demo links illustrate the format and are not researched sources."
+                        : "Source links extracted from the report and structured research output. Verify the cited claim against the original."}
+                    </p>
+                    {run.sources.map((source, i) => (
+                      <a
+                        key={source.url + i}
+                        className="source-row"
+                        href={source.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <span className="source-index">
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                        <div>
+                          <b>{source.title}</b>
+                          <MiddleTruncate
+                            text={displayUrl(source.url)}
+                            tail={18}
+                          />
+                        </div>
+                        <ExternalLink size={16} />
+                      </a>
+                    ))}
+                    {!run.sources.length && (
+                      <div className="empty compact">
+                        <Link2 size={28} />
+                        <p>
+                          {isActive(run)
+                            ? "Sources will appear with the saved report."
+                            : "No source links were returned for this report."}
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}
-              </>
-            )}
-            {tab === "notes" && (
-              <div className="notes-view">
-                <h2>Your research notes</h2>
-                <p className="muted">
-                  Personal notes are saved locally. Include them in a follow-up
-                  message if you want the agent to use them.
-                </p>
-                <textarea
-                  aria-label="Research notes"
-                  rows={14}
-                  value={notes}
-                  onChange={(e) => {
-                    setNotes(e.target.value);
-                    setNoteDirty(true);
-                    setSaved(false);
-                  }}
-                  placeholder="Questions, interpretations, and things to follow up on…"
-                />
-                <div>
-                  <span>
-                    {noteDirty
-                      ? "Unsaved changes"
-                      : saved
-                        ? "Notes saved"
-                        : "Saved locally"}
-                  </span>
-                  <button
-                    className="primary"
-                    disabled={busy || !noteDirty}
-                    onClick={() => void saveNotes()}
-                  >
-                    <Check size={15} />
-                    Save notes
-                  </button>
-                </div>
-              </div>
-            )}
-            {tab === "files" && (
-              <div className="files-view">
-                <h2>Files & artifacts</h2>
-                <p className="muted">
-                  Outputs are collected after research completes. Google files
-                  are cached locally so later follow-ups cannot overwrite the
-                  saved copies.
-                </p>
-                {run.attachments.map((f) => (
-                  <div className="file-row" key={f.id}>
-                    <FileText size={18} />
-                    <div>
-                      <b>{f.name}</b>
-                      <span>Input · {(f.size / 1024).toFixed(1)} KB</span>
+                {tab === "companies" && (
+                  <>
+                    <div className="companies-top">
+                      <div>
+                        <h2>Company shortlist</h2>
+                        <p>
+                          {run.leads.length} records · target {run.targetCount}
+                        </p>
+                      </div>
+                      <button
+                        className="secondary"
+                        onClick={() => void exportFile("csv")}
+                        disabled={!run.leads.length}
+                      >
+                        <Download size={15} />
+                        CSV
+                      </button>
                     </div>
-                  </div>
-                ))}
-                {run.artifacts.map((f) => (
-                  <div className="file-row" key={f.id}>
-                    <FileText size={18} />
+                    {run.leads.length > 0 && (
+                      <div className="evidence-panel">
+                        <div>
+                          <h3>Evidence coverage</h3>
+                          <p>
+                            Share of the {run.leads.length} saved records
+                            carrying each kind of evidence. Low coverage means
+                            verify before outreach.
+                          </p>
+                          <div className="fit-bars">
+                            {(
+                              ["high", "medium", "low", "unknown"] as const
+                            ).map((fit) => {
+                              const n = run.leads.filter(
+                                (l) => l.fit === fit,
+                              ).length;
+                              return (
+                                <div key={fit}>
+                                  <span>
+                                    {fit[0].toUpperCase() + fit.slice(1)} fit
+                                  </span>
+                                  <i>
+                                    <em
+                                      className={`fit-bar ${fit}`}
+                                      style={{
+                                        width: `${(n / run.leads.length) * 100}%`,
+                                      }}
+                                    />
+                                  </i>
+                                  <b>{n}</b>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <Suspense fallback={<div className="evidence-radar" />}>
+                          <EvidenceRadar leads={run.leads} />
+                        </Suspense>
+                      </div>
+                    )}
+                    <div className="lead-list">
+                      {run.leads.map((lead, i) => (
+                        <article className="lead-card" key={lead.company + i}>
+                          <div>
+                            <a
+                              href={lead.website}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <h3>
+                                {lead.company}
+                                <ArrowUpRight size={15} />
+                              </h3>
+                            </a>
+                            <span className={`fit ${lead.fit}`}>
+                              {lead.fit} fit
+                            </span>
+                          </div>
+                          <p className="muted">
+                            {lead.industry} · {lead.size}
+                          </p>
+                          <dl>
+                            <dt>Fit evidence</dt>
+                            <dd>{lead.evidence}</dd>
+                            <dt>Potential need · hypothesis</dt>
+                            <dd>{lead.needs}</dd>
+                            <dt>Decision maker</dt>
+                            <dd>{lead.decisionMaker}</dd>
+                          </dl>
+                          <div className="lead-sources">
+                            {lead.sources.map((s, j) => (
+                              <a
+                                key={j}
+                                href={s.url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <Link2 size={12} />
+                                {s.title}
+                              </a>
+                            ))}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                    {!run.leads.length && (
+                      <div className="empty compact">
+                        <Building2 size={28} />
+                        <p>
+                          No structured company records yet. A partial report
+                          may still be available.
+                        </p>
+                      </div>
+                    )}
+                    {run.leads.length > 0 && (
+                      <div className="crm-footer">
+                        <div>
+                          <h3>Ready for your CRM?</h3>
+                          <p>
+                            Review every company and its evidence before
+                            exporting.
+                          </p>
+                        </div>
+                        <button
+                          className="primary"
+                          disabled={
+                            run.mode === "demo" ||
+                            !config?.crmReady ||
+                            run.status !== "completed"
+                          }
+                          onClick={() => {
+                            setApproved(false);
+                            setCrm(true);
+                          }}
+                        >
+                          Review export
+                          <ArrowRight size={15} />
+                        </button>
+                        {(!config?.crmReady || run.mode === "demo") && (
+                          <small>
+                            {run.mode === "demo"
+                              ? "Demo companies cannot be sent to your CRM."
+                              : "Configure a CRM MCP in Connections to enable export."}
+                          </small>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+                {tab === "notes" && (
+                  <div className="notes-view">
+                    <h2>Your research notes</h2>
+                    <p className="muted">
+                      Personal notes are saved locally. Include them in a
+                      follow-up message if you want the agent to use them.
+                    </p>
+                    <textarea
+                      aria-label="Research notes"
+                      rows={14}
+                      value={notes}
+                      onChange={(e) => {
+                        setNotes(e.target.value);
+                        setNoteDirty(true);
+                        setSaved(false);
+                      }}
+                      placeholder="Questions, interpretations, and things to follow up on…"
+                    />
                     <div>
-                      <b>{f.path.split("/").at(-1)}</b>
-                      <MiddleTruncate text={f.path} tail={20} />
                       <span>
-                        {run.provider === "google"
-                          ? "Cached Google output"
-                          : "Published output"}
+                        {noteDirty
+                          ? "Unsaved changes"
+                          : saved
+                            ? "Notes saved"
+                            : "Saved locally"}
                       </span>
+                      <button
+                        className="primary"
+                        disabled={busy || !noteDirty}
+                        onClick={() => void saveNotes()}
+                      >
+                        <Check size={15} />
+                        Save notes
+                      </button>
                     </div>
-                    <button
-                      className="icon-button"
-                      aria-label={`Download ${f.path}`}
-                      onClick={() =>
-                        void download(
-                          `/runs/${run.id}/artifacts/${f.id}`,
-                          f.path.split("/").at(-1) ?? "artifact",
-                        ).catch((e) => onError(e.message))
-                      }
-                    >
-                      <Download size={17} />
-                    </button>
-                  </div>
-                ))}
-                {!run.attachments.length && !run.artifacts.length && (
-                  <div className="empty compact">
-                    <FolderOpen size={30} />
-                    <p>No attached files or published artifacts.</p>
                   </div>
                 )}
-                <button
-                  className="secondary"
-                  disabled={!run.report}
-                  onClick={() => void exportFile("json")}
-                >
-                  <Download size={15} />
-                  Download research JSON
-                </button>
+                {tab === "files" && (
+                  <div className="files-view">
+                    <h2>Files & artifacts</h2>
+                    <p className="muted">
+                      Outputs are collected after research completes. Google
+                      files are cached locally so later follow-ups cannot
+                      overwrite the saved copies.
+                    </p>
+                    {run.attachments.map((f) => (
+                      <div className="file-row" key={f.id}>
+                        <FileText size={18} />
+                        <div>
+                          <b>{f.name}</b>
+                          <span>Input · {(f.size / 1024).toFixed(1)} KB</span>
+                        </div>
+                      </div>
+                    ))}
+                    {run.artifacts.map((f) => (
+                      <div className="file-row" key={f.id}>
+                        <FileText size={18} />
+                        <div>
+                          <b>{f.path.split("/").at(-1)}</b>
+                          <MiddleTruncate text={f.path} tail={20} />
+                          <span>
+                            {run.provider === "google"
+                              ? "Cached Google output"
+                              : "Published output"}
+                          </span>
+                        </div>
+                        <button
+                          className="icon-button"
+                          aria-label={`Download ${f.path}`}
+                          onClick={() =>
+                            void download(
+                              `/runs/${run.id}/artifacts/${f.id}`,
+                              f.path.split("/").at(-1) ?? "artifact",
+                            ).catch((e) => onError(e.message))
+                          }
+                        >
+                          <Download size={17} />
+                        </button>
+                      </div>
+                    ))}
+                    {!run.attachments.length && !run.artifacts.length && (
+                      <div className="empty compact">
+                        <FolderOpen size={30} />
+                        <p>No attached files or published artifacts.</p>
+                      </div>
+                    )}
+                    <button
+                      className="secondary"
+                      disabled={!run.report}
+                      onClick={() => void exportFile("json")}
+                    >
+                      <Download size={15} />
+                      Download research JSON
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          {(!isActive(run) && run.sessionId !== undefined) ||
-          (!isActive(run) && run.mode === "demo") ? (
-            <form
-              className="followup"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (followup.trim())
-                  void action("followup", { message: followup }).then(() =>
-                    setFollowup(""),
-                  );
-              }}
-            >
-              <label htmlFor="follow-up">Keep the research going</label>
-              <div>
-                <input
-                  id="follow-up"
-                  required
-                  minLength={5}
-                  maxLength={20000}
-                  value={followup}
-                  onChange={(e) => setFollowup(e.target.value)}
-                  placeholder="Ask a follow-up using this session’s saved context…"
-                />
-                <button
-                  className="primary"
-                  disabled={
-                    busy || followup.trim().length < 5 || run.purpose === "crm"
-                  }
-                  aria-label="Send follow-up"
+              {(!isActive(run) && run.sessionId !== undefined) ||
+              (!isActive(run) && run.mode === "demo") ? (
+                <form
+                  className="followup"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (followup.trim())
+                      void action("followup", { message: followup }).then(() =>
+                        setFollowup(""),
+                      );
+                  }}
                 >
-                  <ArrowRight size={18} />
-                </button>
-              </div>
-            </form>
-          ) : null}
+                  <label htmlFor="follow-up">Keep the research going</label>
+                  <div>
+                    <input
+                      id="follow-up"
+                      required
+                      minLength={5}
+                      maxLength={20000}
+                      value={followup}
+                      onChange={(e) => setFollowup(e.target.value)}
+                      placeholder="Ask a follow-up using this session’s saved context…"
+                    />
+                    <button
+                      className="primary"
+                      disabled={
+                        busy ||
+                        followup.trim().length < 5 ||
+                        run.purpose === "crm"
+                      }
+                      aria-label="Send follow-up"
+                    >
+                      <ArrowRight size={18} />
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+            </>
+          )}
         </section>
         <aside className="activity-panel">
           <div className="activity-heading">
@@ -1959,7 +2161,7 @@ function RunDetail({
                 {run.mode === "demo" ? "DEMO SPECIALISTS" : "SPECIALIST AGENTS"}
               </div>
               {run.agents.map((a) => {
-                const profile = profileFor(a);
+                const profile = profileFor(a, run);
                 return (
                   <div key={a.id}>
                     <Mascot
@@ -1989,16 +2191,18 @@ function RunDetail({
                   ? "RESEARCH PASSES"
                   : "RESEARCH PLAN"}
               </div>
-              {playbooks[run.workflow].map((profile) => (
+              {team?.map((profile) => (
                 <div key={profile.id}>
                   <Mascot profile={profile} size={24} paused label="" />
                   <span>{profile.name}</span>
                 </div>
               ))}
               <p className="planned-note">
-                {run.provider === "google"
-                  ? "Planned passes inside one Antigravity session. Google does not report separate specialist activity."
-                  : "Specialists appear here when the API reports them."}
+                {!team
+                  ? "Specialists are chosen from your brief. Their areas appear here once Octo has read it."
+                  : run.provider === "google"
+                    ? "One pass per agreed area inside one Antigravity session. Google does not report separate specialist activity."
+                    : "Specialists appear here with live status when the API reports them."}
               </p>
             </div>
           ) : null}
@@ -2010,10 +2214,10 @@ function RunDetail({
               .slice(0, 30)
               .map((activity) => (
                 <div className="activity-item" key={activity.id}>
-                  {authorOf(activity.label) ? (
+                  {authorOf(activity.label, run) ? (
                     <span className="timeline-author">
                       <Mascot
-                        profile={authorOf(activity.label)!}
+                        profile={authorOf(activity.label, run)!}
                         size={18}
                         paused
                         label=""

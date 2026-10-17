@@ -1,5 +1,6 @@
 import { BotAvatar, type BotAvatarType } from "bot-avatars";
-import type { Agent, Run, Workflow } from "../shared/types";
+import { useTheme } from "./theme";
+import type { Agent, Run } from "../shared/types";
 
 export type MascotState = "default" | "working" | "sleeping";
 export interface AgentProfile {
@@ -95,17 +96,39 @@ const cast: Record<string, AgentProfile> = {
     match: /crm|export/i,
   },
 };
-export const playbooks: Record<Workflow, AgentProfile[]> = {
-  market: [
-    cast.market,
-    cast.competitors,
-    cast.pricing,
-    cast.regulation,
-    cast.reviewer,
-  ],
-  sales: [cast.discovery, cast.evidence, cast.reviewer],
-  monitor: [cast.market, cast.competitors, cast.changes, cast.reviewer],
-};
+export const reviewer = cast.reviewer;
+
+/*
+ * Research areas are planned per brief, so specialists are not fixed. Each
+ * planned area gets its own named specialist; the shape and colour come from
+ * this pool in order, so an area keeps the same mascot everywhere in a run.
+ */
+const areaPool: Array<Pick<AgentProfile, "type" | "color">> = [
+  { type: "clover", color: "#79aef8" },
+  { type: "hexagon", color: "#ff9f67" },
+  { type: "drop", color: "#3cc6c0" },
+  { type: "star", color: "#f7c948" },
+  { type: "blob", color: "#5fcf86" },
+  { type: "cat", color: "#f5d36b" },
+  { type: "cloud", color: "#9cc8ff" },
+  { type: "pebble", color: "#f2a58e" },
+];
+export function areaProfile(title: string, index: number): AgentProfile {
+  const look = areaPool[index % areaPool.length];
+  return {
+    id: `area-${index}-${title}`,
+    name: title,
+    role: "Researches this area of your brief",
+    ...look,
+    match: /.^/,
+  };
+}
+/** The team for a run: director, one specialist per agreed area, final reviewer. */
+export function teamFor(run: Pick<Run, "plan">): AgentProfile[] | undefined {
+  const areas = (run.plan?.areas ?? []).filter((a) => a.selected !== false);
+  if (!areas.length) return undefined;
+  return [...areas.map((a, i) => areaProfile(a.title, i)), reviewer];
+}
 export const crmProfile = cast.crm;
 
 const generic: AgentProfile = {
@@ -116,15 +139,35 @@ const generic: AgentProfile = {
   color: "#a9a4f7",
   match: /.^/,
 };
-/** Map a reported agent to the cast by name; unknown names keep their own label. */
-export function profileFor(agent: Pick<Agent, "name">): AgentProfile {
+const planAreas = (run?: Pick<Run, "plan">) =>
+  (run?.plan?.areas ?? []).filter((a) => a.selected !== false);
+/** A planned area whose title matches this name exactly, with its mascot. */
+function areaByName(name: string, run?: Pick<Run, "plan">) {
+  const key = name.trim().toLowerCase();
+  const index = planAreas(run).findIndex((a) => a.title.toLowerCase() === key);
+  return index >= 0
+    ? areaProfile(planAreas(run)[index].title, index)
+    : undefined;
+}
+/** Map a reported agent to a planned area or the cast by name; unknown names keep their own label. */
+export function profileFor(
+  agent: Pick<Agent, "name">,
+  run?: Pick<Run, "plan">,
+): AgentProfile {
+  const area = areaByName(agent.name, run);
+  if (area) return area;
   const known =
     Object.values(cast).find((p) => p.match.test(agent.name)) ??
     (director.match.test(agent.name) ? director : undefined);
   return known ?? { ...generic, name: agent.name };
 }
 /** The agent an activity entry was written by, matched by exact name only. */
-export function authorOf(label: string): AgentProfile | undefined {
+export function authorOf(
+  label: string,
+  run?: Pick<Run, "plan">,
+): AgentProfile | undefined {
+  const area = areaByName(label, run);
+  if (area) return area;
   const name = label.trim().toLowerCase();
   return [director, ...Object.values(cast)].find(
     (p) => p.name.toLowerCase() === name,
@@ -163,6 +206,7 @@ export function Mascot({
   interactive?: boolean;
   label?: string;
 }) {
+  const { resolved } = useTheme();
   return (
     <BotAvatar
       className="mascot"
@@ -173,7 +217,7 @@ export function Mascot({
       paused={paused}
       interactive={interactive}
       saturation={1.15}
-      theme="light"
+      theme={resolved}
       seed={(profile.id.charCodeAt(0) % 10) / 10}
       aria-label={
         label ?? `${profile.name}, ${state === "default" ? "idle" : state}`

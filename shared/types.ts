@@ -1,4 +1,4 @@
-export type Workflow = "market" | "sales" | "monitor";
+export type Workflow = "general" | "market" | "sales" | "monitor";
 export type ProviderId = "openai" | "google";
 export interface ProviderConfiguration {
   id: ProviderId;
@@ -11,18 +11,59 @@ export interface ProviderConfiguration {
 }
 export type RunStatus =
   | "draft"
+  /** Reading the brief and files to prepare questions. */
+  | "planning"
+  /** Waiting for the user's answers before research starts. */
+  | "awaiting_input"
   | "starting"
   | "running"
   | "requires_action"
   | "completed"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  /** Stopped early (time, token or provider limit) with a saved partial report. */
+  | "partial";
 export interface Attachment {
   id: string;
   name: string;
   size: number;
   /** Local disk path (SQLite storage). Hosted storage keeps bytes in the database. */
   path?: string;
+}
+/** A question asked before research, with suggested answers. */
+export interface ClarifyQuestion {
+  id: string;
+  question: string;
+  /** Why the answer changes the research. */
+  why?: string;
+  options: string[];
+  multiple?: boolean;
+}
+/** A research area the agent proposes for this brief. */
+export interface ResearchArea {
+  title: string;
+  focus: string;
+  selected?: boolean;
+}
+/** What Octo understood from the brief and files, before any research. */
+export interface ResearchPlan {
+  understanding: string;
+  outcome: string;
+  areas: ResearchArea[];
+  questions: ClarifyQuestion[];
+}
+export interface ClarifyAnswer {
+  questionId: string;
+  question: string;
+  selected: string[];
+  note?: string;
+}
+/** An unfinished report saved when research stopped early. */
+export interface ReportPart {
+  turnId: string;
+  report: string;
+  reason: string;
+  at: string;
 }
 export interface Source {
   title: string;
@@ -58,6 +99,17 @@ export interface Artifact {
 }
 export interface Run {
   provider?: ProviderId;
+  /** Questions and proposed areas prepared before research. */
+  plan?: ResearchPlan;
+  /** Set when the plan step failed; research can still start without it. */
+  planError?: string;
+  answers?: ClarifyAnswer[];
+  /** Anything else the user added when answering. */
+  extraContext?: string;
+  /** Unfinished reports from earlier turns, oldest first. */
+  reportParts?: ReportPart[];
+  /** Why the engine asked the current turn to stop (time or token limit). */
+  stopReason?: string;
   /** Requested deliverable; "auto" picks from the brief and workflow. */
   outputFormat?: "auto" | "pdf" | "docx" | "csv" | "md";
   agentName?: string;
@@ -125,6 +177,7 @@ export interface Configuration {
   api: string;
 }
 export const workflowLabels: Record<Workflow, string> = {
+  general: "Open research",
   market: "Market intelligence",
   sales: "Sales research",
   monitor: "Ongoing research",

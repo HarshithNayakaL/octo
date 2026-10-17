@@ -13,12 +13,13 @@ import type {
   ProviderConfiguration,
 } from "../shared/types.js";
 import { renderDeliverable } from "./deliverables.js";
+import { continuationInput } from "./prompts.js";
 import { formatsFor, preferredFormat } from "../shared/formats.js";
 
 const creation = z
   .object({
     title: z.string().trim().min(3).max(140),
-    workflow: z.enum(["market", "sales", "monitor"]),
+    workflow: z.enum(["general", "market", "sales", "monitor"]),
     brief: z.string().trim().min(15).max(20000),
     icp: z.string().trim().max(20000).default(""),
     targetCount: z.number().int().min(1).max(100).default(10),
@@ -26,8 +27,10 @@ const creation = z
     mode: z.enum(["demo", "live"]).default("demo"),
     provider: z.enum(["openai", "google"]).optional(),
     attachmentIds: z.array(z.string().uuid()).max(5).default([]),
-    maxMinutes: z.number().int().min(1).max(30).default(5),
-    maxTokens: z.number().int().min(1000).max(200000).default(20000),
+    maxMinutes: z.number().int().min(1).max(180).default(30),
+    maxTokens: z.number().int().min(1000).max(2_000_000).default(200_000),
+    /** Read the brief and files and ask questions before researching. */
+    clarify: z.boolean().default(true),
     intervalHours: z.number().int().min(1).max(168).default(24),
     remainingChecks: z.number().int().min(0).max(30).default(0),
   })
@@ -341,8 +344,9 @@ export function createApp(options: AppOptions) {
       }),
     );
     const now = new Date().toISOString();
+    const { clarify, ...fields } = data;
     const run: Run = {
-      ...data,
+      ...fields,
       provider: providerId,
       agentName: profile.agentName,
       baseModel: profile.baseModel,
@@ -351,7 +355,7 @@ export function createApp(options: AppOptions) {
       createdAt: now,
       updatedAt: now,
       startedAt: now,
-      status: "starting",
+      status: clarify ? "planning" : "starting",
       report: "",
       leads: [],
       sources: [],
@@ -396,6 +400,144 @@ export function createApp(options: AppOptions) {
       .slice(-150);
     await store.saveUpload({ id, name, size: req.file.size }, req.file.buffer);
     res.status(201).json({ id, name, size: req.file.size });
+  });
+  app.delete("/api/runs/:id", async (req, res) => {
+    const run = await store.get(req.params.id);
+    if (!run) {
+      res.status(404).json({ error: "Research not found" });
+      return;
+    }
+    if (
+      run.mode === "live" &&
+      ["starting", "running", "requires_action"].includes(run.status)
+    ) {
+      res.status(409).json({
+        error:
+          "Stop the research before deleting it, so no remote work keeps running.",
+      });
+      return;
+    }
+    await store.delete(run.id);
+    res.json({ deleted: true });
+  });
+  app.post("/api/runs/:id/answers", async (req, res) => {
+    const run = await store.get(req.params.id);
+    if (!run) {
+      res.status(404).json({ error: "Research not found" });
+      return;
+    }
+    if (run.status !== "awaiting_input") {
+      res
+        .status(409)
+        .json({ error: "This research is not waiting for answers." });
+      return;
+    }
+    const body = z
+      .object({
+        answers: z
+          .array(
+            z.object({
+              questionId: z.string().max(20),
+              selected: z.array(z.string().max(200)).max(10).default([]),
+              note: z.string().trim().max(2000).optional(),
+            }),
+          )
+          .max(10)
+          .default([]),
+        areas: z.array(z.string().max(120)).max(12).optional(),
+        extraContext: z.string().trim().max(10000).optional(),
+      })
+      .parse(req.body);
+    if (
+      (run.provider ?? "openai") === "openai" &&
+      run.mode === "live" &&
+      !openaiUnlocked(req)
+    ) {
+      openaiLocked(res);
+      return;
+    }
+    if (
+      (await store.list()).some((other) => other.id !== run.id && active(other))
+    ) {
+      res
+        .status(409)
+        .json({ error: "Finish or cancel the active research run first." });
+      return;
+    }
+    const questions = new Map(
+      (run.plan?.questions ?? []).map((q) => [q.id, q]),
+    );
+    run.answers = body.answers
+      .filter((a) => questions.has(a.questionId))
+      .map((a) => {
+        const q = questions.get(a.questionId)!;
+        return {
+          questionId: q.id,
+          question: q.question,
+          // Only offered options count as selections; anything else belongs in the note.
+          selected: a.selected.filter((s) => q.options.includes(s)),
+          note: a.note || undefined,
+        };
+      });
+    if (run.plan && body.areas) {
+      const keep = new Set(body.areas);
+      const areas = run.plan.areas.map((a) => ({
+        ...a,
+        selected: keep.has(a.title),
+      }));
+      if (areas.some((a) => a.selected)) run.plan = { ...run.plan, areas };
+    }
+    run.extraContext = body.extraContext || undefined;
+    run.status = "starting";
+    run.startedAt = new Date().toISOString();
+    engine.log(
+      run,
+      "Research started",
+      run.answers.length || run.extraContext
+        ? "Your answers and notes guide the research."
+        : "Started without answering the questions.",
+      "user",
+    );
+    await store.save(run);
+    res.json(run);
+    advance(run.id);
+  });
+  app.post("/api/runs/:id/continue", async (req, res) => {
+    const run = await store.get(req.params.id);
+    if (!run) {
+      res.status(404).json({ error: "Research not found" });
+      return;
+    }
+    if (run.status !== "partial" || !run.reportParts?.length) {
+      res.status(409).json({
+        error: "Only research with a saved partial report can be continued.",
+      });
+      return;
+    }
+    if (run.mode === "live" && !run.sessionId) {
+      res
+        .status(409)
+        .json({ error: "This run has no remote session to continue." });
+      return;
+    }
+    if (
+      (run.provider ?? "openai") === "openai" &&
+      run.mode === "live" &&
+      !openaiUnlocked(req)
+    ) {
+      openaiLocked(res);
+      return;
+    }
+    if ((await store.list()).some(active)) {
+      res.status(409).json({ error: "A research run is already active." });
+      return;
+    }
+    const { note } = z
+      .object({ note: z.string().trim().max(5000).optional() })
+      .parse(req.body ?? {});
+    await engine.queueMessage(run, continuationInput(run, note));
+    res.json(await store.get(run.id));
+    advance(run.id);
   });
   app.patch("/api/runs/:id/notes", async (req, res) => {
     const run = await store.get(req.params.id);
@@ -455,7 +597,14 @@ export function createApp(options: AppOptions) {
     }
     run.remainingChecks = 0;
     run.nextCheckAt = undefined;
-    if (active(run)) {
+    if (run.status === "awaiting_input") {
+      run.status = "cancelled";
+      engine.log(
+        run,
+        "Research cancelled",
+        "Cancelled before research started. No research was run.",
+      );
+    } else if (active(run)) {
       run.cancelRequested = true;
       engine.log(
         run,

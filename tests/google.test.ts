@@ -169,11 +169,16 @@ it("preserves partial output when native token limits stop research", async () =
   await new Engine(store, undefined, { google: provider }).process(
     "google-run",
   );
-  expect((await store.get("google-run"))).toMatchObject({
-    status: "failed",
+  expect(await store.get("google-run")).toMatchObject({
+    status: "partial",
     report: "# Partial results",
   });
-  expect((await store.get("google-run"))?.error).toContain("token budget");
+  const saved = (await store.get("google-run"))!;
+  expect(saved.reportParts).toHaveLength(1);
+  expect(saved.reportParts![0]).toMatchObject({
+    report: "# Partial results",
+    reason: expect.stringContaining("token budget"),
+  });
 });
 it("backs off quota polling and redacts credentials in provider errors", async () => {
   const { provider, fetcher } = setup([
@@ -202,12 +207,15 @@ it("retries a create that Google rejected for quota instead of treating it as un
   await store.save(run({ sessionId: undefined, status: "starting" }));
   const engine = new Engine(store, undefined, { google: provider });
   await engine.process("google-run");
-  expect((await store.get("google-run"))).toMatchObject({ status: "starting" });
+  expect(await store.get("google-run")).toMatchObject({ status: "starting" });
   expect((await store.get("google-run"))?.creationAttempted).toBeFalsy();
-  await store.save({ ...(await store.get("google-run"))!, nextPollAt: undefined });
+  await store.save({
+    ...(await store.get("google-run"))!,
+    nextPollAt: undefined,
+  });
   await engine.process("google-run");
   expect(fetcher).toHaveBeenCalledTimes(3);
-  expect((await store.get("google-run"))).toMatchObject({
+  expect(await store.get("google-run")).toMatchObject({
     status: "running",
     sessionId: "int-new",
   });
@@ -227,7 +235,10 @@ it("retries a follow-up that Google rejected for quota", async () => {
   await engine.process("google-run");
   expect((await store.get("google-run"))?.pendingInput?.attempted).toBeFalsy();
   expect((await store.get("google-run"))?.status).toBe("running");
-  await store.save({ ...(await store.get("google-run"))!, nextPollAt: undefined });
+  await store.save({
+    ...(await store.get("google-run"))!,
+    nextPollAt: undefined,
+  });
   await engine.process("google-run");
   expect(fetcher).toHaveBeenCalledTimes(5);
   expect((await store.get("google-run"))?.sessionId).toBe("int-2");

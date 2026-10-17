@@ -54,6 +54,10 @@ export class PostgresStore implements RunStore {
     );
     return run;
   }
+  async delete(id: string) {
+    await this.q("DELETE FROM octo_runs WHERE id=$1", [id]);
+    await this.q("DELETE FROM octo_leases WHERE id=$1", [id]);
+  }
   async claim(id: string, leaseMs: number) {
     const now = Date.now();
     const rows = await this.q(

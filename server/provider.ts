@@ -1,6 +1,14 @@
 import { readFile } from "node:fs/promises";
 import type { Run, Artifact, Attachment } from "../shared/types.js";
 import { instructions, initialInput } from "./prompts.js";
+import type { ResearchPlan } from "../shared/types.js";
+import {
+  fileContext,
+  parsePlanText,
+  planFiles,
+  planPrompt,
+  strictPlanSchema,
+} from "./planner.js";
 
 export class ProviderError extends Error {
   constructor(
@@ -36,6 +44,8 @@ export interface Provider {
   cancel(id: string): Promise<void>;
   artifact(id: string, artifactId: string): Promise<Buffer>;
   exportCrm(run: Run): Promise<ApiObject>;
+  /** Questions and proposed research areas before research starts. */
+  plan?(run: Run): Promise<ResearchPlan>;
 }
 export class OpenAIProvider implements Provider {
   constructor(
@@ -124,6 +134,67 @@ export class OpenAIProvider implements Provider {
       false,
       run.id,
     );
+  }
+  /** Structured planning call through the Responses API; no tools or research. */
+  async plan(run: Run): Promise<ResearchPlan> {
+    const { pdfs, texts } = await planFiles(
+      run.attachments,
+      this.readAttachment,
+    );
+    const response = await this.request("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: this.model,
+        input: [
+          {
+            role: "user",
+            content: [
+              ...pdfs.map((p) => ({
+                type: "input_file",
+                filename: p.name,
+                file_data: `data:application/pdf;base64,${p.data}`,
+              })),
+              {
+                type: "input_text",
+                text: planPrompt(run) + fileContext(texts),
+              },
+            ],
+          },
+        ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "research_plan",
+            schema: strictPlanSchema,
+            strict: true,
+          },
+        },
+      }),
+      signal: AbortSignal.timeout(120000),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new ProviderError(
+        String(
+          payload?.error?.message ?? `OpenAI returned HTTP ${response.status}`,
+        )
+          .replaceAll(this.key, "[redacted]")
+          .slice(0, 1500),
+        response.status,
+      );
+    const text =
+      typeof payload.output_text === "string"
+        ? payload.output_text
+        : (payload.output ?? [])
+            .flatMap((o: any) => o?.content ?? [])
+            .filter((c: any) => c?.type === "output_text")
+            .map((c: any) => c.text)
+            .join("");
+    return parsePlanText(text);
   }
   async recover(localId: string) {
     const sessions = await this.pages("/sessions?order=desc");

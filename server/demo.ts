@@ -38,6 +38,16 @@ const sampleLeads: Lead[] = [
     ],
   },
 ];
+/** The demo's research plan follows the areas the user kept, when there is a plan. */
+function demoPlanSection(run: Run) {
+  const areas = (run.plan?.areas ?? []).filter((a) => a.selected !== false);
+  if (areas.length)
+    return (
+      areas.map((a, i) => `${i + 1}. **${a.title}.** ${a.focus}`).join("\n") +
+      `\n${areas.length + 1}. **Final review.** Reconcile conflicting evidence, check calculations, and separate facts from estimates.`
+    );
+  return "1. **Market structure.** Define the geography, time horizon, customer segments, and market boundaries.\n2. **Competitors.** Compare products, business models, coverage, partnerships, and publicly documented traction.\n3. **Pricing.** Record public tariffs with currency, unit, location, and observation date. Keep unpublished prices unknown.\n4. **Regulation.** Inspect government documents and identify effective dates and applicability.\n5. **Final review.** Reconcile conflicting evidence, check calculations, and separate facts from estimates.";
+}
 export function demoResult(run: Run) {
   const introduction = `> **Demo output.** This is an illustrative workflow, not live research. No API calls were made. The company records and findings below are examples.\n\n`;
   if (run.workflow === "sales")
@@ -51,7 +61,7 @@ export function demoResult(run: Run) {
   return {
     report:
       introduction +
-      `# ${run.title}\n\n## Executive briefing\n\nThis sample shows how your research will be organized. A live session will investigate the brief, preserve research notes, compare evidence, and produce a cited report.\n\n## Research question\n\n${run.brief}\n\n## Research plan\n\n1. **Market structure.** Define the geography, time horizon, customer segments, and market boundaries.\n2. **Competitors.** Compare products, business models, coverage, partnerships, and publicly documented traction.\n3. **Pricing.** Record public tariffs with currency, unit, location, and observation date. Keep unpublished prices unknown.\n4. **Regulation.** Inspect government documents and identify effective dates and applicability.\n5. **Final review.** Reconcile conflicting evidence, check calculations, and separate facts from estimates.\n\n## Evidence standard\n\n| Claim | Required evidence | Treatment of missing data |\n|---|---|---|\n| Market size | Dated primary data and explicit scope | Report as unknown |\n| Company coverage | Company disclosure or verified location data | State verification gap |\n| Unit economics | Published inputs and calculation method | Label scenario, not fact |\n| Regulatory requirement | Current government document | Verify jurisdiction and date |\n\n## Questions for an investor\n\n- What is the utilization needed for break-even?\n- Which revenue comes from hardware, energy, software, or services?\n- How do land, electricity, maintenance, and financing affect unit economics?\n- Which claims are independently corroborated?\n\n## Calculation method\n\nAnnual gross contribution = charging sessions per day × kWh per session × contribution per kWh × operating days. A live report must source each input and show sensitivity; this example supplies no invented figures.\n\n## Next steps\n\n${run.workflow === "monitor" ? "Follow-up checks compare new evidence against this session’s saved context. The scheduler runs while the server is online." : "Start a live run to collect evidence and answer these questions."}`,
+      `# ${run.title}\n\n## Executive briefing\n\nThis sample shows how your research will be organized. A live session will investigate the brief, preserve research notes, compare evidence, and produce a cited report.\n\n## Research question\n\n${run.brief}\n\n## Research plan\n\n${demoPlanSection(run)}\n\n## Evidence standard\n\n| Claim | Required evidence | Treatment of missing data |\n|---|---|---|\n| Market size | Dated primary data and explicit scope | Report as unknown |\n| Company coverage | Company disclosure or verified location data | State verification gap |\n| Unit economics | Published inputs and calculation method | Label scenario, not fact |\n| Regulatory requirement | Current government document | Verify jurisdiction and date |\n\n## Questions for an investor\n\n- What is the utilization needed for break-even?\n- Which revenue comes from hardware, energy, software, or services?\n- How do land, electricity, maintenance, and financing affect unit economics?\n- Which claims are independently corroborated?\n\n## Calculation method\n\nAnnual gross contribution = charging sessions per day × kWh per session × contribution per kWh × operating days. A live report must source each input and show sensitivity; this example supplies no invented figures.\n\n## Next steps\n\n${run.workflow === "monitor" ? "Follow-up checks compare new evidence against this session’s saved context. The scheduler runs while the server is online." : "Start a live run to collect evidence and answer these questions."}`,
     leads: [],
     sources: [],
   };

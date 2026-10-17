@@ -10,6 +10,43 @@ import {
   type Provider,
 } from "./provider.js";
 import { directoryCache, type BlobCache } from "./files.js";
+import {
+  fileContext,
+  parsePlanText,
+  planFiles,
+  planPrompt,
+  planSchema,
+} from "./planner.js";
+import type { ResearchPlan } from "../shared/types.js";
+
+/** Text of a finished model interaction, across the response shapes in use. */
+export function interactionText(interaction: ApiObject): string {
+  if (typeof interaction.output_text === "string" && interaction.output_text)
+    return interaction.output_text;
+  const fromParts = (parts: unknown) =>
+    Array.isArray(parts)
+      ? parts
+          .filter((c: any) => c?.type === "text" && typeof c.text === "string")
+          .map((c: any) => c.text)
+          .join("")
+      : "";
+  const steps: ApiObject[] = Array.isArray(interaction.steps)
+    ? interaction.steps
+    : [];
+  const fromSteps = steps
+    .filter((s) => s.type === "model_output")
+    .map((s) => fromParts(s.content))
+    .filter(Boolean)
+    .at(-1);
+  if (fromSteps) return fromSteps;
+  return Array.isArray(interaction.outputs)
+    ? interaction.outputs
+        .map((o: any) =>
+          typeof o?.text === "string" ? o.text : fromParts(o?.content),
+        )
+        .join("")
+    : "";
+}
 import { instructions, initialInput } from "./prompts.js";
 
 type GoogleCreate = Parameters<GoogleGenAI["interactions"]["create"]>[0];
@@ -47,6 +84,7 @@ export class GoogleProvider implements Provider {
     path: string,
     body?: unknown,
     binary = false,
+    timeoutMs = 60000,
   ): Promise<any> {
     const response = await this.request(
       "https://generativelanguage.googleapis.com/v1beta" + path,
@@ -58,7 +96,7 @@ export class GoogleProvider implements Provider {
           ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(60000),
+        signal: AbortSignal.timeout(timeoutMs),
       },
     );
     if (!response.ok) {
@@ -113,7 +151,7 @@ export class GoogleProvider implements Provider {
       max_total_tokens: String(run.maxTokens),
     };
   }
-  async create(run: Run) {
+  async create(run: Run, input = initialInput(run)) {
     const sources = [
       {
         type: "inline",
@@ -134,24 +172,67 @@ export class GoogleProvider implements Provider {
       agent_config: this.config(run),
       system_instruction: instructions(run),
       environment: { type: "remote", sources },
-      input: initialInput(run),
+      input,
       background: true,
       store: true,
       labels: { local_run_id: run.id },
     } satisfies GoogleCreate;
     return this.call("/interactions", body);
   }
+  /** Questions and proposed areas, from the base model with structured output. No tools, no research. */
+  async plan(run: Run): Promise<ResearchPlan> {
+    const { pdfs, texts } = await planFiles(
+      run.attachments,
+      this.readAttachment,
+    );
+    const interaction = await this.call(
+      "/interactions",
+      {
+        model: run.baseModel ?? this.model,
+        input: [
+          ...pdfs.map((p) => ({
+            type: "document",
+            mime_type: "application/pdf",
+            data: p.data,
+          })),
+          { type: "text", text: planPrompt(run) + fileContext(texts) },
+        ],
+        response_format: {
+          type: "text",
+          mime_type: "application/json",
+          schema: planSchema,
+        },
+      },
+      false,
+      120000,
+    );
+    return parsePlanText(interactionText(interaction));
+  }
   async message(id: string, text: string, _key: string, run?: Run) {
     if (!run)
       throw new Error(
         "Saved Google run configuration is required for follow-up.",
       );
-    const previous = await this.call("/interactions/" + encodeURIComponent(id));
-    if (!previous.environment_id)
-      throw new ProviderError(
-        "The previous Google interaction has no reusable environment. Start a new research run.",
-        400,
+    // A fresh interaction carries the original task plus this message (which
+    // includes any partial report), so expired environments do not end the research.
+    const fresh = async () => {
+      const interaction = await this.create(
+        run,
+        `${initialInput(run)}\n\n---\n\n${text}`,
       );
+      if (typeof interaction.id !== "string")
+        throw new Error("Google did not return the new interaction ID.");
+      return { id: interaction.id as string };
+    };
+    let previous: ApiObject;
+    try {
+      previous = await this.call("/interactions/" + encodeURIComponent(id));
+    } catch (error) {
+      if (error instanceof ProviderError && [404, 410].includes(error.status))
+        return fresh();
+      throw error;
+    }
+    if (!previous.environment_id) return fresh();
     const body = {
       agent: run.agentName ?? this.agent,
       agent_config: this.config(run),
@@ -163,7 +244,18 @@ export class GoogleProvider implements Provider {
       store: true,
       labels: { local_run_id: run.id },
     } satisfies GoogleCreate;
-    const interaction = await this.call("/interactions", body);
+    let interaction: ApiObject;
+    try {
+      interaction = await this.call("/interactions", body);
+    } catch (error) {
+      // A definite rejection created nothing, so a fresh start cannot duplicate work.
+      if (
+        error instanceof ProviderError &&
+        [400, 404, 409, 410, 422].includes(error.status)
+      )
+        return fresh();
+      throw error;
+    }
     if (typeof interaction.id !== "string")
       throw new Error("Google did not return the follow-up interaction ID.");
     return { id: interaction.id };
@@ -279,19 +371,15 @@ export class GoogleProvider implements Provider {
       ?.map((e: any) => e.message)
       .filter(Boolean)
       .join("; ");
-    if (status === "incomplete" || status === "budget_exceeded") {
-      status = "failed";
-      error =
-        "Google stopped this interaction before completion (token budget or another preview limit). Review saved output and send a follow-up to continue with a new budget.";
-    }
+    // Budget or preview limits end the turn early; the engine keeps the partial report.
+    if (status === "budget_exceeded") status = "incomplete";
     return {
       session: {
-        status:
-          status === "failed"
-            ? "idle"
-            : status === "completed"
-              ? "idle"
-              : status,
+        status: ["failed", "completed", "incomplete", "cancelled"].includes(
+          status,
+        )
+          ? "idle"
+          : status,
         error: undefined,
         usage: interaction.usage,
       },

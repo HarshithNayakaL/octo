@@ -30,10 +30,16 @@ import {
 } from "../shared/types";
 
 const ActivityChart = lazy(() => import("./ActivityChart"));
-const workflowIcons = { market: Globe2, sales: Building2, monitor: Radio };
+const workflowIcons = {
+  general: Globe2,
+  market: Globe2,
+  sales: Building2,
+  monitor: Radio,
+};
 const active = (r: Run) =>
   ["starting", "running", "requires_action"].includes(r.status);
 const examples: Record<Workflow, { label: string; brief: string }[]> = {
+  general: [],
   market: [
     {
       label: "Indian EV charging",

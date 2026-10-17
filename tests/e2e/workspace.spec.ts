@@ -8,12 +8,18 @@ test("market research, notes, sources, and download work end to end in demo mode
   ).toBeVisible();
   await page.getByRole("button", { name: "Market intelligence" }).click();
   await page.getByRole("button", { name: "Use an example" }).click();
-  await page.getByLabel("Research title").fill("E2E Market " + Date.now());
+  const title = "E2E Market " + Date.now();
+  await page.getByLabel("Research title").fill(title);
   await page.getByRole("combobox", { name: "Run mode", exact: true }).click();
   await page
     .getByRole("option", { name: "Demo · no API usage", exact: true })
     .click();
-  await page.getByRole("button", { name: "Start demo", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByText("Here is what I understood")).toBeVisible({
+    timeout: 20000,
+  });
+  await page.getByRole("radio", { name: "An internal briefing" }).click();
+  await page.getByRole("button", { name: "Start research" }).click();
   await expect(page.getByText("Report ready", { exact: false })).toBeVisible({
     timeout: 20000,
   });
@@ -24,10 +30,7 @@ test("market research, notes, sources, and download work end to end in demo mode
   await page.getByRole("button", { name: "Save notes" }).click();
   await expect(page.getByText("Notes saved", { exact: true })).toBeVisible();
   await page.reload();
-  await page
-    .getByRole("button", { name: /E2E Market/ })
-    .last()
-    .click();
+  await page.getByRole("button", { name: title, exact: true }).last().click();
   await page.getByRole("tab", { name: "Notes", exact: true }).click();
   await expect(
     page.getByRole("textbox", { name: "Research notes" }),
@@ -57,7 +60,12 @@ test("sales workflow produces clearly labelled sample records and blocks CRM exp
   await page
     .getByRole("option", { name: "Demo · no API usage", exact: true })
     .click();
-  await page.getByRole("button", { name: "Start demo", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByText("Here is what I understood")).toBeVisible({
+    timeout: 20000,
+  });
+  await page.getByRole("radio", { name: "An internal briefing" }).click();
+  await page.getByRole("button", { name: "Start research" }).click();
   await expect(page.getByRole("tab", { name: "Companies (2)" })).toBeVisible({
     timeout: 20000,
   });

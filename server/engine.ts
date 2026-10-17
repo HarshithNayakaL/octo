@@ -9,9 +9,10 @@ import {
   sourcesFromReport,
 } from "./results.js";
 import { demoResult } from "./demo.js";
+import { demoPlan } from "./planner.js";
 
 export const active = (r: Run) =>
-  ["starting", "running", "requires_action"].includes(r.status);
+  ["planning", "starting", "running", "requires_action"].includes(r.status);
 export interface EngineOptions {
   /** Longest a single step may hold a run. Must stay below the host's request limit. */
   leaseMs?: number;
@@ -131,13 +132,17 @@ export class Engine {
         await this.store.save(run);
         return;
       }
+      const provider =
+        this.providers?.[run.provider ?? "openai"] ??
+        ((run.provider ?? "openai") === "openai" ? this.provider : undefined);
+      if (run.status === "planning") {
+        await this.planStep(run, provider);
+        return;
+      }
       if (run.mode === "demo") {
         await this.demo(run);
         return;
       }
-      const provider =
-        this.providers?.[run.provider ?? "openai"] ??
-        ((run.provider ?? "openai") === "openai" ? this.provider : undefined);
       if (!provider)
         throw new Error(
           `Configure ${run.provider === "google" ? "GEMINI_API_KEY" : "OPENAI_API_KEY"} in .env and restart the server to continue this run.`,
@@ -206,6 +211,7 @@ export class Engine {
         Date.now() - Date.parse(run.startedAt!) > run.maxMinutes * 60000
       ) {
         run.cancelRequested = true;
+        run.stopReason = "the time limit was reached";
         run.nextCheckAt = undefined;
         this.log(
           run,
@@ -268,7 +274,9 @@ export class Engine {
           "The session needs external action. Inspect its required actions in the provider dashboard or cancel the run.";
       } else if (
         isNewTurn &&
-        ["completed", "failed", "cancelled"].includes(latest.status)
+        ["completed", "failed", "cancelled", "incomplete"].includes(
+          latest.status,
+        )
       ) {
         run.lastTurnId = latest.id;
         if (latest.status === "completed") {
@@ -317,20 +325,47 @@ export class Engine {
             this.schedule(run);
           }
         } else {
-          run.status = latest.status;
-          if (run.provider === "google") {
-            const partial = finalReport(
-              snap.items.filter((item) => item.turn_id === latest.id),
+          // Keep whatever the turn produced so the research can be continued.
+          const partial = finalReport(
+            snap.items.filter((item) => item.turn_id === latest.id),
+          );
+          const reason =
+            latest.status === "incomplete"
+              ? "the provider's token budget or limit was reached"
+              : latest.status === "cancelled"
+                ? (run.stopReason ?? "you stopped it")
+                : (latest.error?.message ?? "the agent turn failed");
+          if (partial.trim()) {
+            run.report = partial;
+            run.sources = sourcesFromReport(partial);
+            run.reportParts = [
+              ...(run.reportParts ?? []),
+              {
+                turnId: latest.id,
+                report: partial,
+                reason,
+                at: new Date().toISOString(),
+              },
+            ].slice(-10);
+            run.status = "partial";
+            run.error = undefined;
+            this.log(
+              run,
+              "Partial report saved",
+              `Research stopped because ${reason}. The unfinished report is saved; continue the research to complete it.`,
+              "warning",
             );
-            if (partial.trim()) {
-              run.report = partial;
-              run.sources = sourcesFromReport(partial);
-            }
+          } else {
+            run.status =
+              latest.status === "incomplete" ? "failed" : latest.status;
+            run.error =
+              latest.status === "cancelled"
+                ? undefined
+                : latest.status === "failed"
+                  ? (latest.error?.message ?? "The agent turn failed.")
+                  : `Research stopped because ${reason}, and no report text was produced.`;
           }
-          run.error =
-            latest.status === "failed"
-              ? (latest.error?.message ?? "The agent turn failed.")
-              : undefined;
+          run.stopReason = undefined;
         }
       } else if (!run.cancelRequested) run.status = "running";
       const exceeded =
@@ -339,6 +374,10 @@ export class Engine {
           (run.tokenUsage !== undefined &&
             run.tokenUsage - (run.budgetBaseline ?? 0) >= run.maxTokens));
       if (exceeded && !run.cancelRequested) {
+        run.stopReason =
+          Date.now() - Date.parse(run.startedAt!) > run.maxMinutes * 60000
+            ? "the time limit was reached"
+            : "the token limit was reached";
         run.cancelRequested = true;
         run.nextCheckAt = undefined;
         this.log(
@@ -348,7 +387,11 @@ export class Engine {
           "warning",
         );
       }
-      if (run.status === "cancelled" || run.status === "failed") {
+      if (
+        run.status === "cancelled" ||
+        run.status === "failed" ||
+        run.status === "partial"
+      ) {
         run.nextCheckAt = undefined;
         run.remainingChecks = 0;
       }
@@ -408,6 +451,45 @@ export class Engine {
       }
     }
   }
+  /** Prepare questions and proposed areas; research waits for the user's answers. */
+  private async planStep(run: Run, provider?: Provider) {
+    if (run.mode === "demo") run.plan = demoPlan(run);
+    else if (!provider?.plan)
+      run.planError = `Configure ${run.provider === "google" ? "GEMINI_API_KEY" : "OPENAI_API_KEY"} to prepare questions, or start without them.`;
+    else
+      try {
+        run.plan = await provider.plan(run);
+        run.planError = undefined;
+      } catch (error) {
+        if (error instanceof ProviderError && error.status === 429) {
+          run.nextPollAt = new Date(
+            Date.now() + (error.retryAfterMs ?? 60000),
+          ).toISOString();
+          this.log(
+            run,
+            "Provider quota reached",
+            "Preparing questions will be retried shortly.",
+            "warning",
+          );
+          await this.store.save(run);
+          return;
+        }
+        run.planError =
+          (error instanceof Error ? error.message : "Planning failed") +
+          " You can start the research without questions.";
+      }
+    const current = await this.store.get(run.id);
+    if (current?.cancelRequested || current?.status !== "planning") return;
+    run.status = "awaiting_input";
+    this.log(
+      run,
+      run.plan ? "Questions ready" : "Questions unavailable",
+      run.plan
+        ? "Review what Octo understood, answer the questions, and choose the research areas."
+        : (run.planError ?? "Start the research when ready."),
+    );
+    await this.store.save(run);
+  }
   private schedule(run: Run) {
     if (
       run.workflow === "monitor" &&
@@ -433,27 +515,36 @@ export class Engine {
         "Research director",
         "Planning the research and assigning independent questions.",
       ],
-      ...(run.workflow === "sales"
-        ? [
-            [
-              "Company discovery",
-              "Demonstrating company matching. No live search is performed.",
-            ],
-            [
-              "Company evidence",
-              "Demonstrating fit evidence and unknown contacts.",
-            ],
-          ]
-        : [
-            [
-              "Market researcher",
-              "Demonstrating source collection. No live search is performed.",
-            ],
-            [
-              "Competitor researcher",
-              "Demonstrating comparison and evidence review.",
-            ],
-          ]),
+      ...((run.plan?.areas ?? []).filter((a) => a.selected !== false).length >=
+      2
+        ? (run
+            .plan!.areas.filter((a) => a.selected !== false)
+            .slice(0, 2)
+            .map((a) => [
+              a.title,
+              `Demonstrating research on ${a.title.toLowerCase()}. No live search is performed.`,
+            ]) as string[][])
+        : run.workflow === "sales"
+          ? [
+              [
+                "Company discovery",
+                "Demonstrating company matching. No live search is performed.",
+              ],
+              [
+                "Company evidence",
+                "Demonstrating fit evidence and unknown contacts.",
+              ],
+            ]
+          : [
+              [
+                "Market researcher",
+                "Demonstrating source collection. No live search is performed.",
+              ],
+              [
+                "Competitor researcher",
+                "Demonstrating comparison and evidence review.",
+              ],
+            ]),
       [
         "Final reviewer",
         "Preparing an illustrative report and highlighting unknowns.",

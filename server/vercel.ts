@@ -36,11 +36,38 @@ const databaseUrl = findDatabaseUrl(env);
 const missing = !databaseUrl
   ? "No Postgres connection string found. In Vercel, open Storage → your Neon database → Connect Project, select this project for Production, then redeploy."
   : undefined;
+/**
+ * Neon's free tier suspends idle databases; the first request after a pause can
+ * fail at the network level while it wakes. Retry those briefly. SQL errors are
+ * never retried, and every write Octo makes is an idempotent upsert.
+ */
+export function withWakeRetry(query: Query, delays = [400, 1200, 3000]): Query {
+  const transient = (error: unknown) => {
+    const text = String(
+      (error as { message?: string })?.message ?? error,
+    ).toLowerCase();
+    return /fetch failed|network|econnreset|etimedout|socket|terminated|other side closed/.test(
+      text,
+    );
+  };
+  return async (text, params) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await query(text, params);
+      } catch (error) {
+        if (attempt >= delays.length || !transient(error)) throw error;
+        await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+      }
+    }
+  };
+}
 const sql: Query = databaseUrl
   ? (() => {
       const query = neon(databaseUrl);
-      return (text, params) =>
-        query.query(text, params) as Promise<Record<string, any>[]>;
+      return withWakeRetry(
+        (text, params) =>
+          query.query(text, params) as Promise<Record<string, any>[]>,
+      );
     })()
   : async () => {
       throw new Error("DATABASE_URL is not configured.");

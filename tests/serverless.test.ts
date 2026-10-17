@@ -329,3 +329,21 @@ it("finds the Neon connection string under any integration prefix", async () => 
   expect(findDatabaseUrl({ STORAGE_URL: "https://not-a-db" })).toBeUndefined();
   expect(findDatabaseUrl({})).toBeUndefined();
 });
+it("retries database queries while a suspended database wakes, but not SQL errors", async () => {
+  const { withWakeRetry } = await import("../server/vercel");
+  let calls = 0;
+  const flaky = withWakeRetry(async () => {
+    calls++;
+    if (calls < 3) throw new TypeError("fetch failed");
+    return [{ ok: 1 }];
+  }, [1, 1, 1]);
+  expect(await flaky("SELECT 1")).toEqual([{ ok: 1 }]);
+  expect(calls).toBe(3);
+  let sqlCalls = 0;
+  const broken = withWakeRetry(async () => {
+    sqlCalls++;
+    throw new Error('relation "x" does not exist');
+  }, [1, 1, 1]);
+  await expect(broken("SELECT * FROM x")).rejects.toThrow("does not exist");
+  expect(sqlCalls).toBe(1);
+});

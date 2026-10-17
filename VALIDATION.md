@@ -99,3 +99,31 @@ Live Gemini test on https://octo-agents.vercel.app (Postgres on Neon, Google pro
 - **Token reporting:** the provider reported 398,802 tokens against the 300,000 limit. Gemini's token budget is advisory and appears to count cached and tool tokens, so treat the limit as approximate.
 
 Not yet verified live: the partial-report and continue path. The test run completed, so no part was saved. That path is covered by the backend tests only. OpenAI planning was not run live, because OpenAI is locked behind the access word.
+
+## Evidence check, Ask, versions and building on earlier research (17 October 2026)
+
+Local checks:
+
+- 101 backend tests pass. 18 new tests cover:
+  - claim extraction from links, numbered citations, bullets and tables;
+  - figure and term matching;
+  - refusal of private, loopback, metadata and IPv4-mapped addresses, including after redirects;
+  - reading HTML and PDF pages;
+  - model claims with uncited URLs dropped;
+  - scoring and concurrent saves;
+  - the evidence, ask and refresh routes;
+  - versions after a refresh;
+  - building on earlier reports;
+  - the evidence table in exports.
+- 6/6 Playwright tests pass, desktop and mobile. A new test covers the evidence strip and tab, an Ask answer marked "Not in this research", "Research this" filling the follow-up box, and Refresh producing version 2 with a line diff.
+- Screens were checked in Chromium at 1440 px (light and dark) and 390 px. There is no horizontal overflow.
+
+Live on https://octo-agents.vercel.app (Gemini), on the earlier UPI vs Pix run:
+
+- **Check again:** completed in 21 s. The model picked 20 claims and the score was 36. Results: 3 supported, 2 partly supported, 1 not found, 5 with no source cited, and 9 that could not be checked.
+- **Pages that could not be checked:** NPCI and parts of the BCB site are JavaScript-only pages, so they return almost no text without a browser. PIB returned HTTP 403. Octo labels these "Could not check" and leaves them out of the score instead of failing the claims.
+- **First Ask question:** answered in 17 s. It cited the supported Pix claim and warned that the UPI figure's source could not be checked.
+- **Second Ask question** (about Argentina, which the report does not cover): returned "Not in this research" with a follow-up research instruction.
+- **Markdown download:** now includes the evidence table.
+
+Not yet verified live: Refresh research and Build on earlier research with a real research turn, because each costs a full research run. Both are covered by the backend and browser tests in demo mode. The evidence check does not render JavaScript pages.

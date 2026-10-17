@@ -412,3 +412,81 @@ describe("challenge this report", () => {
     expect(challengeInput(liveRun())).toContain("strongest counter-evidence");
   });
 });
+
+describe("Reddit's official API", () => {
+  it("signs in app-only, searches posts and reads top comments instead of the archive", async () => {
+    const calls: string[] = [];
+    const fetcher = vi.fn(
+      async (url: URL | RequestInfo, init?: RequestInit) => {
+        const u = String(url);
+        calls.push(u);
+        if (u.includes("access_token")) {
+          expect(String((init?.headers as any).Authorization)).toBe(
+            "Basic " + Buffer.from("id:secret").toString("base64"),
+          );
+          return ok({ access_token: "tok" });
+        }
+        if (u.includes("oauth.reddit.com/search"))
+          return ok({
+            data: {
+              children: [
+                {
+                  data: {
+                    id: "p1",
+                    title: "Otter meeting notes keep mislabelling speakers",
+                    selftext:
+                      "Anyone else find otter meeting notes unreliable for interviews?",
+                    subreddit: "UXResearch",
+                    permalink: "/r/UXResearch/comments/p1/x/",
+                    score: 55,
+                    num_comments: 9,
+                    created_utc: 1780000000,
+                  },
+                },
+              ],
+            },
+          });
+        if (u.includes("oauth.reddit.com/comments/p1"))
+          return ok([
+            {},
+            {
+              data: {
+                children: [
+                  {
+                    data: {
+                      id: "k1",
+                      body: "Yes, I gave up and switched to recording locally and transcribing later.",
+                      subreddit: "UXResearch",
+                      permalink: "/r/UXResearch/comments/p1/x/k1/",
+                      score: 20,
+                      created_utc: 1780000100,
+                    },
+                  },
+                ],
+              },
+            },
+          ]);
+        return ok({ hits: [] });
+      },
+    ) as unknown as typeof fetch;
+    const { items, scanned, errors } = await gather(["otter meeting notes"], {
+      request: fetcher,
+      pauseMs: 0,
+      redditApp: { clientId: "id", clientSecret: "secret" },
+    });
+    expect(errors).toEqual([]);
+    expect(calls.some((c) => c.includes("pullpush"))).toBe(false);
+    expect(scanned.reddit).toBe(2);
+    const kept = selectItems(items);
+    expect(kept.map((i) => i.id).sort()).toEqual(["rk1", "rp1"]);
+  });
+  it("explains a refused archive request", async () => {
+    const fetcher = vi.fn(async (url: URL | RequestInfo) =>
+      String(url).includes("pullpush")
+        ? new Response("no", { status: 403 })
+        : ok({ hits: [] }),
+    ) as unknown as typeof fetch;
+    const { errors } = await gather(["x y"], { request: fetcher, pauseMs: 0 });
+    expect(errors[0]).toContain("REDDIT_CLIENT_ID");
+  });
+});

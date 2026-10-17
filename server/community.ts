@@ -26,7 +26,112 @@ export interface GatherOptions {
   hackernews?: boolean;
   /** Pause between archive requests, to stay polite to free APIs. */
   pauseMs?: number;
+  /** Reddit's official API (an app's client ID and secret); otherwise the PullPush archive. */
+  redditApp?: { clientId: string; clientSecret: string };
 }
+
+const userAgent =
+  "web:octo-research:1.0 (+https://github.com/HarshithNayakaL/octo)";
+
+/** App-only OAuth token for Reddit's API, read-only. */
+async function redditToken(
+  request: typeof fetch,
+  app: NonNullable<GatherOptions["redditApp"]>,
+) {
+  const response = await request("https://www.reddit.com/api/v1/access_token", {
+    method: "POST",
+    headers: {
+      Authorization:
+        "Basic " +
+        Buffer.from(`${app.clientId}:${app.clientSecret}`).toString("base64"),
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": userAgent,
+    },
+    body: "grant_type=client_credentials",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok)
+    throw new Error(`Reddit sign-in returned HTTP ${response.status}`);
+  const data = (await response.json()) as { access_token?: string };
+  if (!data.access_token) throw new Error("Reddit returned no access token");
+  return data.access_token;
+}
+
+/** Search posts through Reddit's API, then read the top comments of the strongest posts. */
+async function redditOfficial(
+  request: typeof fetch,
+  app: NonNullable<GatherOptions["redditApp"]>,
+  queries: string[],
+  since: number,
+) {
+  const token = await redditToken(request, app);
+  const get = async (path: string) => {
+    const response = await request(`https://oauth.reddit.com${path}`, {
+      headers: { Authorization: `Bearer ${token}`, "User-Agent": userAgent },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json() as Promise<any>;
+  };
+  const items: (CommunityItem & { query: string })[] = [];
+  let scanned = 0;
+  const posts: { id: string; score: number; query: string }[] = [];
+  for (const query of queries) {
+    const data = await get(
+      `/search?q=${encodeURIComponent(query)}&sort=relevance&t=all&limit=40&type=link&raw_json=1`,
+    );
+    for (const { data: d } of data?.data?.children ?? []) {
+      scanned++;
+      if ((d.created_utc ?? 0) < since) continue;
+      const text = plain([d.title, d.selftext].filter(Boolean).join(" — "));
+      if (!text) continue;
+      items.push({
+        id: `r${d.id}`,
+        source: "reddit",
+        where: `r/${d.subreddit}`,
+        url: `https://www.reddit.com${d.permalink}`,
+        text,
+        score: d.score,
+        at: new Date(d.created_utc * 1000).toISOString(),
+        query,
+      });
+      if ((d.num_comments ?? 0) > 2)
+        posts.push({ id: d.id, score: d.score ?? 0, query });
+    }
+  }
+  const top = [...new Map(posts.map((p) => [p.id, p])).values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+  for (const post of top) {
+    const thread = await get(
+      `/comments/${post.id}?limit=15&depth=1&sort=top&raw_json=1`,
+    ).catch(() => undefined);
+    for (const { data: d } of thread?.[1]?.data?.children ?? []) {
+      if (!d?.body || /^\[(removed|deleted)\]$/.test(d.body)) continue;
+      scanned++;
+      items.push({
+        id: `r${d.id}`,
+        source: "reddit",
+        where: `r/${d.subreddit}`,
+        url: `https://www.reddit.com${d.permalink}`,
+        text: plain(d.body),
+        score: d.score,
+        at: new Date((d.created_utc ?? 0) * 1000).toISOString(),
+        // Replies in a matching thread count as relevant without repeating its keywords.
+        query: "",
+      });
+    }
+  }
+  return { items, scanned };
+}
+
+const envRedditApp = () =>
+  process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET
+    ? {
+        clientId: process.env.REDDIT_CLIENT_ID,
+        clientSecret: process.env.REDDIT_CLIENT_SECRET,
+      }
+    : undefined;
 
 const queriesSchema: JsonSchema = {
   type: "object",
@@ -106,6 +211,15 @@ export async function gather(queries: string[], options: GatherOptions = {}) {
   const items: (CommunityItem & { query: string })[] = [];
   const scanned: CommunityPulse["scanned"] = {};
   const errors: string[] = [];
+  const redditApp = options.redditApp ?? envRedditApp();
+  if (options.reddit !== false && redditApp)
+    try {
+      const official = await redditOfficial(request, redditApp, queries, since);
+      items.push(...official.items);
+      scanned.reddit = official.scanned;
+    } catch (err) {
+      errors.push(`Reddit API: ${(err as Error).message}`);
+    }
   for (const query of queries) {
     if (options.hackernews !== false)
       try {
@@ -135,7 +249,7 @@ export async function gather(queries: string[], options: GatherOptions = {}) {
       } catch (err) {
         errors.push(`Hacker News: ${(err as Error).message}`);
       }
-    if (options.reddit !== false)
+    if (options.reddit !== false && !redditApp)
       for (const kind of ["submission", "comment"] as const) {
         try {
           const data = await json(
@@ -164,7 +278,9 @@ export async function gather(queries: string[], options: GatherOptions = {}) {
           }
           scanned.reddit = (scanned.reddit ?? 0) + (data.data?.length ?? 0);
         } catch (err) {
-          errors.push(`Reddit archive: ${(err as Error).message}`);
+          errors.push(
+            `Reddit archive: ${(err as Error).message}${/403/.test((err as Error).message) ? " (it often refuses cloud servers; add REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET to use Reddit's API)" : ""}`,
+          );
         }
         if (pause) await new Promise((r) => setTimeout(r, pause));
       }
@@ -187,7 +303,7 @@ export function selectItems(
     const text = ` ${words(item.text).join(" ")} `;
     const share = terms.length
       ? terms.filter((t) => text.includes(` ${t} `)).length / terms.length
-      : 0;
+      : 0.8;
     if (share < 0.6) continue;
     seen.add(item.id);
     seen.add(key);

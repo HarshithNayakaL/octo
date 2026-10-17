@@ -111,7 +111,7 @@ Whenever a follow-up, continuation, scheduled check or **Refresh research** repl
 People add "reddit" to their searches because forums hold first-hand experience. Some AI assistants can't read Reddit at all. With **Include what real people say** (in the research form or the question step), or **Gather voices** on any finished run, Octo:
 
 1. Turns the brief into 3–6 keyword searches with a small model call (falling back to keywords from the brief).
-2. Searches Hacker News through its official Algolia API and Reddit through the public [PullPush](https://pullpush.io) archive, over the last two years.
+2. Searches Hacker News through its official Algolia API, and Reddit over the last two years. With `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`, it uses Reddit's official API (read-only, app-only sign-in): it searches posts and reads the top comments of the six strongest threads. Without them, it uses the public [PullPush](https://pullpush.io) archive. The archive works from a laptop but often refuses cloud servers such as Vercel (HTTP 403). The Voices tab then says so, and Hacker News results still appear. To get the keys, create a "script" app at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) and follow [Reddit's API terms](https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki).
 3. Keeps posts that match a search (up to 150) and asks the model to group them into 3–8 themes: pain points, unmet needs, what works, and workarounds. Each theme lists the posts that discuss it.
 4. Shows each theme with its post count, a summary, and 1–3 quotes. Quotes are always the posts' own words with a link; only ids the model returns from the collected posts are accepted. Without a model, posts are grouped by keywords.
 
@@ -234,6 +234,7 @@ Live deployment: **https://octo-agents.vercel.app** (Google Gemini by default, O
 | `GEMINI_API_KEY`     | Always (default provider, free tier)                                                            |
 | `OPENAI_API_KEY`     | Only if OpenAI should be available                                                              |
 | `OPENAI_UNLOCK_WORD` | Only with an OpenAI key: the word that unlocks OpenAI in the UI. Without it OpenAI stays locked |
+| `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Optional: Reddit in Community voices on Vercel (see below). Without them, Hacker News still works |
 
 4. Deploy. Changing variables later requires a redeploy.
 

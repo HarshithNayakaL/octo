@@ -127,3 +127,29 @@ Live on https://octo-agents.vercel.app (Gemini), on the earlier UPI vs Pix run:
 - **Markdown download:** now includes the evidence table.
 
 Not yet verified live: Refresh research and Build on earlier research with a real research turn, because each costs a full research run. Both are covered by the backend and browser tests in demo mode. The evidence check does not render JavaScript pages.
+
+## Community voices, source quality, source policy and Challenge (17 October 2026)
+
+User research: 3,314 Reddit and Hacker News posts and comments, plus published studies, are summarised in `docs/research-findings.md`.
+
+Local checks:
+
+- 115 backend tests pass. 14 new tests cover:
+  - collection and filtering of community posts, including removed and off-topic posts;
+  - model themes limited to collected post ids, with quotes drawn only from each theme's own posts;
+  - grouping by keywords without a model, and keyword searches made from the brief;
+  - community voices gathered on request and before research, with research waiting for them;
+  - Reddit's official API with app-only sign-in, and the hint shown when the archive refuses a request;
+  - source classification, publication dates, trusted and blocked domains;
+  - source policy validation at creation;
+  - balanced-evidence instructions;
+  - the Challenge route.
+- 6/6 Playwright tests pass. The Voices tab, source mix and policy form were checked in Chromium at desktop and mobile widths, with no horizontal overflow.
+
+Live on https://octo-agents.vercel.app (Gemini), on the UPI vs Pix run:
+
+- **Gather voices:** completed in 37 s. Gemini wrote five searches, and 26 relevant Hacker News posts out of 81 scanned were grouped into six themes with verbatim, linked quotes. Its takeaway said the posts were one-sided and thin on official fee data.
+- **Reddit:** the PullPush archive returned HTTP 403 from Vercel, although it works from a local machine. Octo showed the failure and kept the Hacker News results. Reddit's official API path (`REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET`) was added for this and is covered by tests, but has not been run with real Reddit keys.
+- **Source labels:** after the evidence check, all seven sources were labelled Government & regulator. None of those pages declared a publication date in their metadata.
+
+Not yet verified live: Challenge this report and a source policy on a real research turn. Each costs a full research run; both are covered by tests in demo mode.

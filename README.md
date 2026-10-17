@@ -59,15 +59,36 @@ OPENAI_UNLOCK_WORD=choose-a-word
 - Five wrong attempts lock the form for 10 minutes (per server instance).
 - Scheduled checks on an OpenAI run that was started while unlocked continue to run; stop the schedule to stop their usage.
 
+## How a research run works
+
+1. **Brief.** Choose a workflow, describe what you need, and attach up to five files.
+2. **Questions first** (on by default). Before any research, Octo reads the brief and files and shows what it understood, the outcome it thinks you want, the research areas this topic needs, and two to five questions. Each question has suggested answers plus a box for your own detail, and there is a final "anything else" field. Turn areas off, answer what matters, or skip the questions. Google uses Gemini structured output for this step; OpenAI uses a strict JSON schema; demo runs show labelled example questions without calling a model. If the step fails, you can still start the research.
+3. **Research.** One specialist covers each area you kept (Google runs them as passes in one session). Areas are planned per brief, never a fixed template. Your answers, notes and the agreed outcome go into the agent's instructions.
+4. **Report.** A cited report, source list, company records where relevant, and downloads in your chosen format.
+5. **Continue.** Ask follow-ups in the same session. If a run stopped early, continue it (below).
+
 ## Workflows
 
-- **Market intelligence:** market structure, company comparisons, public pricing, regulation, calculations, and an investor briefing.
+- **Open research:** any question. The report is structured around the areas and outcome you agreed.
+- **Market intelligence:** a decision-ready market briefing; the areas (competitors, pricing, regulation, demand, or anything else) are chosen for the brief.
 - **Sales research:** an explicit ICP plus optional documents; a target of 1–100 companies; fit evidence, potential needs, public decision makers, and source links. A run may return fewer verified matches than requested. CSV export neutralizes spreadsheet formulas.
-- **Ongoing research:** a saved session, scheduled checks, and comparison against previous findings. Interval and remaining checks are configurable. The server must remain online. After downtime, one overdue check runs; the scheduler does not issue a burst of missed checks.
+- **Ongoing research:** a saved session, scheduled checks, and comparison against previous findings. Interval and remaining checks are configurable. After downtime, one overdue check runs; the scheduler does not issue a burst of missed checks.
 
-Each workflow supports a brief, up to five context files (5 MB each), activity, specialist agents, source links, local notes, Markdown/JSON exports, and same-session follow-ups. Supported uploads: PDF, CSV, TXT, Markdown, JSON, XLSX, DOCX. Hosted agents may need to install libraries to read a particular document; conversion success is not guaranteed. Initial files are delivered to `/workspace/inputs`. Outputs written under `/workspace/outputs` become downloadable published artifacts after the turn completes.
+Each workflow supports a brief, up to five context files (5 MB each, 4 MB on Vercel), activity, specialist agents, source links, notes, exports, and same-session follow-ups. Supported uploads: PDF, CSV, TXT, Markdown, JSON, XLSX, DOCX. PDFs and text files are also read during the question step; other formats are read by the agent in its sandbox. Initial files are delivered to `/workspace/inputs`. Outputs written under `/workspace/outputs` become downloadable after the turn completes.
 
-User notes are stored locally; they are not automatically added to the remote prompt. Include any notes you want used in your next follow-up.
+User notes are stored in the workspace; they are not automatically added to the remote prompt. Include any notes you want used in your next follow-up.
+
+### Limits, partial reports and continuing
+
+- Time limits go up to 3 hours and token limits up to 2M. Google runs default to 2 hours and 1M tokens, the most Octo requests; your Google project's own free-tier quotas still apply. OpenAI runs default to 10 minutes and 50k tokens because they are billed.
+- If a run stops early (time or token limit, Google's budget, a provider error, or you pressing Stop), whatever the agent had written is saved as a **partial report** and the run is marked Partial. It can be downloaded like any report.
+- **Continue research** sends the partial report back with an instruction to finish the unfinished areas and return one complete report that merges the earlier findings with the new ones. You can add guidance for the continuation. Google continues the same session when its environment is still available and otherwise starts a fresh interaction carrying the task and the partial report. Earlier partial reports are kept with the run.
+- The agent is also told to wrap up with the best complete report it can when it nears its limits.
+
+### Managing runs
+
+- **Delete** a run from its page or from the research table. Live research must be stopped first so no remote work keeps running. Deleting removes Octo's record (report, notes, activity); sessions in your Google or OpenAI project are not deleted.
+- **Dark mode:** the theme button in the top bar cycles System → Dark → Light; the choice is remembered in this browser. The dark stylesheet is generated from the light theme by `npm run theme:dark` (`scripts/build-dark-theme.mjs`); rerun it after changing colours.
 
 ## Downloads
 
@@ -81,12 +102,12 @@ Every finished run can be downloaded as **PDF**, **Word (.docx)**, **CSV**, **Ma
 ## A small first live test
 
 1. For OpenAI, add API credit and configure spend controls in your project. A ChatGPT subscription does not supply this app's API billing. To test without spending credit first, use Google on a free-tier project and inspect its AI Studio quotas.
-2. Select **Live**, a **1 minute** time limit, a **5,000 token** limit, and a narrow brief such as “Find two Indian EV charging companies and compare their publicly documented business models. Cite their official websites. Identify unknown pricing.”
+2. Select **Live** and a narrow brief such as “Compare India's UPI and Brazil's Pix: adoption, fees and governance, with official sources.” For OpenAI, lower the time and token limits for a first test.
 3. Review the report, source links, artifacts, and project usage before making the task larger.
 
 **There is no promise that $5–$10 completes an arbitrary research job.** The API bills model calls, tools, and hosted sandbox usage. Subagent work contributes usage. The app's time/token controls request cancellation using best-effort accounting; in-flight work and reporting delay can exceed the thresholds. The token limit applies to additional session usage during the current turn, while the displayed usage is cumulative session usage. Missing usage stays unknown, not zero.
 
-The app starts one local research run at a time and enables up to two concurrent remote specialists on OpenAI; Google performs separate research passes. Recurring checks have the same per-turn limits and can each incur charges. Stop a schedule when it is no longer needed.
+The app runs one research run at a time (a run waiting for your answers does not block others) and enables up to two concurrent remote specialists on OpenAI; Google performs separate research passes. Recurring checks have the same per-turn limits and can each incur charges. Stop a schedule when it is no longer needed.
 
 ## CRM MCP
 

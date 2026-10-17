@@ -17,3 +17,10 @@ Builds on the accepted blue-and-white baseline; layout, palette and component st
 - **Run detail:** ASCII scan while research is in progress, mascot team panel, evidence-coverage radar and fit distribution for company records (computed from saved records only), middle-truncated URLs and file paths, and slide-to-confirm for CRM export after the review checkbox.
 
 References studied: Inspo (Gumloop, Statsig, Calendly), libraries.dev bot avatars, Bible Strong Avatar Lab (studied only; no code used, no license stated), evilcharts radar (reimplemented with ECharts directly, since the project has no Tailwind/shadcn), sv-chan components (Svelte; slide-to-unlock, middle truncation and contribution grid patterns reimplemented in React), 21st.dev ASCII recipes (style reference for a custom canvas effect), loading.dev loaders. No icons MCP was available; Lucide remains the icon set.
+
+## Questions, plan-based teams and dark mode (October 2026)
+
+- **Specialists follow the plan.** There is no fixed roster per workflow. Each research area the user keeps gets its own named specialist with a mascot from a fixed pool in area order, so an area keeps the same mascot across the team panel, the questions screen and its activity entries. The director and final reviewer keep their own mascots. Before a plan exists, the UI says specialists are chosen from the brief rather than showing placeholders.
+- **Questions before research** use the existing card language: two summary cards (what Octo understood, the outcome it assumes), area chips with checkboxes, option chips per question with a free-text detail field, and one "anything else" box. Demo runs label their questions as illustrative.
+- **Partial reports** use an amber banner distinct from errors, with a single Continue action and an optional note.
+- **Dark mode** is generated, not hand-written: `scripts/build-dark-theme.mjs` maps every colour in the light stylesheets (neutrals to cool navy-tinted darks, light tints to dark tints, accent text lightened, primary fills kept) into `src/dark.css`. Charts, the ASCII scan and mascots read the active theme. System preference is the default.

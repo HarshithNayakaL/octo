@@ -81,3 +81,21 @@ Not verified: a real Vercel deployment, Neon connectivity and latency, `waitUnti
 https://octo-agents.vercel.app was deployed from `main` by the user. The first build could not find the database because the Neon integration had created its variables under a different prefix; Octo now accepts the connection string under any `*_URL` name (covered by a test). After the automatic redeploy, the live API reported `storage: postgres`, Google and OpenAI keys present, OpenAI locked behind the access word, a 4 MB upload limit, and no access token. The seeded sample run was read back from Neon, confirming database writes.
 
 Not yet verified on the live site: a demo or live research run, downloads, or the OpenAI unlock flow.
+
+## Questions before research, open research, partial reports, delete and dark mode (17 October 2026)
+
+Local checks:
+
+- 83 backend tests pass: 16 new tests cover plan parsing and normalisation, the answers route, partial reports, continuation and delete. Postgres paths run on PGlite.
+- Production build, the Playwright suite (4/4: create → questions → answers → report → delete, PDF and Word downloads) and `vercel build` pass. The PDF fonts are traced into the function.
+- Dark mode was checked in the browser on the overview, configuration, questions and report screens, including the system → dark → light toggle cycle. There is no horizontal overflow at 390 px.
+
+Live Gemini test on https://octo-agents.vercel.app (Postgres on Neon, Google provider):
+
+- **Brief:** compare India's UPI with Brazil's Pix (Open research, 20 minutes, 300k token limit).
+- **Planning:** took 17 s. It produced a brief-specific understanding and outcome, four areas (governance, adoption, user fees, merchant MDR) and three option questions. It did not use a fixed market template.
+- **Research:** after the answers were posted, the run completed in about 3 minutes with 43 saved activities and 7 primary sources (BCB, NPCI, RBI, PIB). The report follows the agreed areas and includes the requested comparison table.
+- **Downloads:** the live PDF (3 pages), DOCX and Markdown exports returned HTTP 200 with valid files.
+- **Token reporting:** the provider reported 398,802 tokens against the 300,000 limit. Gemini's token budget is advisory and appears to count cached and tool tokens, so treat the limit as approximate.
+
+Not yet verified live: the partial-report and continue path. The test run completed, so no part was saved. That path is covered by the backend tests only. OpenAI planning was not run live, because OpenAI is locked behind the access word.

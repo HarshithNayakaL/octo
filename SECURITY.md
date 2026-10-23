@@ -14,11 +14,11 @@ On 21 October 2026, Node.js released fixes for ten vulnerabilities across its 22
 
 1. **Runtime pinned.** `package.json` pins the Node.js 24.x line (`"engines": {"node": "24.x"}`), so Vercel builds on its latest 24.x release instead of an older default.
 2. **No Brotli for untrusted servers.** Cited pages and community APIs are fetched with `plainFetch` (`server/brotli-guard.ts`). It uses `node:http` directly, so nothing is decompressed automatically. It asks for gzip or deflate only, decodes those itself, and refuses Brotli or unknown encodings before any byte is decompressed.
-3. **Every other `fetch()`** (Gemini, OpenAI, Neon) asks for gzip or deflate only and rejects Brotli replies (`installFetchGuard`, installed in `server/security.ts` before anything else loads).
+3. **Gemini, OpenAI and the Neon database client also use `plainFetch`.** The providers receive it from `server/config.ts`, and Neon via `neonConfig.fetchFunction` in `server/vercel.ts`. Octo itself therefore never decodes Brotli, whether or not the runtime is patched. As a backstop, any other `fetch()` asks for gzip or deflate only and rejects Brotli replies (`installFetchGuard`, installed in `server/security.ts` before anything else loads).
 4. **Compressed request bodies are refused** with HTTP 415 before Express parses them. Octo's own client never compresses requests.
 5. **The runtime is checked.** The server logs a warning at startup on an unpatched Node.js, and `GET /api/config` reports `"runtimePatched"`.
 
-The safeguards keep attacker-controlled bytes away from the decoder even on an unpatched runtime. The runtime upgrade is still the real fix: redeploy after changing Node versions, and confirm that `/api/config` shows `"runtimePatched": true`.
+Vercel manages patch versions for its 22.x and 24.x runtimes and announced on 21 October 2026 that it was rolling out the patched releases ([Vercel bulletin](https://vercel.com/kb/bulletin/node-js-security-advisory)). Until `/api/config` shows `"runtimePatched": true`, the safeguards keep attacker-controlled bytes away from the decoder. The runtime upgrade is still the real fix: redeploy after changing Node versions, and confirm that `/api/config` shows `"runtimePatched": true`.
 
 ### Supply chain
 
@@ -29,6 +29,8 @@ npm ci
 npm audit
 npm audit signatures
 ```
+
+When running locally behind an HTTP proxy, set `NODE_USE_ENV_PROXY=1` so `plainFetch` (built on `node:http`) uses it.
 
 ## Reporting a vulnerability
 

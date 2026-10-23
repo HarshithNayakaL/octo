@@ -1,5 +1,6 @@
 import "./security.js";
-import { neon } from "@neondatabase/serverless";
+import { neon, neonConfig } from "@neondatabase/serverless";
+import { plainFetch } from "./brotli-guard.js";
 import { waitUntil } from "@vercel/functions";
 import { createApp } from "./app.js";
 import { providersFromEnv } from "./config.js";
@@ -64,6 +65,8 @@ export function withWakeRetry(query: Query, delays = [400, 1200, 3000]): Query {
 }
 const sql: Query = databaseUrl
   ? (() => {
+      // Database queries over HTTP skip Node's fetch decompression as well.
+      neonConfig.fetchFunction = plainFetch;
       const query = neon(databaseUrl);
       return withWakeRetry(
         (text, params) =>

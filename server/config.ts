@@ -1,4 +1,6 @@
 import { OpenAIProvider } from "./provider.js";
+// Provider APIs go through node:http too, so no reply is ever Brotli-decoded (CVE-2026-111497).
+import { plainFetch } from "./brotli-guard.js";
 import { GoogleProvider } from "./google-provider.js";
 import type { RunStore } from "./store.js";
 import type { ProviderConfiguration, ProviderId } from "../shared/types.js";
@@ -24,7 +26,13 @@ export function providersFromEnv(
     throw new Error("CRM_MCP_URL must use HTTPS.");
   const readAttachment = store.readUpload.bind(store);
   const openai = env.OPENAI_API_KEY
-    ? new OpenAIProvider(env.OPENAI_API_KEY, model, crm, fetch, readAttachment)
+    ? new OpenAIProvider(
+        env.OPENAI_API_KEY,
+        model,
+        crm,
+        plainFetch,
+        readAttachment,
+      )
     : undefined;
   const googleAgent = env.GEMINI_AGENT ?? "antigravity-preview-09-2026";
   const googleModel = env.GEMINI_MODEL ?? "gemini-3.8-flash";
@@ -35,7 +43,7 @@ export function providersFromEnv(
         googleModel,
         store.blobs("google-artifacts"),
         crm,
-        fetch,
+        plainFetch,
         readAttachment,
         maxFileBytes,
       )

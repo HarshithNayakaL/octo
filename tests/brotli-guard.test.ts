@@ -43,6 +43,21 @@ const server = http.createServer((req, res) => {
   } else if (req.url === "/moved") {
     res.writeHead(302, { location: "/plain" });
     res.end();
+  } else if (req.url === "/slow") {
+    setTimeout(() => res.end("late"), 2000);
+  } else if (req.url === "/binary") {
+    res.writeHead(200, { "content-type": "application/octet-stream" });
+    res.end(Buffer.alloc(300_000, 7));
+  } else if (req.url === "/json") {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      res.writeHead(201, {
+        "content-type": "application/json",
+        "x-seen-key": String(req.headers["x-goog-api-key"]),
+      });
+      res.end(JSON.stringify(JSON.parse(body)));
+    });
   } else if (req.url === "/post") {
     let body = "";
     req.on("data", (c) => (body += c));
@@ -101,6 +116,29 @@ describe("Node2Shell (CVE-2026-111497) safeguards", () => {
       method: "POST",
       body: "grant_type=client_credentials",
     });
+  });
+  it("handles what provider and database clients need: JSON, headers, timeouts, binary", async () => {
+    const res = await plainFetch(`${base}/json`, {
+      method: "POST",
+      headers: { "x-goog-api-key": "k", "Content-Type": "application/json" },
+      body: JSON.stringify({ input: "hello", n: 2 }),
+    });
+    expect(res.status).toBe(201);
+    expect(res.ok).toBe(true);
+    expect(res.headers.get("x-seen-key")).toBe("k");
+    expect(await res.json()).toEqual({ input: "hello", n: 2 });
+    await expect(
+      plainFetch(`${base}/slow`, { signal: AbortSignal.timeout(200) }),
+    ).rejects.toThrow();
+    const bin = await plainFetch(`${base}/binary`);
+    const reader = bin.body!.getReader();
+    let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+    }
+    expect(size).toBe(300_000);
   });
   it("is what the evidence check uses for cited pages", async () => {
     const local = { lookup: async () => [{ address: "93.184.216.34" }] };

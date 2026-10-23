@@ -7,6 +7,7 @@ import type {
 } from "../shared/types.js";
 import type { Provider } from "./provider.js";
 import type { JsonSchema } from "./structured.js";
+import { plainFetch } from "./brotli-guard.js";
 
 /*
  * What real people say. People add "reddit" to their searches because forums
@@ -204,7 +205,8 @@ async function json(request: typeof fetch, url: string) {
 
 /** Collect posts and comments that mention each query. */
 export async function gather(queries: string[], options: GatherOptions = {}) {
-  const request = options.request ?? fetch;
+  // Third-party servers: never let Node decode a Brotli reply (CVE-2026-111497).
+  const request = options.request ?? plainFetch;
   const since =
     options.since ?? Math.floor(Date.now() / 1000) - 2 * 365 * 86400;
   const pause = options.pauseMs ?? 800;

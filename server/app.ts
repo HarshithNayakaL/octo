@@ -16,6 +16,7 @@ import { renderDeliverable } from "./deliverables.js";
 import { challengeInput, continuationInput, refreshInput } from "./prompts.js";
 import { requestCommunity } from "./community.js";
 import { requestEvidence } from "./evidence.js";
+import { isPatchedNode, refuseCompressedRequests } from "./brotli-guard.js";
 import { answerQuestion } from "./ask.js";
 import { formatsFor, preferredFormat } from "../shared/formats.js";
 
@@ -258,6 +259,8 @@ export function createApp(options: AppOptions) {
     }
     next();
   });
+  // Before any body parser: Express 5 would otherwise decode Brotli bodies.
+  app.use(refuseCompressedRequests);
   app.use(express.json({ limit: "1mb" }));
   app.get("/api/config", (_req, res) =>
     res.json({
@@ -275,6 +278,7 @@ export function createApp(options: AppOptions) {
       openaiAccess,
       storage: store.kind,
       uploadLimitMb: Math.floor(uploadLimit / (1024 * 1024)),
+      runtimePatched: isPatchedNode(),
     }),
   );
   app.post("/api/openai/unlock", (req, res) => {

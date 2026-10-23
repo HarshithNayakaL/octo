@@ -23,7 +23,7 @@ The user research behind these choices (3,314 Reddit and Hacker News posts plus 
 
 ## Start locally
 
-Requires Node.js **22.14 or newer** and npm. Node's built-in SQLite is experimental on Node 22; use a current supported Node version when deploying.
+Requires Node.js **24.22.1 or newer** on the 24.x line (22.23.4+ also works) and npm. Node's built-in SQLite is experimental on Node 22; use a current supported Node version when deploying.
 
 ```sh
 npm ci
@@ -245,6 +245,10 @@ Defaults cover everything else: Google is the default provider, `antigravity-pre
 **How work progresses.** There is no background worker on serverless. A run advances in short steps whenever the workspace is open (the UI refreshes every few seconds), kept alive with `waitUntil`. Close the tab and the run pauses until someone opens the app again. Scheduled ongoing-research checks run the same way. A database lease ensures only one function instance advances a run at a time, so concurrent requests never create a duplicate paid session.
 
 **Limits on Vercel.** Request and response bodies are capped at 4.5 MB: uploads are limited to 4 MB per file and Google output files are cached up to 4 MB. Each step must finish within the 300-second function limit.
+
+## Security
+
+Octo runs on Node.js 24.x (`.nvmrc`, `package.json` engines). After the Node.js October 2026 security release (CVE-2026-111497, "Node2Shell"), Octo refuses Brotli-compressed responses from untrusted pages and APIs, and Brotli-compressed request bodies. It also reports whether its runtime is patched at `GET /api/config` (`runtimePatched`). Details, supply-chain checks and how to report a vulnerability are in [SECURITY.md](SECURITY.md).
 
 ## Product boundaries
 

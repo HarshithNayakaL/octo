@@ -12,6 +12,7 @@ import type { Provider } from "./provider.js";
 import type { JsonSchema } from "./structured.js";
 import { sourcesFromReport } from "./results.js";
 import { publishedDate } from "./sources.js";
+import { plainFetch } from "./brotli-guard.js";
 
 /*
  * Chat assistants cite; Octo checks. After a report is written, Octo lists its
@@ -299,7 +300,7 @@ export async function fetchSourceText(
 /** A cited page's text and the publication date it declares. */
 export async function fetchSource(
   raw: string,
-  { request = fetch, lookup = defaultLookup }: CheckOptions = {},
+  { request = plainFetch, lookup = defaultLookup }: CheckOptions = {},
   timeoutMs = 12_000,
 ): Promise<{ text: string; published?: string }> {
   let url = await assertPublicUrl(raw, lookup);

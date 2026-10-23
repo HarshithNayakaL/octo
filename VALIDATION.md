@@ -153,3 +153,21 @@ Live on https://octo-agents.vercel.app (Gemini), on the UPI vs Pix run:
 - **Source labels:** after the evidence check, all seven sources were labelled Government & regulator. None of those pages declared a publication date in their metadata.
 
 Not yet verified live: Challenge this report and a source policy on a real research turn. Each costs a full research run; both are covered by tests in demo mode.
+
+## Node.js October 2026 security release (23 October 2026)
+
+- **Advisory:** CVE-2026-111497 (Brotli out-of-bounds write, "Node2Shell") plus nine other CVEs. Fixed in Node.js 22.23.4, 24.22.1 and 26.12.1.
+- **Tests:** 6 new tests use a local HTTP server that sends Brotli, gzip and deflate responses and redirects. They show that:
+  - `plainFetch` refuses Brotli and never advertises it;
+  - gzip, deflate and redirects still work;
+  - the evidence check refuses a Brotli page;
+  - compressed request bodies get HTTP 415;
+  - the global fetch guard strips Brotli from Accept-Encoding;
+  - the runtime version check is correct.
+- **Results:** 121 backend tests pass and the build succeeds.
+- **Built server, on this container's Node.js 22.22.0 (unpatched):**
+  - the startup warning appeared;
+  - a Brotli-compressed POST to `/api/runs` returned 415;
+  - `/api/config` reported `"runtimePatched": false`;
+  - real pages (rbi.org.in, Hacker News API) still loaded through `plainFetch`.
+- **Supply chain:** no compromised packages from the 2026 npm worm waves are in the lockfile. `npm audit` reports 0 vulnerabilities after moving Vite to 6.4.4, and `npm audit signatures` verified 483 packages.

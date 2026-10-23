@@ -1,3 +1,4 @@
+import "./security.js";
 import "dotenv/config";
 import { resolve } from "node:path";
 import { Store } from "./store.js";

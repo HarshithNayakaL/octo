@@ -1,3 +1,4 @@
+import "./security.js";
 import { neon } from "@neondatabase/serverless";
 import { waitUntil } from "@vercel/functions";
 import { createApp } from "./app.js";

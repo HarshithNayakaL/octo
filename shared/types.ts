@@ -307,6 +307,8 @@ export interface Configuration {
   deployment?: "local" | "vercel";
   storage?: "sqlite" | "postgres";
   uploadLimitMb?: number;
+  /** The server runs a Node.js release with the October 2026 security fixes. */
+  runtimePatched?: boolean;
   defaultProvider?: ProviderId;
   providers?: ProviderConfiguration[];
   liveReady: boolean;

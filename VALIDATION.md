@@ -171,3 +171,10 @@ Not yet verified live: Challenge this report and a source policy on a real resea
   - `/api/config` reported `"runtimePatched": false`;
   - real pages (rbi.org.in, Hacker News API) still loaded through `plainFetch`.
 - **Supply chain:** no compromised packages from the 2026 npm worm waves are in the lockfile. `npm audit` reports 0 vulnerabilities after moving Vite to 6.4.4, and `npm audit signatures` verified 483 packages.
+- **Live on Vercel (23 October 2026, with team access):**
+  - The project runs Node.js `24.x`. Its runtime logs show **Node.js 24.21.0**, which is unpatched; the fix is 24.22.1. Vercel's bulletin says it is rolling out patched runtimes, with no completion date yet.
+  - On that runtime:
+    - A Brotli-compressed POST is blocked by Vercel's firewall (415).
+    - A gzip-compressed POST is refused by Octo (415).
+    - Gemini calls (an Ask question) and Neon database queries work through `plainFetch`, so no response is decoded by Node's Brotli decoder.
+    - No runtime errors appeared in the last 24 hours.

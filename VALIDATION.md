@@ -178,3 +178,4 @@ Not yet verified live: Challenge this report and a source policy on a real resea
     - A gzip-compressed POST is refused by Octo (415).
     - Gemini calls (an Ask question) and Neon database queries work through `plainFetch`, so no response is decoded by Node's Brotli decoder.
     - No runtime errors appeared in the last 24 hours.
+- **Follow-up check (24 October 2026, 14:00 UTC):** `/api/config` still reports `"runtimePatched": false`, and the runtime logs show Node.js 24.21.0. Vercel's bulletin still says the patched runtimes are rolling out, so there was no redeploy. Octo's Brotli safeguards remain in place.

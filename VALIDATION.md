@@ -179,3 +179,4 @@ Not yet verified live: Challenge this report and a source policy on a real resea
     - Gemini calls (an Ask question) and Neon database queries work through `plainFetch`, so no response is decoded by Node's Brotli decoder.
     - No runtime errors appeared in the last 24 hours.
 - **Follow-up check (24 October 2026, 14:00 UTC):** `/api/config` still reports `"runtimePatched": false`, and the runtime logs show Node.js 24.21.0. Vercel's bulletin still says the patched runtimes are rolling out, so there was no redeploy. Octo's Brotli safeguards remain in place.
+- **Final scheduled check (26 October 2026, 14:07 UTC):** still `"runtimePatched": false`, with Node.js 24.21.0 in the runtime logs. Vercel's bulletin still says the rollout is in progress, so there was no redeploy. Octo's Brotli safeguards remain the protection until Vercel ships 24.22.1.

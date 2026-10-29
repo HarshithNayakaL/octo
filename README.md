@@ -2,6 +2,8 @@
 
 A TypeScript research workspace built around the **OpenAI Agents API**: a research director delegates to specialist agents, works in a hosted sandbox with live web search, and returns cited reports and structured company records. **Google Antigravity (Gemini Interactions)** is supported as an alternative provider, useful for testing on a Google free-tier project. Octo runs locally and can be deployed to Vercel.
 
+**Case study:** [harshith-nayaka-l-portfolio.vercel.app/work/octo](https://harshith-nayaka-l-portfolio.vercel.app/work/octo): the problem, the architecture and the engineering decisions behind Octo.
+
 ## Why Octo instead of a chat assistant
 
 A chat assistant can research a question. Octo is built around what happens around the research: aiming it, checking it, and keeping it useful.

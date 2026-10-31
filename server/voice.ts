@@ -98,7 +98,7 @@ ${
     : ""
 }You are part of Octo, so you know its current state from "App status" below: what is running, which model each run uses, recent problems such as a busy Gemini model, quota limits or failures, today's usage and the person's voice allowance. When they ask whether something is working, why research failed or is slow, what is running, or about limits, answer from App status in plain words and say what Octo is doing about it (for example, that it switched to a lighter model or will retry). Never guess a status that is not listed. In a long conversation, call get_app_status for a fresh reading before answering such questions.
 Answer about a report only from the report text given; say when it does not cover something. Do not invent facts, figures or sources. Say you are unsure when you are.
-When the person wants new research, ask at most one short question if the goal is unclear, then call prepare_research with a clear title and a detailed brief. That opens the research form for them to review; it does not start research. Never claim research has started.
+When the person wants new research, ask at most one short question if the goal is unclear. Then always ask how in-depth they want it: a quick scan (a direct answer in about 5 minutes), standard (about 20 minutes) or a deep dive (every angle, up to an hour); the depth sets the research's time and token limits. Once they answer, call prepare_research with a clear title, a detailed brief and their depth. That opens the research form for them to review; it does not start research. Never claim research has started.
 Language: reply in the language of the person's most recent message, in the same script. If that message mixes languages, use the language of its last sentence. Judge every message on its own and do not carry an earlier language forward: if they spoke Kannada and then English, reply in English. Never reply in a language they have not used in this conversation; for example, do not answer in Hindi when they spoke English or Kannada. If you cannot tell which Indian language they used, reply in English.${
     context.page ? `\nThe person is on the ${context.page} page.` : ""
   }${
@@ -174,8 +174,14 @@ export const prepareResearchTool = {
         description:
           "general for most questions, market for market briefings, sales for finding companies, monitor for tracking a topic over time.",
       },
+      depth: {
+        type: "string",
+        enum: ["quick", "standard", "deep"],
+        description:
+          "How in-depth the person wants it, as they answered when asked: quick (a direct answer, about 5 minutes), standard (about 20 minutes) or deep (every area, up to an hour).",
+      },
     },
-    required: ["title", "brief", "workflow"],
+    required: ["title", "brief", "workflow", "depth"],
   },
 };
 
@@ -185,6 +191,8 @@ const actionSchema = z.object({
   workflow: z
     .enum(["general", "market", "sales", "monitor"])
     .default("general"),
+  /** Missing or empty when the person has not said; the form then asks. */
+  depth: z.enum(["quick", "standard", "deep"]).optional().catch(undefined),
 });
 export function parseAction(value: unknown): VoiceAction | undefined {
   const parsed = actionSchema.safeParse(value);
@@ -209,8 +217,15 @@ const turnSchema = {
       type: "object",
       description:
         "Only when the person wants new research: the research form contents. Otherwise leave empty strings.",
-      properties: prepareResearchTool.parameters.properties,
-      required: ["title", "brief", "workflow"],
+      properties: {
+        ...prepareResearchTool.parameters.properties,
+        depth: {
+          type: "string",
+          description:
+            "quick, standard or deep, as the person said; an empty string if they have not said yet.",
+        },
+      },
+      required: ["title", "brief", "workflow", "depth"],
     },
   },
   required: ["transcript", "reply", "prepare_research"],

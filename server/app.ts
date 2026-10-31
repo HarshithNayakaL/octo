@@ -63,6 +63,7 @@ const creation = z
     mode: z.enum(["demo", "live"]).default("demo"),
     provider: z.enum(["openai", "google"]).optional(),
     attachmentIds: z.array(z.string().uuid()).max(5).default([]),
+    depth: z.enum(["quick", "standard", "deep"]).optional(),
     maxMinutes: z.number().int().min(1).max(180).default(30),
     maxTokens: z.number().int().min(1000).max(2_000_000).default(200_000),
     /** Read the brief and files and ask questions before researching. */

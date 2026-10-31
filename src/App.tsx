@@ -65,6 +65,13 @@ import AskPanel from "./AskPanel";
 import VersionsPanel from "./VersionsPanel";
 import { relatedRuns } from "./related";
 import VoicesPanel from "./VoicesPanel";
+import {
+  depthHints,
+  depthLabels,
+  depthLimits,
+  depths,
+  type Depth,
+} from "../shared/depth";
 import { classifySource, monthsOld } from "../shared/sources";
 import { deletable, isActive as activeRun, statusLabel } from "./status";
 import Overview from "./OriginalOverview";
@@ -232,6 +239,7 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [initialBrief, setInitialBrief] = useState("");
   const [initialTitle, setInitialTitle] = useState("");
+  const [initialDepth, setInitialDepth] = useState<Depth>();
   const [collapsed, setCollapsed] = useState(false);
   const [page, setPage] = useState<Page>("research");
   const [runs, setRuns] = useState<Run[]>([]);
@@ -622,21 +630,24 @@ export default function App() {
       />
       {newWorkflow && (
         <NewResearch
-          key={`${newWorkflow}:${initialTitle}:${initialBrief.length}`}
+          key={`${newWorkflow}:${initialTitle}:${initialBrief.length}:${initialDepth ?? ""}`}
           workflow={newWorkflow}
           initialBrief={initialBrief}
           initialTitle={initialTitle}
+          initialDepth={initialDepth}
           config={config}
           runs={runs}
           onClose={() => {
             setNewWorkflow(undefined);
             setInitialBrief("");
             setInitialTitle("");
+            setInitialDepth(undefined);
           }}
           onCreated={(run) => {
             setNewWorkflow(undefined);
             setInitialBrief("");
             setInitialTitle("");
+            setInitialDepth(undefined);
             setPage("research");
             changed(run);
           }}
@@ -651,6 +662,7 @@ export default function App() {
         onPrepareResearch={(action) => {
           setInitialTitle(action.title);
           setInitialBrief(action.brief);
+          setInitialDepth(action.depth);
           setNewWorkflow(action.workflow);
         }}
       />
@@ -875,10 +887,16 @@ export default function App() {
   );
 }
 
+const formatMinutes = (n: number) =>
+  n >= 60 ? `${n / 60} hour${n > 60 ? "s" : ""}` : `${n} minutes`;
+const formatTokens = (n: number) =>
+  n >= 1_000_000 ? `${n / 1_000_000}M` : `${n / 1000}k`;
+
 function NewResearch({
   workflow,
   initialBrief = "",
   initialTitle = "",
+  initialDepth,
   config,
   runs = [],
   onClose,
@@ -887,6 +905,7 @@ function NewResearch({
   workflow: Workflow;
   initialBrief?: string;
   initialTitle?: string;
+  initialDepth?: Depth;
   config?: Configuration;
   runs?: Run[];
   onClose: () => void;
@@ -925,13 +944,20 @@ function NewResearch({
   const [mode, setMode] = useState<"demo" | "live">(
     profile?.ready ? "live" : "demo",
   );
-  // Google defaults to the most we can request on the free tier; OpenAI is billed, so it starts small.
-  const limitsFor = (id: ProviderId) =>
-    id === "google"
-      ? { minutes: 120, tokens: 1_000_000 }
-      : { minutes: 10, tokens: 50_000 };
+  // Depth is chosen by the person (or said to the voice assistant) and sets the limits.
+  const [depth, setDepth] = useState<Depth | undefined>(initialDepth);
+  const [depthMissing, setDepthMissing] = useState(false);
+  const depthRef = useRef<HTMLFieldSetElement>(null);
+  const limitsFor = (id: ProviderId, d: Depth = depth ?? "standard") =>
+    depthLimits(id, d);
   const [minutes, setMinutes] = useState(limitsFor(provider).minutes);
   const [tokens, setTokens] = useState(limitsFor(provider).tokens);
+  function chooseDepth(d: Depth) {
+    setDepth(d);
+    setDepthMissing(false);
+    setMinutes(limitsFor(provider, d).minutes);
+    setTokens(limitsFor(provider, d).tokens);
+  }
   const [clarify, setClarify] = useState(true);
   const [buildOn, setBuildOn] = useState<string[]>([]);
   const [community, setCommunity] = useState(false);
@@ -998,6 +1024,12 @@ function NewResearch({
   }
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (!depth) {
+      setDepthMissing(true);
+      depthRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      depthRef.current?.querySelector("button")?.focus({ preventScroll: true });
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -1014,6 +1046,7 @@ function NewResearch({
             mode,
             provider,
             attachmentIds: files.map((f) => f.id),
+            depth,
             maxMinutes: minutes,
             maxTokens: tokens,
             clarify,
@@ -1119,6 +1152,48 @@ function NewResearch({
               placeholder="What would you like to understand? Include geography, scope, comparisons, and the report you need."
             />
           </label>
+          <fieldset
+            ref={depthRef}
+            className={`depth-choice ${depthMissing ? "missing" : ""}`}
+            aria-describedby="depth-help"
+          >
+            <legend>How in-depth should Octo go?</legend>
+            <div
+              className="depth-options"
+              role="radiogroup"
+              aria-label="Research depth"
+            >
+              {depths.map((d) => {
+                const l = depthLimits(provider, d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    role="radio"
+                    aria-checked={depth === d}
+                    className={depth === d ? "selected" : ""}
+                    onClick={() => chooseDepth(d)}
+                  >
+                    <b>{depthLabels[d]}</b>
+                    <span>{depthHints[d]}</span>
+                    <small>
+                      Up to {formatMinutes(l.minutes)} ·{" "}
+                      {formatTokens(l.tokens)} tokens
+                    </small>
+                  </button>
+                );
+              })}
+            </div>
+            <small
+              id="depth-help"
+              className="field-hint"
+              role={depthMissing ? "alert" : undefined}
+            >
+              {depthMissing
+                ? "Choose a depth to continue. It sets the time and token limits."
+                : "Sets the time and token limits below. You can still adjust them."}
+            </small>
+          </fieldset>
           {kind === "sales" && (
             <>
               <label className="field">
@@ -1273,10 +1348,7 @@ function NewResearch({
                 onChange={(value) => setMinutes(Number(value))}
                 options={[5, 10, 20, 30, 60, 90, 120, 180].map((n) => ({
                   value: String(n),
-                  label:
-                    n >= 60
-                      ? `${n / 60} hour${n > 60 ? "s" : ""}`
-                      : `${n} minutes`,
+                  label: formatMinutes(n),
                 }))}
               />
             </label>
@@ -1291,7 +1363,7 @@ function NewResearch({
                   2_000_000,
                 ].map((n) => ({
                   value: String(n),
-                  label: n >= 1_000_000 ? `${n / 1_000_000}M` : `${n / 1000}k`,
+                  label: formatTokens(n),
                 }))}
               />
             </label>
@@ -2625,6 +2697,7 @@ function RunDetail({
             </div>
             <div>
               <Clock3 size={14} />
+              {run.depth ? `${depthLabels[run.depth]} · ` : ""}
               {run.maxMinutes} minute limit
             </div>
             <div>

@@ -321,13 +321,16 @@ export class LiveSession extends Session {
             )
               ? call.args.workflow
               : "general",
+            depth: ["quick", "standard", "deep"].includes(call.args.depth)
+              ? call.args.depth
+              : undefined,
           });
           return {
             id: call.id,
             name: call.name,
             response: {
               result:
-                "The research form is now open with this title and brief. The person reviews it and presses Continue to start; research has not started yet.",
+                "The research form is now open with this title, brief and depth. The person reviews it and presses Continue to start; research has not started yet.",
             },
           };
         }

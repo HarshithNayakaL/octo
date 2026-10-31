@@ -15,6 +15,14 @@ test("market research, notes, sources, and download work end to end in demo mode
     .getByRole("option", { name: "Demo · no API usage", exact: true })
     .click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(
+    page.getByText("Choose a depth to continue", { exact: false }),
+  ).toBeVisible();
+  await page.getByRole("radio", { name: /Quick scan/ }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Time limit", exact: true }),
+  ).toContainText("5 minutes");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByText("Here is what I understood")).toBeVisible({
     timeout: 20000,
   });
@@ -56,6 +64,7 @@ test("sales workflow produces clearly labelled sample records and blocks CRM exp
   await page.getByRole("button", { name: "Sales research" }).click();
   await page.getByRole("button", { name: "Use an example" }).click();
   await page.getByLabel("Research title").fill("E2E Sales " + Date.now());
+  await page.getByRole("radio", { name: /Standard/ }).click();
   await page.getByRole("combobox", { name: "Run mode", exact: true }).click();
   await page
     .getByRole("option", { name: "Demo · no API usage", exact: true })
@@ -99,6 +108,7 @@ test("evidence check, grounded questions and versions work in demo mode", async 
   await page
     .getByRole("option", { name: "Demo · no API usage", exact: true })
     .click();
+  await page.getByRole("radio", { name: /Deep dive/ }).click();
   await page.getByText("Ask me questions before researching").click();
   await page.getByRole("button", { name: "Start demo", exact: true }).click();
   await expect(

@@ -175,6 +175,8 @@ export interface VoiceAction {
   title: string;
   brief: string;
   workflow: Workflow;
+  /** Absent when the person has not chosen; the research form asks. */
+  depth?: import("./depth.js").Depth;
 }
 /** A question answered only from this research. */
 export interface QuestionAnswer {
@@ -292,6 +294,8 @@ export interface Run {
   artifacts: Artifact[];
   attachments: Attachment[];
   notes: string;
+  /** How far the research goes; older runs have none. */
+  depth?: import("./depth.js").Depth;
   maxMinutes: number;
   maxTokens: number;
   startedAt?: string;

@@ -125,9 +125,21 @@ The **Ask** tab answers questions using only the report, its checked claims and 
 
 Whenever a follow-up, continuation, scheduled check or **Refresh research** replaces a report, the old one is kept (up to 10 versions). The **Versions** tab compares the current report with any earlier version line by line, and lists added and dropped sources and the change in evidence score. **Refresh research** asks the agent to look for evidence published since the report, re-check its figures, and return one updated report ending with a "What changed" section.
 
+### Research depth
+
+Every research run asks **how in-depth** it should go, in the form and through the voice assistant. The choice sets the time and token limits and tells the agent how much ground to cover (`shared/depth.ts`):
+
+| Depth | Scope | Google | OpenAI |
+| --- | --- | --- | --- |
+| Quick scan | A direct answer from 3-6 strong sources, one pass, about 300-600 words | 5 min · 100k tokens | 5 min · 50k tokens |
+| Standard | One focused pass per research area, about 800-1,500 words | 20 min · 500k tokens | 10 min · 100k tokens |
+| Deep dive | Every area, key figures cross-checked | 1 hour · 1M tokens | 30 min · 200k tokens |
+
+The form won't continue until a depth is chosen; the time and token limits stay adjustable after that.
+
 ### Voice assistant
 
-The **Talk to Octo** button (bottom right, on every page) opens a voice assistant. It uses the same `GEMINI_API_KEY` as research, on the Gemini free tier. Ask it anything: what Octo can do, questions about the research you have open (it reads the report and evidence score), or "set up research on…". When you ask for research, it opens the research form with a title, brief and workflow filled in. It never starts research by itself; you review the form and press Continue.
+The **Talk to Octo** button (bottom right, on every page) opens a voice assistant. It uses the same `GEMINI_API_KEY` as research, on the Gemini free tier. Ask it anything: what Octo can do, questions about the research you have open (it reads the report and evidence score), or "set up research on…". When you ask for research, it first asks how in-depth you want it, then opens the research form with a title, brief, workflow and depth filled in. It never starts research by itself; you review the form and press Continue.
 
 - **Live (main):** the browser streams your voice to **Gemini Live** (`gemini-3.8-live`) and plays the spoken reply, with live transcripts. You can interrupt it mid-sentence. The server mints a single-use token (`POST /api/voice/token`) that locks the model, voice, instructions and tools for one session; the API key never reaches the browser. In testing, the first reply audio started about 0.9 s after the speaker stopped. Sessions end after 90 seconds of quiet or 9 minutes, to save free-tier minutes.
 - **Push-to-talk (fallback):** if Live is unavailable, tap the mic and speak. Recording stops on its own when you pause. One call to `gemini-3.5-flash-lite` transcribes and answers, and **Gemini TTS** (`gemini-3.8-flash-lite-tts`) speaks the reply (about 5 s end to end). If TTS hits its free-tier limit, the browser's own voice reads the reply.

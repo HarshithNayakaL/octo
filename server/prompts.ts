@@ -1,6 +1,7 @@
 import type { Run } from "../shared/types.js";
 import { communityContext } from "./community.js";
 import { policyInstructions } from "./sources.js";
+import { depthScope } from "../shared/depth.js";
 
 /** Areas the user kept from the plan, if a plan was made. */
 const agreedAreas = (run: Run) =>
@@ -21,7 +22,7 @@ ${scope} ${delegation} Work toward the outcome the user described, not a generic
 Every material claim needs a dated source URL. Distinguish facts, estimates, and hypotheses. Unknown values must stay unknown. Never invent a company, person, price, citation, statistic, funding amount, or financial result. Show formulas, currencies, dates, assumptions, and calculation inputs. Check inconsistent claims and explain gaps. If tools fail, disclose the failure and return partial findings.
 Save a readable Markdown report to /workspace/outputs/report.md. Return the same report as your final assistant message with normal Markdown links. Save /workspace/outputs/research.json as a JSON object with keys report (Markdown string), sources (array of {title,url}), leads (array of {company,website,industry,size,fit,evidence,needs,decisionMaker,sources}); fit must be high, medium, low, or unknown, sources must contain {title,url}. Use an empty leads array unless the task is to find companies. Use https URLs. Also save company results as /workspace/outputs/leads.csv when applicable. Prioritize source quality over quantity; explicitly state if a requested count is not reached.
 If you are close to your time or token limit, stop researching and write the best complete report you can from what you have, marking unfinished areas clearly, so the work can be continued later.
-Work within ${run.maxMinutes} minutes and approximately ${run.maxTokens} total tokens across all agents. These are operational limits, not guarantees of spend. Be efficient. Do not place credentials into files.
+${run.depth ? depthScope[run.depth] + "\n" : ""}Work within ${run.maxMinutes} minutes and approximately ${run.maxTokens} total tokens across all agents. These are operational limits, not guarantees of spend. Be efficient. Do not place credentials into files.
 CRM tools are unavailable during research. If they are explicitly enabled in a later dedicated export session, use only the supplied reviewed rows, perform the requested export once, and report actual results. Never initiate outreach.`;
 }
 

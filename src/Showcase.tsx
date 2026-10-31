@@ -1,13 +1,32 @@
 import {
+  BookOpen,
+  Bot,
   CircleAlert,
   CircleCheck,
   CircleHelp,
   CircleX,
+  ExternalLink,
+  FileCheck2,
+  FileText,
+  Globe,
+  Highlighter,
+  History,
+  List,
+  ListChecks,
+  MessageSquare,
+  MessageSquareQuote,
   Mic,
   Plus,
+  Scale,
+  ScanSearch,
+  Search,
+  ShieldCheck,
+  Tags,
+  UserCheck,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Mascot, areaProfile, director } from "./agents";
+import { BrandMark } from "./BrandMark";
 import type { ClaimStatus } from "../shared/types";
 
 /** Ask the voice assistant to open, from anywhere in the app. */
@@ -240,78 +259,117 @@ export function ProcessMap() {
   );
 }
 
-/** The pipeline split into the part a model does and the parts Octo runs itself. */
-const lanes: { title: string; text: string; model?: boolean }[] = [
+type Who = "you" | "octo" | "model" | "result";
+interface Step {
+  icon: typeof Search;
+  label: string;
+  who: Who;
+  marks?: ReactNode;
+}
+
+/** The same question taken three ways. Amber steps are work left to the person. */
+const journeys: { name: string; icon: typeof Search; steps: Step[] }[] = [
   {
-    title: "Your plan",
-    text: "You keep or drop each research area before any search runs.",
+    name: "Search engine",
+    icon: Search,
+    steps: [
+      { icon: Search, label: "Type keywords", who: "you" },
+      { icon: List, label: "Get ranked links", who: "result" },
+      { icon: BookOpen, label: "Read each page", who: "you" },
+      { icon: UserCheck, label: "Check every figure yourself", who: "you" },
+    ],
   },
   {
-    title: "A model writes",
-    text: "Gemini or OpenAI researches and drafts the cited report.",
-    model: true,
+    name: "AI chat with search",
+    icon: MessageSquare,
+    steps: [
+      { icon: MessageSquare, label: "Ask a question", who: "you" },
+      { icon: Bot, label: "Get an answer with links", who: "result" },
+      { icon: ExternalLink, label: "Open each link", who: "you" },
+      { icon: UserCheck, label: "Check every figure yourself", who: "you" },
+    ],
   },
   {
-    title: "Octo fetches",
-    text: "Its own fetcher opens every cited page and PDF.",
-  },
-  {
-    title: "Octo compares",
-    text: "Figures and wording in the claim against the page itself.",
-  },
-  {
-    title: "Octo marks",
-    text: "Each verdict lands on the sentence it belongs to.",
+    name: "Octo",
+    icon: ScanSearch,
+    steps: [
+      { icon: FileText, label: "Write or say the brief", who: "you" },
+      { icon: ListChecks, label: "Keep or drop each area", who: "you" },
+      {
+        icon: Bot,
+        label: "A model writes the cited report",
+        who: "model",
+        marks: (
+          <span className="step-marks">
+            <BrandMark name="gemini" size={14} />
+            Gemini or OpenAI
+          </span>
+        ),
+      },
+      { icon: Globe, label: "Octo opens every cited page", who: "octo" },
+      { icon: Scale, label: "Compares figures and wording", who: "octo" },
+      { icon: Highlighter, label: "Marks each claim in the text", who: "octo" },
+      { icon: FileCheck2, label: "You read a checked report", who: "result" },
+    ],
   },
 ];
 
-const ledger: {
-  question: string;
-  engine: string;
-  chat: string;
+const whoClass: Record<Who, string> = {
+  you: "Work left to you",
+  octo: "Done by Octo",
+  model: "Swappable model",
+  result: "What you get",
+};
+
+/** The rest of what Octo does that the others leave out, one card each. */
+const extras: {
+  icon: typeof Search;
+  title: string;
   octo: string;
+  elsewhere: string;
+  marks?: ReactNode;
 }[] = [
   {
-    question: "Before it searches",
-    engine: "Takes the keywords you typed.",
-    chat: "Starts answering straight away.",
-    octo: "Says what it understood, proposes research areas for your brief, and waits for you to keep or drop each.",
+    icon: ListChecks,
+    title: "Asks before it searches",
+    octo: "Says what it understood and proposes research areas you keep or drop.",
+    elsewhere: "Starts on your first words.",
   },
   {
-    question: "Are the citations right?",
-    engine: "You open each link to find out.",
-    chat: "You open each link to find out.",
-    octo: "Opens every cited page and PDF itself, compares the figures, and marks each claim Supported, Partly supported, Not found or No source.",
+    icon: Tags,
+    title: "Knows which sources count",
+    octo: "Labels every source by kind and date, flags blogs and SEO pages, puts primary sources first.",
+    elsewhere: "Whatever ranks or was returned.",
   },
   {
-    question: "Which sources count",
-    engine: "Whatever ranks, SEO pages included.",
-    chat: "Whatever the search returned.",
-    octo: "Every source labelled by kind and date, blogs and review sites flagged, primary sources first, your trusted and blocked domains respected.",
+    icon: MessageSquareQuote,
+    title: "Hears first-hand experience",
+    octo: "Themes from real discussions, quoted word for word with a link to each post.",
+    elsewhere: "Only if the search finds them.",
+    marks: (
+      <span className="card-marks">
+        <BrandMark name="reddit" size={16} />
+        <BrandMark name="hackernews" size={16} />
+      </span>
+    ),
   },
   {
-    question: "What people actually experience",
-    engine: "Forum threads mixed into results.",
-    chat: "Only if the search happens to find them.",
-    octo: "Themes from Reddit and Hacker News discussions, quoted word for word with a link to each post.",
+    icon: Scale,
+    title: "Argues with itself",
+    octo: "Challenge searches for the strongest evidence against the report and records what stands.",
+    elsewhere: "Usually one confident answer.",
   },
   {
-    question: "The other side",
-    engine: "A separate search, if you think of it.",
-    chat: "Usually one confident answer.",
-    octo: "Challenge searches for the strongest evidence against the report and records whether each point stands.",
+    icon: ShieldCheck,
+    title: "Answers only from the research",
+    octo: "Follow-up questions use the report and its checked claims; gaps become new research.",
+    elsewhere: "Mixed with the model's memory.",
   },
   {
-    question: "Follow-up questions",
-    engine: "A new search from scratch.",
-    chat: "Answered partly from the model's memory.",
-    octo: "Answered only from the report and its checked claims; what it can't answer becomes follow-up research.",
-  },
-  {
-    question: "Next month",
-    engine: "Search again.",
-    chat: "Ask again and get a different answer.",
-    octo: "Refresh the report; every version is kept with a line-by-line view of what changed.",
+    icon: History,
+    title: "Keeps every version",
+    octo: "Refresh a report later and see line by line what changed.",
+    elsewhere: "Ask again, get a different answer.",
   },
 ];
 
@@ -330,22 +388,41 @@ export function DifferenceSection() {
         </p>
       </div>
 
-      <figure className="lanes">
-        <ol aria-label="Who does what in a research run">
-          {lanes.map((lane) => (
-            <li key={lane.title} className={lane.model ? "lane model" : "lane"}>
-              <span className="lane-tag">
-                {lane.model
-                  ? "Swappable model"
-                  : lane.title === "Your plan"
-                    ? "You"
-                    : "Octo's own code"}
-              </span>
-              <b>{lane.title}</b>
-              <span>{lane.text}</span>
-            </li>
-          ))}
-        </ol>
+      <figure className="journeys">
+        <p className="journeys-legend" aria-hidden="true">
+          <span className="who-you">Work left to you</span>
+          <span className="who-octo">Done by Octo</span>
+          <span className="who-model">Swappable model</span>
+        </p>
+        {journeys.map((journey) => {
+          const Icon = journey.icon;
+          return (
+            <div
+              key={journey.name}
+              className={`journey ${journey.name === "Octo" ? "octo" : ""}`}
+            >
+              <p className="journey-name">
+                <Icon size={18} aria-hidden="true" />
+                {journey.name}
+              </p>
+              <ol aria-label={`${journey.name}: steps`}>
+                {journey.steps.map((step) => {
+                  const StepIcon = step.icon;
+                  return (
+                    <li key={step.label} className={`step ${step.who}`}>
+                      <span className="step-icon" aria-hidden="true">
+                        <StepIcon size={17} />
+                      </span>
+                      <span className="step-label">{step.label}</span>
+                      {step.marks}
+                      <span className="sr-only"> ({whoClass[step.who]})</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          );
+        })}
         <figcaption>
           The model lists the claims to check, with a rule-based fallback if it
           can't; the verdicts come from Octo reading the cited page. Switch
@@ -354,38 +431,26 @@ export function DifferenceSection() {
         </figcaption>
       </figure>
 
-      <div
-        className="ledger-table"
-        role="table"
-        aria-label="Octo compared with a search engine and an AI chat"
-      >
-        <div className="ledger-row ledger-header" role="row">
-          <span role="columnheader">
-            <span className="sr-only">Question</span>
-          </span>
-          <span role="columnheader">Search engine</span>
-          <span role="columnheader">AI chat with search</span>
-          <span role="columnheader" className="octo-col">
-            Octo
-          </span>
-        </div>
-        {ledger.map((row) => (
-          <div className="ledger-row" role="row" key={row.question}>
-            <span role="rowheader" className="ledger-q">
-              {row.question}
-            </span>
-            <span role="cell" data-label="Search engine">
-              {row.engine}
-            </span>
-            <span role="cell" data-label="AI chat with search">
-              {row.chat}
-            </span>
-            <span role="cell" data-label="Octo" className="octo-col">
-              {row.octo}
-            </span>
-          </div>
-        ))}
-      </div>
+      <ul className="extras">
+        {extras.map((x) => {
+          const Icon = x.icon;
+          return (
+            <li key={x.title}>
+              <span className="extra-icon" aria-hidden="true">
+                <Icon size={18} />
+              </span>
+              <h3>
+                {x.title}
+                {x.marks}
+              </h3>
+              <p>{x.octo}</p>
+              <p className="extra-elsewhere">
+                <span>Elsewhere</span> {x.elsewhere}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

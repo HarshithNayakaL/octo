@@ -249,31 +249,73 @@
 }
 
 /* Difference section on black. */
-:root[data-theme="dark"] .lane {
-  background: #101014;
-  border-color: #2b3352;
+:root[data-theme="dark"] .journey,
+:root[data-theme="dark"] .extras li {
+  background: var(--panel);
+  border-color: var(--panel-edge);
+  box-shadow: var(--panel-lit);
 }
-:root[data-theme="dark"] .lane.model {
+:root[data-theme="dark"] .journey.octo {
+  border-color: #2f3a66;
+  background:
+    linear-gradient(90deg, rgba(110, 140, 255, 0.1), transparent 60%), #101014;
+}
+:root[data-theme="dark"] .journey.octo .journey-name {
+  color: #9fb3ff;
+}
+:root[data-theme="dark"] .step {
+  background: #1a1a20;
+  color: #d6d9e2;
+}
+:root[data-theme="dark"] .step-icon {
+  background: #24242c;
+  color: #b3b7c2;
+}
+:root[data-theme="dark"] .step.you {
+  background: #2a2010;
+  box-shadow: inset 0 0 0 1px #6b4e12;
+  color: #f2d49a;
+}
+:root[data-theme="dark"] .step.you .step-icon {
+  background: #3a2c12;
+  color: #f5c162;
+}
+:root[data-theme="dark"] .step.octo {
+  background: #3d5df5;
+  color: #fff;
+}
+:root[data-theme="dark"] .step.model {
   background: transparent;
-  border-color: #4a5577;
+  box-shadow: inset 0 0 0 1.5px #4a5577;
+  outline-color: #4a5577;
 }
-:root[data-theme="dark"] .lane-tag {
+:root[data-theme="dark"] .journey.octo .step.result {
+  background: #0f2a1b;
+  color: #b7ebc9;
+  box-shadow: inset 0 0 0 1px #24613d;
+}
+:root[data-theme="dark"] .journey.octo .step.result .step-icon {
+  background: #163a26;
+  color: #6ee7a0;
+}
+:root[data-theme="dark"] .step-marks {
+  background: #24242c;
+  color: #d6d9e2;
+}
+:root[data-theme="dark"] .extra-icon {
+  background: rgba(110, 140, 255, 0.12);
   color: #9fb3ff;
 }
-:root[data-theme="dark"] .lane.model .lane-tag {
-  color: #8b8f9a;
+:root[data-theme="dark"] .extras .extra-elsewhere {
+  border-top-color: #2a2a33;
 }
-:root[data-theme="dark"] .ledger-table {
-  border-top-color: #d6d9e2;
+:root[data-theme="dark"] .who-you::before {
+  background: #2a2010;
+  box-shadow: inset 0 0 0 1.5px #c98a12;
 }
-:root[data-theme="dark"] .ledger-row {
-  border-color: #23232a;
+:root[data-theme="dark"] .who-octo::before {
+  background: #3d5df5;
 }
-:root[data-theme="dark"] .ledger-row .octo-col {
-  background: #0d1226;
-  border-color: #6f8bff;
-  color: #e3e8ff;
-}
-:root[data-theme="dark"] .ledger-header .octo-col {
-  color: #9fb3ff;
+:root[data-theme="dark"] .who-model::before {
+  box-shadow: inset 0 0 0 1.5px #6f7ea8;
 }

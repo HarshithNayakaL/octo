@@ -117,7 +117,12 @@ describe("app status for the voice assistant", () => {
         score: 50,
         claims: [
           { id: "c1", claim: "a", status: "supported" },
-          { id: "c2", claim: "b", status: "unreachable" },
+          {
+            id: "c2",
+            claim: "b",
+            status: "unreachable",
+            note: "The site blocked automated access (HTTP 403).",
+          },
         ],
       },
     });

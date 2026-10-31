@@ -61,6 +61,20 @@ function runLine(run: Run, providers: ProviderConfiguration[], now: Date) {
   return parts.join("; ");
 }
 
+/** Why cited pages could not be checked, most common reasons first. */
+function unreachableReasons(claims: { status: string; note?: string }[]) {
+  const counts = new Map<string, number>();
+  for (const c of claims)
+    if (c.status === "unreachable" && c.note) {
+      const reason = clip(c.note, 90);
+      counts.set(reason, (counts.get(reason) ?? 0) + 1);
+    }
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  return top.length
+    ? ` (reasons: ${top.map(([r, n]) => `${r}${n > 1 ? ` ×${n}` : ""}`).join("; ")})`
+    : "";
+}
+
 export function statusText(input: StatusInput) {
   const now = input.now ?? new Date();
   const lines: string[] = [];
@@ -143,7 +157,7 @@ export function statusText(input: StatusInput) {
     if (e)
       detail.push(
         e.status === "done"
-          ? `evidence check done, score ${e.score ?? "n/a"}, ${e.claims.filter((c) => c.status === "supported").length} of ${e.claims.length} claims supported, ${e.claims.filter((c) => c.status === "unreachable").length} could not be checked`
+          ? `evidence check done, score ${e.score ?? "n/a"}, ${e.claims.filter((c) => c.status === "supported").length} of ${e.claims.length} claims supported, ${e.claims.filter((c) => c.status === "unreachable").length} could not be checked${unreachableReasons(e.claims)}`
           : `evidence check ${e.status}${e.error ? `: ${clip(e.error, 160)}` : ""}`,
       );
     if (open.community)

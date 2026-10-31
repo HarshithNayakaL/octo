@@ -11,6 +11,7 @@ import {
   defaultVoiceModels,
   interactionAudio,
   parseAction,
+  scriptOf,
   voiceInstructions,
 } from "../server/voice";
 import { seedRun } from "../server/demo";
@@ -182,6 +183,49 @@ describe("voice assistant", () => {
     expect(res.body.audio).toBeUndefined();
     expect(res.body.ttsError).toContain("free-tier limit");
     expect(res.body.reply).toBeTruthy();
+  });
+  it("tells which writing system a message is in", () => {
+    expect(scriptOf("What is the market size?")).toBe("Latin");
+    expect(scriptOf("ಮಾರುಕಟ್ಟೆಯ ಗಾತ್ರ ಎಷ್ಟು?")).toBe("Kannada");
+    expect(scriptOf("बाज़ार का आकार क्या है?")).toBe("Devanagari");
+    expect(scriptOf("ok")).toBeUndefined();
+  });
+  it("asks again when the reply is in a different language from the person", async () => {
+    const replies = [
+      // English question answered in Hindi: wrong.
+      {
+        transcript: "What does Octo check?",
+        reply: "ऑक्टो हर स्रोत की जाँच करता है।",
+      },
+      { transcript: "", reply: "Octo checks every cited source." },
+    ];
+    const calls: any[] = [];
+    const fetcher = vi.fn(
+      async (_url: URL | RequestInfo, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body ?? "{}"));
+        calls.push(body);
+        if (body.model === defaultVoiceModels.tts)
+          return json({
+            steps: [
+              { type: "model_output", content: [{ type: "audio", data: wav }] },
+            ],
+          });
+        const next = replies.shift()!;
+        return json({
+          output_text: JSON.stringify({
+            ...next,
+            prepare_research: { title: "", brief: "", workflow: "general" },
+          }),
+        });
+      },
+    ) as unknown as typeof fetch;
+    const voice = new GeminiVoice("key", defaultVoiceModels, fetcher);
+    const result = await voice.turn({ text: "What does Octo check?" }, {});
+    expect(result.reply).toBe("Octo checks every cited source.");
+    expect(result.transcript).toBe("What does Octo check?");
+    const retry = calls.filter((c) => c.model === defaultVoiceModels.turn)[1];
+    expect(retry.input[0].text).toContain("written in Latin script");
+    expect(voiceInstructions({})).toContain("most recent message");
   });
   it("refuses unsupported audio and explains when no key is configured", async () => {
     const { fetcher } = google();

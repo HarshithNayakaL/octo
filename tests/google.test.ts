@@ -50,6 +50,8 @@ function setup(
     token: undefined as string | undefined,
     tools: [] as string[],
   },
+  // No model switching unless a test asks for it.
+  fallbacks: string[] = [],
 ) {
   const fetcher = vi.fn<typeof fetch>();
   for (const response of responses) fetcher.mockResolvedValueOnce(response);
@@ -62,6 +64,9 @@ function setup(
       join(directory, "cache"),
       crm,
       fetcher,
+      undefined,
+      undefined,
+      fallbacks,
     ),
   };
 }
@@ -351,4 +356,149 @@ it("defaults new runs to Google and blocks live requests without its key", async
     .send({ ...payload, mode: "live" })
     .expect(409)
     .expect((r) => expect(r.body.error).toContain("GEMINI_API_KEY"));
+});
+
+const noCrm = { url: undefined, token: undefined, tools: [] as string[] };
+const busy = () =>
+  json(
+    {
+      error: {
+        code: 503,
+        status: "UNAVAILABLE",
+        message:
+          "The model is overloaded due to high demand. Please try again later.",
+      },
+    },
+    503,
+  );
+
+it("starts research on a lighter model when the chosen one is busy", async () => {
+  const { provider, fetcher } = setup(
+    [
+      busy(),
+      json({ id: "int-lite" }),
+      json({ status: "in_progress", steps: [] }),
+    ],
+    noCrm,
+    ["lite-a", "lite-b"],
+  );
+  await store.save(run({ sessionId: undefined, status: "starting" }));
+  await new Engine(store, undefined, { google: provider }).process(
+    "google-run",
+  );
+  const saved = (await store.get("google-run"))!;
+  expect(saved).toMatchObject({
+    status: "running",
+    sessionId: "int-lite",
+    baseModel: "lite-a",
+  });
+  const sent = (n: number) =>
+    JSON.parse(String(fetcher.mock.calls[n][1]?.body)).agent_config.model;
+  expect([sent(0), sent(1)]).toEqual(["pinned-model", "lite-a"]);
+  expect(saved.activities.at(-2)?.label).toBe("Switched to a lighter model");
+});
+
+it("skips a fallback model that is not available and uses the next", async () => {
+  const { provider } = setup(
+    [
+      busy(),
+      json({ error: { message: "models/lite-a is not found" } }, 404),
+      json({ id: "int-b" }),
+      json({ status: "in_progress", steps: [] }),
+    ],
+    noCrm,
+    ["lite-a", "lite-b"],
+  );
+  await store.save(run({ sessionId: undefined, status: "starting" }));
+  await new Engine(store, undefined, { google: provider }).process(
+    "google-run",
+  );
+  expect(await store.get("google-run")).toMatchObject({
+    sessionId: "int-b",
+    baseModel: "lite-b",
+  });
+});
+
+it("retries later instead of failing when every model is busy", async () => {
+  const { provider } = setup([busy(), busy(), busy()], noCrm, [
+    "lite-a",
+    "lite-b",
+  ]);
+  await store.save(run({ sessionId: undefined, status: "starting" }));
+  await new Engine(store, undefined, { google: provider }).process(
+    "google-run",
+  );
+  const saved = (await store.get("google-run"))!;
+  expect(saved.status).toBe("starting");
+  expect(saved.creationAttempted).toBeFalsy();
+  expect(saved.nextPollAt).toBeTruthy();
+  expect(saved.activities.at(-1)?.label).toBe("Models busy");
+});
+
+it("continues on a lighter model when the research fails partway for high demand", async () => {
+  const previous = process.env.GEMINI_FALLBACK_MODELS;
+  process.env.GEMINI_FALLBACK_MODELS = "lite-a,lite-b";
+  try {
+    const { provider } = setup([
+      json({
+        status: "failed",
+        error: { message: "The model is overloaded due to high demand." },
+        steps: [
+          {
+            type: "model_output",
+            content: [{ type: "text", text: "# Half a report" }],
+          },
+        ],
+      }),
+    ]);
+    await store.save(run());
+    await new Engine(store, undefined, { google: provider }).process(
+      "google-run",
+    );
+    const saved = (await store.get("google-run"))!;
+    expect(saved.baseModel).toBe("lite-a");
+    expect(saved.status).toBe("running");
+    expect(saved.report).toBe("# Half a report");
+    expect(saved.pendingInput?.text).toBeTruthy();
+    expect(saved.activities.at(-1)?.label).toBe("Switched to a lighter model");
+  } finally {
+    if (previous === undefined) delete process.env.GEMINI_FALLBACK_MODELS;
+    else process.env.GEMINI_FALLBACK_MODELS = previous;
+  }
+});
+
+it("restarts on a lighter model when the research fails for high demand before writing anything", async () => {
+  const previous = process.env.GEMINI_FALLBACK_MODELS;
+  process.env.GEMINI_FALLBACK_MODELS = "lite-a";
+  try {
+    const { provider } = setup([
+      json({
+        status: "failed",
+        error: { message: "503 UNAVAILABLE: high demand" },
+        steps: [],
+      }),
+    ]);
+    await store.save(run());
+    const engine = new Engine(store, undefined, { google: provider });
+    await engine.process("google-run");
+    const restarted = (await store.get("google-run"))!;
+    expect(restarted).toMatchObject({
+      status: "starting",
+      baseModel: "lite-a",
+      creationAttempted: false,
+    });
+    expect(restarted.sessionId).toBeUndefined();
+    // With every fallback used, a further busy failure is reported normally.
+    const again = setup([
+      json({ status: "failed", error: { message: "high demand" }, steps: [] }),
+    ]);
+    await store.save(run({ baseModel: "lite-a" }));
+    await new Engine(store, undefined, { google: again.provider }).process(
+      "google-run",
+    );
+    expect((await store.get("google-run"))?.status).toBe("failed");
+  } finally {
+    if (previous === undefined) delete process.env.GEMINI_FALLBACK_MODELS;
+    else process.env.GEMINI_FALLBACK_MODELS = previous;
+  }
 });

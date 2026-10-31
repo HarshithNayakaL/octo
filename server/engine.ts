@@ -3,6 +3,14 @@ import type { Run, ProviderId } from "../shared/types.js";
 import type { RunStore } from "./store.js";
 import { ProviderError, type Provider } from "./provider.js";
 import {
+  afterBusy,
+  fallbackModels,
+  isBusy,
+  isBusyMessage,
+  type Fallback,
+} from "./fallback.js";
+import { continuationInput } from "./prompts.js";
+import {
   finalReport,
   itemText,
   resultSchema,
@@ -239,6 +247,7 @@ export class Engine {
         run = (await this.store.get(id))!;
         run.sessionId = session.id;
         run.status = "running";
+        this.noteFallback(run, session.octoFallback);
         this.log(
           run,
           "Research session started",
@@ -270,6 +279,11 @@ export class Engine {
             : await provider.message(run.sessionId!, input.text, input.key);
         run = (await this.store.get(id))!;
         if (result?.id) run.sessionId = result.id;
+        this.noteFallback(
+          run,
+          (result as { octoFallback?: Fallback } | undefined)?.octoFallback,
+        );
+        run.lastInputText = input.text;
         run.pendingInput = undefined;
         await this.store.save(run);
       }
@@ -332,6 +346,68 @@ export class Engine {
       const latest = rootTurns.at(-1);
       // A previous completed turn cannot complete a newly queued follow-up.
       const isNewTurn = latest && latest.id !== run.lastTurnId;
+      // The model was busy partway through: carry on with a lighter one.
+      const busyMessage =
+        snap.session.status === "failed"
+          ? snap.session.error?.message
+          : isNewTurn && latest.status === "failed"
+            ? latest.error?.message
+            : undefined;
+      const lighter =
+        run.provider === "google" && isBusyMessage(busyMessage)
+          ? afterBusy(
+              run.baseModel,
+              fallbackModels(process.env.GEMINI_FALLBACK_MODELS),
+            )
+          : undefined;
+      if (lighter && !run.cancelRequested) {
+        const from = run.baseModel ?? "the selected model";
+        run.baseModel = lighter;
+        const partial = latest
+          ? finalReport(snap.items.filter((item) => item.turn_id === latest.id))
+          : "";
+        if (latest) run.lastTurnId = latest.id;
+        if (partial.trim()) {
+          archiveReport(run, partial);
+          run.report = partial;
+          run.sources = sourcesFromReport(partial);
+          run.reportParts = [
+            ...(run.reportParts ?? []),
+            {
+              turnId: latest!.id,
+              report: partial,
+              reason: `${from} was busy`,
+              at: new Date().toISOString(),
+            },
+          ].slice(-10);
+          run.pendingInput = {
+            text: continuationInput(run),
+            key: randomUUID(),
+            kind: "followup",
+          };
+        } else if (run.lastInputText && run.report.trim()) {
+          // A follow-up failed before writing anything: send it again.
+          run.pendingInput = {
+            text: run.lastInputText,
+            key: randomUUID(),
+            kind: "followup",
+          };
+        } else {
+          // Nothing was written yet: start the research again.
+          run.sessionId = undefined;
+          run.creationAttempted = false;
+          run.status = "starting";
+        }
+        run.error = undefined;
+        this.log(
+          run,
+          "Switched to a lighter model",
+          `${from} is experiencing high demand, so the research continues with ${lighter}${partial.trim() ? " from the saved partial report" : ""}.`,
+          "warning",
+        );
+        await this.store.save(run);
+        return;
+      }
       if (snap.session.status === "failed") {
         run.status = "failed";
         run.error = snap.session.error?.message ?? "Remote session failed.";
@@ -493,9 +569,9 @@ export class Engine {
       if (!run) return;
       const detail =
         error instanceof Error ? error.message : "Unexpected research error";
-      if (error instanceof ProviderError && error.status === 429)
+      if (isBusy(error))
         run.nextPollAt = new Date(
-          Date.now() + (error.retryAfterMs ?? 60000),
+          Date.now() + ((error as ProviderError).retryAfterMs ?? 60000),
         ).toISOString();
       // Durable sessions are never duplicated after a transient polling failure.
       if (
@@ -510,17 +586,19 @@ export class Engine {
         this.log(run, "API request rejected", detail, "error");
         await this.store.save(run);
       } else if (
-        error instanceof ProviderError &&
-        error.status === 429 &&
+        isBusy(error) &&
         (!run.sessionId || run.pendingInput?.attempted)
       ) {
-        // A quota rejection is a definitive response: nothing was submitted, so retry after backoff.
+        // A quota or overload rejection is definitive: nothing was submitted
+        // (every fallback model was tried), so retry after backoff.
         if (!run.sessionId) run.creationAttempted = false;
         if (run.pendingInput) run.pendingInput.attempted = false;
         run.syncError = undefined;
         this.log(
           run,
-          "Provider quota reached",
+          (error as ProviderError).status === 429
+            ? "Provider quota reached"
+            : "Models busy",
           `${detail} Retrying the submission after ${run.nextPollAt}.`,
           "warning",
         );
@@ -546,13 +624,15 @@ export class Engine {
         run.plan = await provider.plan(run);
         run.planError = undefined;
       } catch (error) {
-        if (error instanceof ProviderError && error.status === 429) {
+        if (isBusy(error)) {
           run.nextPollAt = new Date(
             Date.now() + (error.retryAfterMs ?? 60000),
           ).toISOString();
           this.log(
             run,
-            "Provider quota reached",
+            (error as ProviderError).status === 429
+              ? "Provider quota reached"
+              : "Models busy",
             "Preparing questions will be retried shortly.",
             "warning",
           );
@@ -774,6 +854,17 @@ export class Engine {
       c.status === "done" ? "system" : "warning",
     );
     await this.store.save(latest);
+  }
+  /** Keep later turns on the model Google accepted, and say so in the activity log. */
+  private noteFallback(run: Run, fallback?: Fallback) {
+    if (!fallback) return;
+    run.baseModel = fallback.to;
+    this.log(
+      run,
+      "Switched to a lighter model",
+      `${fallback.from} is experiencing high demand, so this research runs on ${fallback.to}.`,
+      "warning",
+    );
   }
   async queueMessage(run: Run, text: string) {
     run.pendingInput = { text, key: randomUUID(), kind: "followup" };

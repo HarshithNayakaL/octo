@@ -1,3 +1,8 @@
+import {
+  defaultFallbackModels,
+  withFallback,
+  type Fallback,
+} from "./fallback.js";
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
 import type { GoogleGenAI } from "@google/genai";
@@ -78,6 +83,8 @@ export class GoogleProvider implements Provider {
     private readAttachment: AttachmentReader = readLocalAttachment,
     /** Per-file cache limit; serverless deployments are bounded by payload size. */
     private maxFileBytes = 20_000_000,
+    /** Lighter models to use when the chosen one is busy, in order. */
+    private fallbacks: string[] = defaultFallbackModels,
   ) {
     this.cache = typeof cache === "string" ? directoryCache(cache) : cache;
   }
@@ -145,12 +152,16 @@ export class GoogleProvider implements Provider {
   async recover(_localId: string): Promise<ApiObject | undefined> {
     return undefined;
   }
-  private config(run: Run) {
+  private config(run: Run, model = run.baseModel ?? this.model) {
     return {
       type: "antigravity" as const,
-      model: run.baseModel ?? this.model,
+      model,
       max_total_tokens: String(run.maxTokens),
     };
+  }
+  /** Try the run's model, then lighter ones if it is busy (see fallback.ts). */
+  private fallback<T>(run: Run, attempt: (model: string) => Promise<T>) {
+    return withFallback(run.baseModel ?? this.model, this.fallbacks, attempt);
   }
   async create(run: Run, input = initialInput(run)) {
     const sources = [
@@ -168,17 +179,20 @@ export class GoogleProvider implements Provider {
         })),
       )),
     ];
-    const body = {
-      agent: run.agentName ?? this.agent,
-      agent_config: this.config(run),
-      system_instruction: instructions(run),
-      environment: { type: "remote", sources },
-      input,
-      background: true,
-      store: true,
-      labels: { local_run_id: run.id },
-    } satisfies GoogleCreate;
-    return this.call("/interactions", body);
+    const { value, fallback } = await this.fallback(run, (model) =>
+      this.call("/interactions", {
+        agent: run.agentName ?? this.agent,
+        agent_config: this.config(run, model),
+        system_instruction: instructions(run),
+        environment: { type: "remote", sources },
+        input,
+        background: true,
+        store: true,
+        labels: { local_run_id: run.id },
+      } satisfies GoogleCreate),
+    );
+    // The engine records the switch so later turns use the same model.
+    return fallback ? { ...value, octoFallback: fallback } : value;
   }
   /** Questions and proposed areas, from the base model with structured output. No tools, no research. */
   async plan(run: Run): Promise<ResearchPlan> {
@@ -186,43 +200,47 @@ export class GoogleProvider implements Provider {
       run.attachments,
       this.readAttachment,
     );
-    const interaction = await this.call(
-      "/interactions",
-      {
-        model: run.baseModel ?? this.model,
-        input: [
-          ...pdfs.map((p) => ({
-            type: "document",
-            mime_type: "application/pdf",
-            data: p.data,
-          })),
-          { type: "text", text: planPrompt(run) + fileContext(texts) },
-        ],
-        response_format: {
-          type: "text",
-          mime_type: "application/json",
-          schema: planSchema,
+    const { value: interaction } = await this.fallback(run, (model) =>
+      this.call(
+        "/interactions",
+        {
+          model,
+          input: [
+            ...pdfs.map((p) => ({
+              type: "document",
+              mime_type: "application/pdf",
+              data: p.data,
+            })),
+            { type: "text", text: planPrompt(run) + fileContext(texts) },
+          ],
+          response_format: {
+            type: "text",
+            mime_type: "application/json",
+            schema: planSchema,
+          },
         },
-      },
-      false,
-      120000,
+        false,
+        120000,
+      ),
     );
     return parsePlanText(interactionText(interaction));
   }
   async structured(run: Run, prompt: string, schema: JsonSchema) {
-    const interaction = await this.call(
-      "/interactions",
-      {
-        model: run.baseModel ?? this.model,
-        input: [{ type: "text", text: prompt }],
-        response_format: {
-          type: "text",
-          mime_type: "application/json",
-          schema,
+    const { value: interaction } = await this.fallback(run, (model) =>
+      this.call(
+        "/interactions",
+        {
+          model,
+          input: [{ type: "text", text: prompt }],
+          response_format: {
+            type: "text",
+            mime_type: "application/json",
+            schema,
+          },
         },
-      },
-      false,
-      120000,
+        false,
+        120000,
+      ),
     );
     return parseJsonText(interactionText(interaction));
   }
@@ -240,7 +258,10 @@ export class GoogleProvider implements Provider {
       );
       if (typeof interaction.id !== "string")
         throw new Error("Google did not return the new interaction ID.");
-      return { id: interaction.id as string };
+      return {
+        id: interaction.id as string,
+        octoFallback: interaction.octoFallback as Fallback | undefined,
+      };
     };
     let previous: ApiObject;
     try {
@@ -251,20 +272,24 @@ export class GoogleProvider implements Provider {
       throw error;
     }
     if (!previous.environment_id) return fresh();
-    const body = {
-      agent: run.agentName ?? this.agent,
-      agent_config: this.config(run),
-      previous_interaction_id: id,
-      environment: previous.environment_id,
-      input: text,
-      system_instruction: instructions(run),
-      background: true,
-      store: true,
-      labels: { local_run_id: run.id },
-    } satisfies GoogleCreate;
     let interaction: ApiObject;
+    let switched: Fallback | undefined;
     try {
-      interaction = await this.call("/interactions", body);
+      const { value, fallback } = await this.fallback(run, (model) =>
+        this.call("/interactions", {
+          agent: run.agentName ?? this.agent,
+          agent_config: this.config(run, model),
+          previous_interaction_id: id,
+          environment: previous.environment_id,
+          input: text,
+          system_instruction: instructions(run),
+          background: true,
+          store: true,
+          labels: { local_run_id: run.id },
+        } satisfies GoogleCreate),
+      );
+      interaction = value;
+      switched = fallback;
     } catch (error) {
       // A definite rejection created nothing, so a fresh start cannot duplicate work.
       if (
@@ -276,7 +301,7 @@ export class GoogleProvider implements Provider {
     }
     if (typeof interaction.id !== "string")
       throw new Error("Google did not return the follow-up interaction ID.");
-    return { id: interaction.id };
+    return { id: interaction.id, octoFallback: switched };
   }
   async cancel(id: string) {
     await this.call("/interactions/" + encodeURIComponent(id) + ":cancel", {});
@@ -385,8 +410,12 @@ export class GoogleProvider implements Provider {
       }
     }
     let status = interaction.status;
-    let error = interaction.errors
-      ?.map((e: any) => e.message)
+    // Failures arrive as an `errors` list or a single `error`.
+    let error = [
+      ...(interaction.errors ?? []),
+      ...(interaction.error ? [interaction.error] : []),
+    ]
+      .map((e: any) => e?.message)
       .filter(Boolean)
       .join("; ");
     // Budget or preview limits end the turn early; the engine keeps the partial report.

@@ -260,6 +260,8 @@ export interface Run {
   priorResearch?: PriorResearch[];
   agentName?: string;
   baseModel?: string;
+  /** The last instruction sent to the research agent, kept so a busy model can be retried on another. */
+  lastInputText?: string;
   creationAttempted?: boolean;
   nextPollAt?: string;
   purpose?: "crm";

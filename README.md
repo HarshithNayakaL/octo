@@ -132,6 +132,7 @@ The **Talk to Octo** button (bottom right, on every page) opens a voice assistan
 - **Live (main):** the browser streams your voice to **Gemini Live** (`gemini-3.8-live`) and plays the spoken reply, with live transcripts. You can interrupt it mid-sentence. The server mints a single-use token (`POST /api/voice/token`) that locks the model, voice, instructions and tools for one session; the API key never reaches the browser. In testing, the first reply audio started about 0.9 s after the speaker stopped. Sessions end after 90 seconds of quiet or 9 minutes, to save free-tier minutes.
 - **Push-to-talk (fallback):** if Live is unavailable, tap the mic and speak. Recording stops on its own when you pause. One call to `gemini-3.5-flash-lite` transcribes and answers, and **Gemini TTS** (`gemini-3.8-flash-lite-tts`) speaks the reply (about 5 s end to end). If TTS hits its free-tier limit, the browser's own voice reads the reply.
 - **Typing** works in both modes.
+- **Language:** it replies in the language of your latest message, so switching from Kannada back to English gets an English reply. Push-to-talk also checks the reply's script against what you said and asks once more if they differ (for example, a Hindi reply to an English question).
 - **Limits:** each visitor gets 12 Live chats per hour and 20 push-to-talk or typed questions per 10 minutes. A request that fails on Google's side is not counted. Google's own free-tier limits apply on top (see below).
 - **Models:** override with `GEMINI_LIVE_MODEL`, `GEMINI_VOICE_MODEL`, `GEMINI_TTS_MODEL` and `GEMINI_VOICE` (default voice: Kore).
 - **Privacy:** speech is sent to Google to answer you and is not stored by Octo.
@@ -284,11 +285,14 @@ Live deployment: **https://octo-agents.vercel.app** (Google Gemini by default, O
 | `OPENAI_UNLOCK_WORD` | Only with an OpenAI key: the word that unlocks OpenAI in the UI. Without it OpenAI stays locked |
 | `GEMINI_RATE_LIMITS` | Optional: your free-tier limits copied from AI Studio, shown in Usage and limits |
 | `GEMINI_LIVE_MODEL`, `GEMINI_VOICE_MODEL`, `GEMINI_TTS_MODEL`, `GEMINI_VOICE` | Optional: voice assistant models and voice. The defaults work on the free tier |
+| `GEMINI_FALLBACK_MODELS` | Optional: comma-separated models to switch to when the research model is busy. Default `gemini-3.5-flash-lite,gemini-3.1-flash-lite` |
 | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Optional: Reddit in [Community voices](#community-voices) on Vercel. Without them, Hacker News still works |
 
 4. Deploy. Changing variables later requires a redeploy.
 
 Defaults cover everything else: Google is the default provider, `antigravity-preview-09-2026` / `gemini-3.8-flash` for Google and `gpt-6-astra` for OpenAI. Override with `DEFAULT_PROVIDER`, `GEMINI_AGENT`, `GEMINI_MODEL` or `OPENAI_MODEL` if needed.
+
+**When Gemini is busy.** If the research model answers "experiencing high demand" (HTTP 503) or its own free-tier quota is used up (429), Octo retries the same request on the next model in `GEMINI_FALLBACK_MODELS` straight away; nothing was created by the rejected request, so this cannot duplicate work. A fallback that is not available is skipped. If a running research job fails partway with high demand, Octo switches the run to the next lighter model and carries on: it continues from the partial report if there is one, resends a follow-up that wrote nothing, or starts again if nothing was written. Every switch is logged in the run's activity ("Switched to a lighter model"), and later turns of that run stay on the model that worked. If every model is busy, the run waits and retries instead of failing.
 
 **Optional hardening.** Without `APP_TOKEN`, anyone with the URL can open the workspace, read saved research, and start Google runs on your key's free-tier quota (OpenAI stays protected by the unlock word). Set `APP_TOKEN` to require an access token. `CRON_SECRET` enables `/api/cron/tick`, a backstop you can call from any scheduler.
 

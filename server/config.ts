@@ -1,4 +1,5 @@
 import { OpenAIProvider } from "./provider.js";
+import { fallbackModels } from "./fallback.js";
 // Provider APIs go through node:http too, so no reply is ever Brotli-decoded (CVE-2026-111497).
 import { plainFetch } from "./brotli-guard.js";
 import { GeminiVoice, defaultVoiceModels } from "./voice.js";
@@ -51,6 +52,7 @@ export function providersFromEnv(
         googleFetch,
         readAttachment,
         maxFileBytes,
+        fallbackModels(env.GEMINI_FALLBACK_MODELS),
       )
     : undefined;
   const crmReady = Boolean(crm.url && crm.tools.length);

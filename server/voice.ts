@@ -96,9 +96,44 @@ ${
     : ""
 }Answer about a report only from the report text given; say when it does not cover something. Do not invent facts, figures or sources. Say you are unsure when you are.
 When the person wants new research, ask at most one short question if the goal is unclear, then call prepare_research with a clear title and a detailed brief. That opens the research form for them to review; it does not start research. Never claim research has started.
-Reply in the language the person speaks.${
+Language: reply in the language of the person's most recent message, in the same script. If that message mixes languages, use the language of its last sentence. Judge every message on its own and do not carry an earlier language forward: if they spoke Kannada and then English, reply in English. Never reply in a language they have not used in this conversation; for example, do not answer in Hindi when they spoke English or Kannada. If you cannot tell which Indian language they used, reply in English.${
     context.page ? `\nThe person is on the ${context.page} page.` : ""
   }${research}`;
+}
+
+const scripts: [name: string, from: number, to: number][] = [
+  ["Devanagari", 0x0900, 0x097f],
+  ["Bengali", 0x0980, 0x09ff],
+  ["Gurmukhi", 0x0a00, 0x0a7f],
+  ["Gujarati", 0x0a80, 0x0aff],
+  ["Odia", 0x0b00, 0x0b7f],
+  ["Tamil", 0x0b80, 0x0bff],
+  ["Telugu", 0x0c00, 0x0c7f],
+  ["Kannada", 0x0c80, 0x0cff],
+  ["Malayalam", 0x0d00, 0x0d7f],
+  ["Arabic", 0x0600, 0x06ff],
+  ["Cyrillic", 0x0400, 0x04ff],
+  ["CJK", 0x4e00, 0x9fff],
+];
+
+/**
+ * The writing system most letters in a text use, or undefined for text with
+ * too few letters to tell. Used to catch a reply in a different language from
+ * the person's last message (for example Hindi after English).
+ */
+export function scriptOf(text: string) {
+  const counts = new Map<string, number>();
+  for (const ch of text) {
+    const code = ch.codePointAt(0)!;
+    let name: string | undefined;
+    if (/[A-Za-z\u00c0-\u024f]/.test(ch)) name = "Latin";
+    else name = scripts.find(([, from, to]) => code >= from && code <= to)?.[0];
+    if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  const total = [...counts.values()].reduce((a, b) => a + b, 0);
+  if (total < 4) return undefined;
+  const [best, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return n / total >= 0.6 ? best : undefined;
 }
 
 /** Shared by the Live tool and the turn response. */
@@ -337,10 +372,41 @@ export class GeminiVoice implements VoiceProvider {
         schema: turnSchema,
       },
     });
-    const raw = interactionText(interaction)
-      .trim()
-      .replace(/^```(?:json)?\s*|\s*```$/g, "");
-    const parsed = turnResponse.parse(JSON.parse(raw));
+    const parse = (value: Parameters<typeof interactionText>[0]) =>
+      turnResponse.parse(
+        JSON.parse(
+          interactionText(value)
+            .trim()
+            .replace(/^```(?:json)?\s*|\s*```$/g, ""),
+        ),
+      );
+    let parsed = parse(interaction);
+    // A reply in a different script from the person's message is the wrong
+    // language (for example Hindi after English): ask once more, naming it.
+    const heard = parsed.transcript || ("text" in input ? input.text : "");
+    const want = scriptOf(heard);
+    const got = scriptOf(parsed.reply);
+    if (want && got && want !== got) {
+      const retry = await this.post("/interactions", {
+        model: this.models.turn,
+        input: [
+          {
+            type: "text",
+            text: `${voiceInstructions(context)}${
+              history ? `\n\nConversation so far:\n${history}` : ""
+            }\n\nThe person said: ${heard}\nTheir message is written in ${want} script. Reply only in that same language and script.\nReturn JSON. Fill prepare_research only when they want new research; otherwise use empty strings.`,
+          },
+        ],
+        response_format: {
+          type: "text",
+          mime_type: "application/json",
+          schema: turnSchema,
+        },
+      });
+      const second = parse(retry);
+      if (scriptOf(second.reply) === want)
+        parsed = { ...second, transcript: heard };
+    }
     const result: VoiceTurnResult = {
       transcript: parsed.transcript || ("text" in input ? input.text : ""),
       reply: parsed.reply,

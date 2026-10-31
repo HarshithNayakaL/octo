@@ -1,6 +1,8 @@
 # Octo
 
-A TypeScript research workspace built around the **OpenAI Agents API**: a research director delegates to specialist agents, works in a hosted sandbox with live web search, and returns cited reports and structured company records. **Google Antigravity (Gemini Interactions)** is supported as an alternative provider, useful for testing on a Google free-tier project. Octo runs locally and can be deployed to Vercel.
+A TypeScript research workspace built around the **OpenAI Agents API**: a research director delegates to specialist agents, works in a hosted sandbox with live web search, and returns cited reports and structured company records. **Google Antigravity (Gemini Interactions)** is supported as an alternative provider and is the default on the free tier. Octo checks its own citations, can answer questions about a report, can gather what real people say online, and has a **voice assistant** built on Gemini Live. It runs locally and on Vercel.
+
+**Live:** [octo-agents.vercel.app](https://octo-agents.vercel.app) (Gemini by default; OpenAI behind an access word).
 
 **Case study:** [harshith-nayaka-l-portfolio.vercel.app/work/octo](https://harshith-nayaka-l-portfolio.vercel.app/work/octo): the problem, the architecture and the engineering decisions behind Octo.
 
@@ -20,8 +22,19 @@ A chat assistant can research a question. Octo is built around what happens arou
 | Across projects | Starts from zero | **Build on earlier research:** new runs can reuse related reports from your workspace and re-check what changed |
 | Long work | Stops when it stops | Runs up to 3 hours; a run cut off by a limit keeps its partial report and continues into one report |
 | Output | Text in a chat | PDF, Word, CSV, Markdown or JSON files, including the evidence check |
+| Talking to it | A general voice mode | **Voice assistant** that knows the research you have open and fills in the research form for you, with usage and limits shown in the app |
 
 The user research behind these choices (3,314 Reddit and Hacker News posts plus published studies) is in [docs/research-findings.md](docs/research-findings.md).
+
+## Features at a glance
+
+- **Research:** open research, market intelligence, sales research and ongoing research, with questions before research and a plan built for each brief ([how a run works](#how-a-research-run-works)).
+- **Trust:** [evidence check](#evidence-check), [source quality and source policy](#source-quality-and-source-policy), [Challenge this report](#challenge-this-report).
+- **Working with a report:** [Ask this research](#ask-this-research), [versions and refresh](#versions-and-refresh), [build on earlier research](#build-on-earlier-research), [community voices](#community-voices), partial reports that [continue](#limits-partial-reports-and-continuing).
+- **Voice:** a [voice assistant](#voice-assistant) on every page (Gemini Live, with push-to-talk and Gemini TTS as fallback).
+- **Usage:** [usage and limits](#usage-and-limits): Gemini requests per model today, known free-tier limits, and each visitor's voice allowance.
+- **Output:** [downloads](#downloads) as PDF, Word, CSV, Markdown or JSON; optional [CRM export](#crm-mcp).
+- **Running it:** [locally](#start-locally) with SQLite or on [Vercel](#deploy-to-vercel) with Neon Postgres; [dark mode](#managing-runs); [security notes](#security).
 
 ## Start locally
 
@@ -267,7 +280,7 @@ Live deployment: **https://octo-agents.vercel.app** (Google Gemini by default, O
 | `OPENAI_UNLOCK_WORD` | Only with an OpenAI key: the word that unlocks OpenAI in the UI. Without it OpenAI stays locked |
 | `GEMINI_RATE_LIMITS` | Optional: your free-tier limits copied from AI Studio, shown in Usage and limits |
 | `GEMINI_LIVE_MODEL`, `GEMINI_VOICE_MODEL`, `GEMINI_TTS_MODEL`, `GEMINI_VOICE` | Optional: voice assistant models and voice. The defaults work on the free tier |
-| `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Optional: Reddit in Community voices on Vercel (see below). Without them, Hacker News still works |
+| `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Optional: Reddit in [Community voices](#community-voices) on Vercel. Without them, Hacker News still works |
 
 4. Deploy. Changing variables later requires a redeploy.
 
@@ -281,13 +294,36 @@ Defaults cover everything else: Google is the default provider, `antigravity-pre
 
 ## Security
 
-Octo runs on Node.js 24.x (`.nvmrc`, `package.json` engines). After the Node.js October 2026 security release (CVE-2026-111497, "Node2Shell"), Octo refuses Brotli-compressed responses from untrusted pages and APIs, and Brotli-compressed request bodies. It also reports whether its runtime is patched at `GET /api/config` (`runtimePatched`). Details, supply-chain checks and how to report a vulnerability are in [SECURITY.md](SECURITY.md).
+- **Keys stay on the server.** The voice assistant connects to Gemini Live with a single-use token that locks the model, voice, instructions and tools, never the API key. The token must start its session within 2 minutes and expires after 30 minutes. `wss://generativelanguage.googleapis.com` is the only external address in the Content Security Policy.
+- **Fetching untrusted pages:** the evidence check and community voices fetch only public addresses on standard ports, re-checked after every redirect.
+- **Node.js runtime:** Octo runs on Node.js 24.x (`.nvmrc`, `package.json` engines). After the Node.js October 2026 security release (CVE-2026-111497, "Node2Shell"), Octo refuses Brotli-compressed responses and request bodies. It reports whether its runtime is patched at `GET /api/config` (`runtimePatched`).
+- **Rate limits:** API writes are limited per address, and voice requests per visitor (stored in the database as a hash of the address).
+
+Details, supply-chain checks and how to report a vulnerability are in [SECURITY.md](SECURITY.md).
+
+## API reference
+
+All routes are under `/api` and return JSON. With `APP_TOKEN` set, send `Authorization: Bearer <token>`.
+
+| Route | What it does |
+|---|---|
+| `GET /config` | Providers, voice models, storage, OpenAI access mode, whether the runtime is patched |
+| `GET /runs`, `GET /runs/:id`, `POST /runs`, `DELETE /runs/:id` | List, read, create and delete research |
+| `POST /runs/:id/answers` | Answer the questions and start research |
+| `POST /runs/:id/followup`, `/continue`, `/refresh`, `/challenge` | Follow up, continue a partial report, refresh, or challenge a report |
+| `POST /runs/:id/evidence`, `/ask`, `/community` | Re-check evidence, ask the report, gather community voices |
+| `GET /runs/:id/export?format=pdf\|docx\|csv\|md\|json` | Download a deliverable |
+| `POST /voice/token`, `POST /voice/turn` | Start a Gemini Live session, or one push-to-talk or typed voice turn |
+| `GET /limits` | Gemini usage today, known limits, and this visitor's voice allowance |
+| `POST /uploads`, `PATCH /runs/:id/notes`, `POST /runs/:id/cancel`, `/schedule`, `/crm` | Files, notes, stopping, schedules, CRM export |
 
 ## Product boundaries
 
 This is a **single-workspace, self-hosted starter**, with functioning application workflows and an Agents API adapter. It is not a deployed multi-tenant SaaS. Before offering it as a hosted service, add proper user accounts, per-user authorization and storage isolation, enforced project budgets, billing, retention/deletion controls, a resilient external job queue, tenant-specific CRM credentials, and operational monitoring.
 
-Model output is not guaranteed to be correct. Prompts require dated sources, unknown values, explicit hypotheses, and checked calculations; human review is still necessary. Live OpenAI access, document processing, factual report quality, and CRM tool behavior must be tested using your real account. No real credentials were used during the initial build.
+Model output is not guaranteed to be correct. Prompts require dated sources, unknown values, explicit hypotheses, and checked calculations; human review is still necessary.
+
+The Google path has been tested live on the Vercel deployment: research, the evidence check, Ask, community voices, and the voice assistant (Live and fallback). OpenAI, the CRM export and Reddit's official API are covered only by tests with mocked responses; test them with your own accounts. See [VALIDATION.md](VALIDATION.md) for what was verified and how.
 
 ## Official references
 
@@ -304,6 +340,13 @@ Alternative provider:
 - [Google Antigravity agent](https://ai.google.dev/gemini-api/docs/antigravity-agent)
 - [Antigravity environments](https://ai.google.dev/gemini-api/docs/agent-environment)
 
+Voice and limits (Google):
+
+- [Live API](https://ai.google.dev/gemini-api/docs/live) and its [WebSocket guide](https://ai.google.dev/gemini-api/docs/live-api/get-started-websocket)
+- [Ephemeral tokens](https://ai.google.dev/gemini-api/docs/ephemeral-tokens)
+- [Speech generation (TTS)](https://ai.google.dev/gemini-api/docs/speech-generation) and [audio understanding](https://ai.google.dev/gemini-api/docs/audio)
+- [Rate limits](https://ai.google.dev/gemini-api/docs/rate-limits), [AI Studio rate-limit docs](https://aistudio.google.com/docs/rate-limits) and [pricing (free tier)](https://ai.google.dev/gemini-api/docs/pricing)
+
 ## Stack
 
-React 19, TypeScript, Vite, Express 5, Node SQLite, Zod, Lucide icons, React Markdown, ECharts, Loading.dev, bot-avatars, Inter (self-hosted), cmdk, Vitest, and Playwright. No external font or image service is required. The workspace uses the original blue-and-white design with animated agent mascots, workflow cards, research table, and custom accessible dropdowns. See [DESIGN.md](DESIGN.md) for the reference study and interaction decisions.
+React 19, TypeScript, Vite, Express 5, Node SQLite (local) and Neon Postgres (Vercel), Zod, Lucide icons, React Markdown, ECharts, Loading.dev, bot-avatars, Inter (self-hosted), cmdk, pdfkit and docx for downloads, unpdf for reading cited PDFs, jsdiff for version comparison, the Web Audio API with an AudioWorklet for voice, Vitest, and Playwright. No external font or image service is required. The workspace uses the original blue-and-white design with animated agent mascots, workflow cards, research table, and custom accessible dropdowns. See [DESIGN.md](DESIGN.md) for the reference study and interaction decisions.

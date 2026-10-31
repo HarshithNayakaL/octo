@@ -185,6 +185,17 @@ out.append(
   border-color: #2f54d9 !important;
   color: #fff !important;
 }
+:root[data-theme="dark"] .voice-fab,
+:root[data-theme="dark"] .voice-mic {
+  background: linear-gradient(135deg, #3a63f0, #2f54d9) !important;
+  color: #fff !important;
+}
+:root[data-theme="dark"] .voice-mic.recording {
+  background: #c43a2f !important;
+}
+:root[data-theme="dark"] .voice-orb span {
+  background: rgba(255, 255, 255, 0.85);
+}
 :root[data-theme="dark"] .primary.danger {
   background: #c43a2f !important;
   border-color: #c43a2f !important;

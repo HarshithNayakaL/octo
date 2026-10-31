@@ -1187,6 +1187,85 @@
   border: 1px solid #373e4f;
   background: #0f1117;
 }
+:root[data-theme="dark"] .voice-fab {
+  background: linear-gradient(135deg, #1f3889, #003ad0);
+  color: #676e7e;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.6);
+}
+:root[data-theme="dark"] .voice-fab:hover {
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.6);
+}
+:root[data-theme="dark"] .voice-fab:focus-visible {
+  outline: 3px solid #2b3d80;
+}
+:root[data-theme="dark"] .voice-fab-ring {
+  border: 2px solid rgba(69, 107, 232, 0.45);
+}
+:root[data-theme="dark"] .voice-panel {
+  border: 1px solid #334265;
+  background: #0f1117;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.528);
+}
+:root[data-theme="dark"] .voice-head {
+  border-bottom: 1px solid #333949;
+}
+:root[data-theme="dark"] .voice-mode.turn {
+  background: #382c15;
+  color: #f3c368;
+}
+:root[data-theme="dark"] .voice-orb {
+  background: radial-gradient(circle at 35% 30%, #1948e6, #1f3889 60%, #003ad0);
+  box-shadow: 0 0 0 calc(4px + var(--level) * 14px) rgba(0, 0, 0, 0.384);
+}
+:root[data-theme="dark"] .voice-orb span {
+  background: rgba(15, 17, 23, 0.85);
+}
+:root[data-theme="dark"] .voice-orb.error {
+  background: radial-gradient(circle at 35% 30%, #4b211c, #8f362c 65%);
+}
+:root[data-theme="dark"] .voice-status {
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .voice-hints button {
+  border: 1px solid #344262;
+  background: #0f1117;
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .voice-hints button:hover {
+  border-color: #2a417f;
+}
+:root[data-theme="dark"] .voice-line p {
+  background: #13161d;
+}
+:root[data-theme="dark"] .voice-action {
+  background: #0f1117;
+}
+:root[data-theme="dark"] .voice-action p {
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .voice-notice {
+  background: #382c15;
+  color: #f3c368;
+}
+:root[data-theme="dark"] .voice-foot {
+  border-top: 1px solid #333949;
+}
+:root[data-theme="dark"] .voice-foot form {
+  border: 1px solid #394560;
+}
+:root[data-theme="dark"] .voice-mic {
+  color: #676e7e;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
+}
+:root[data-theme="dark"] .voice-mic.recording {
+  background: #8f362c;
+  box-shadow: 0 0 0 6px rgba(0, 0, 0, 0.432);
+}
+:root[data-theme="dark"] .voice-mic.muted {
+  background: #babec7;
+}
 :root[data-theme="dark"] {
   color-scheme: dark;
   --blue: #7f9cff;
@@ -1206,6 +1285,17 @@
   background: #2f54d9 !important;
   border-color: #2f54d9 !important;
   color: #fff !important;
+}
+:root[data-theme="dark"] .voice-fab,
+:root[data-theme="dark"] .voice-mic {
+  background: linear-gradient(135deg, #3a63f0, #2f54d9) !important;
+  color: #fff !important;
+}
+:root[data-theme="dark"] .voice-mic.recording {
+  background: #c43a2f !important;
+}
+:root[data-theme="dark"] .voice-orb span {
+  background: rgba(255, 255, 255, 0.85);
 }
 :root[data-theme="dark"] .primary.danger {
   background: #c43a2f !important;

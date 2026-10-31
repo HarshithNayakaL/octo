@@ -15,6 +15,7 @@ import type {
 import { renderDeliverable } from "./deliverables.js";
 import { challengeInput, continuationInput, refreshInput } from "./prompts.js";
 import { requestCommunity } from "./community.js";
+import { GeminiVoice, Limiter, type VoiceProvider } from "./voice.js";
 import { requestEvidence } from "./evidence.js";
 import { isPatchedNode, refuseCompressedRequests } from "./brotli-guard.js";
 import { answerQuestion } from "./ask.js";
@@ -108,6 +109,8 @@ interface AppOptions {
    * Without a word the gate stays closed. Omit the object to leave OpenAI open.
    */
   openaiGate?: { word?: string };
+  /** Speech provider for the voice assistant (Gemini with the Google key). */
+  voice?: VoiceProvider;
 }
 const sameSecret = (expected: string, received: string) => {
   const a = Buffer.from(expected);
@@ -183,7 +186,8 @@ export function createApp(options: AppOptions) {
       contentSecurityPolicy: {
         directives: {
           "img-src": ["'self'", "data:"],
-          "connect-src": ["'self'"],
+          // The voice assistant talks to Gemini Live directly, with a short-lived token.
+          "connect-src": ["'self'", "wss://generativelanguage.googleapis.com"],
           "script-src": ["'self'"],
           "style-src": ["'self'", "'unsafe-inline'"],
           "upgrade-insecure-requests": null,
@@ -261,7 +265,14 @@ export function createApp(options: AppOptions) {
   });
   // Before any body parser: Express 5 would otherwise decode Brotli bodies.
   app.use(refuseCompressedRequests);
-  app.use(express.json({ limit: "1mb" }));
+  const json = express.json({ limit: "1mb" });
+  // Voice turns carry a short recording; everything else stays at 1 MB.
+  const voiceJson = express.json({ limit: "4mb" });
+  app.use((req, res, next) =>
+    req.path === "/api/voice/turn"
+      ? voiceJson(req, res, next)
+      : json(req, res, next),
+  );
   app.get("/api/config", (_req, res) =>
     res.json({
       liveReady: profiles.some((profile) => Boolean(registry[profile.id])),
@@ -279,6 +290,19 @@ export function createApp(options: AppOptions) {
       storage: store.kind,
       uploadLimitMb: Math.floor(uploadLimit / (1024 * 1024)),
       runtimePatched: isPatchedNode(),
+      voice: options.voice
+        ? {
+            available: true,
+            provider: options.voice.name,
+            ...(options.voice instanceof GeminiVoice
+              ? {
+                  live: options.voice.models.live,
+                  turn: options.voice.models.turn,
+                  tts: options.voice.models.tts,
+                }
+              : {}),
+          }
+        : { available: false },
     }),
   );
   app.post("/api/openai/unlock", (req, res) => {
@@ -830,6 +854,106 @@ export function createApp(options: AppOptions) {
     await engine.queueMessage(run, challengeInput(run, note));
     res.json(await store.get(run.id));
     advance(run.id);
+  });
+  // Voice assistant. Free-tier quota is shared, so each caller is limited.
+  const liveLimit = new Limiter(12, 60 * 60_000);
+  const turnLimit = new Limiter(20, 10 * 60_000);
+  const voiceContext = async (body: unknown) => {
+    const { runId, page } = z
+      .object({
+        runId: z.string().max(100).optional(),
+        page: z.string().max(40).optional(),
+      })
+      .passthrough()
+      .parse(body ?? {});
+    const run = runId ? await store.get(runId) : undefined;
+    return { run: run ?? undefined, page };
+  };
+  const voiceUnavailable = (res: express.Response) =>
+    res.status(409).json({
+      error: `The voice assistant needs GEMINI_API_KEY ${options.deployment === "vercel" ? "in the Vercel project's environment variables" : "in .env"}.`,
+    });
+  const voiceFailed = (res: express.Response, err: unknown, what: string) => {
+    const status =
+      err instanceof ProviderError
+        ? [413, 415, 429].includes(err.status)
+          ? err.status
+          : 502
+        : err instanceof z.ZodError
+          ? 400
+          : 502;
+    res.status(status).json({
+      error:
+        status === 429
+          ? "Gemini's free-tier limit was reached. Try again in a minute."
+          : status === 400 || status === 413 || status === 415
+            ? err instanceof Error
+              ? err.message
+              : "Invalid request."
+            : `${what}: ${err instanceof Error ? err.message : "provider error"}`,
+    });
+  };
+  app.post("/api/voice/token", async (req, res) => {
+    if (!options.voice?.liveToken) {
+      voiceUnavailable(res);
+      return;
+    }
+    const wait = liveLimit.take(req.ip ?? "local");
+    if (wait) {
+      res.setHeader("Retry-After", String(Math.ceil(wait / 1000)));
+      res.status(429).json({
+        error:
+          "Too many voice sessions. Try again later or type your question.",
+      });
+      return;
+    }
+    try {
+      res.json(await options.voice.liveToken(await voiceContext(req.body)));
+    } catch (err) {
+      voiceFailed(res, err, "Gemini Live could not start");
+    }
+  });
+  app.post("/api/voice/turn", async (req, res) => {
+    if (!options.voice) {
+      voiceUnavailable(res);
+      return;
+    }
+    const wait = turnLimit.take(req.ip ?? "local");
+    if (wait) {
+      res.setHeader("Retry-After", String(Math.ceil(wait / 1000)));
+      res
+        .status(429)
+        .json({
+          error: "Too many voice messages. Wait a minute and try again.",
+        });
+      return;
+    }
+    try {
+      const history = z
+        .array(
+          z.object({
+            role: z.enum(["user", "assistant"]),
+            text: z.string().max(2000),
+          }),
+        )
+        .max(20)
+        .default([]);
+      const body = z
+        .union([
+          z.object({
+            audio: z.object({
+              data: z.string().min(10).max(4_200_000),
+              mimeType: z.string().max(80),
+            }),
+            history,
+          }),
+          z.object({ text: z.string().trim().min(1).max(2000), history }),
+        ])
+        .parse(req.body);
+      res.json(await options.voice.turn(body, await voiceContext(req.body)));
+    } catch (err) {
+      voiceFailed(res, err, "The voice assistant could not answer");
+    }
   });
   app.patch("/api/runs/:id/notes", async (req, res) => {
     const run = await store.get(req.params.id);

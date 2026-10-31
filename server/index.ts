@@ -19,6 +19,7 @@ const { app, engine } = createApp({
   store,
   provider: setup.openai,
   providers: { openai: setup.openai, google: setup.google },
+  voice: setup.voice,
   defaultProvider: setup.defaultProvider,
   providerConfigurations: setup.providerConfigurations,
   model: setup.model,

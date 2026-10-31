@@ -54,6 +54,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "./theme";
 import ClarifyPanel from "./ClarifyPanel";
+import VoiceAssistant from "./VoiceAssistant";
 import EvidencePanel, { ClaimBadge, EvidenceSummary } from "./EvidencePanel";
 import AskPanel from "./AskPanel";
 import VersionsPanel from "./VersionsPanel";
@@ -224,6 +225,7 @@ function Modal({
 export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [initialBrief, setInitialBrief] = useState("");
+  const [initialTitle, setInitialTitle] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [page, setPage] = useState<Page>("research");
   const [runs, setRuns] = useState<Run[]>([]);
@@ -615,22 +617,38 @@ export default function App() {
       />
       {newWorkflow && (
         <NewResearch
+          key={`${newWorkflow}:${initialTitle}:${initialBrief.length}`}
           workflow={newWorkflow}
           initialBrief={initialBrief}
+          initialTitle={initialTitle}
           config={config}
           runs={runs}
           onClose={() => {
             setNewWorkflow(undefined);
             setInitialBrief("");
+            setInitialTitle("");
           }}
           onCreated={(run) => {
             setNewWorkflow(undefined);
             setInitialBrief("");
+            setInitialTitle("");
             setPage("research");
             changed(run);
           }}
         />
       )}
+      <VoiceAssistant
+        config={config}
+        context={{
+          runId: selected?.id,
+          page: selected ? "research detail" : page,
+        }}
+        onPrepareResearch={(action) => {
+          setInitialTitle(action.title);
+          setInitialBrief(action.brief);
+          setNewWorkflow(action.workflow);
+        }}
+      />
       {pendingDelete && (
         <Modal
           title="Delete this research?"
@@ -855,6 +873,7 @@ export default function App() {
 function NewResearch({
   workflow,
   initialBrief = "",
+  initialTitle = "",
   config,
   runs = [],
   onClose,
@@ -862,6 +881,7 @@ function NewResearch({
 }: {
   workflow: Workflow;
   initialBrief?: string;
+  initialTitle?: string;
   config?: Configuration;
   runs?: Run[];
   onClose: () => void;
@@ -869,7 +889,8 @@ function NewResearch({
 }) {
   const [kind, setKind] = useState(workflow);
   const [title, setTitle] = useState(
-    initialBrief ? initialBrief.replace(/\s+/g, " ").slice(0, 80) : "",
+    initialTitle ||
+      (initialBrief ? initialBrief.replace(/\s+/g, " ").slice(0, 80) : ""),
   );
   const [brief, setBrief] = useState(initialBrief);
   const [icp, setIcp] = useState("");

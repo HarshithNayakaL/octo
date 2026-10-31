@@ -1,6 +1,7 @@
 import { OpenAIProvider } from "./provider.js";
 // Provider APIs go through node:http too, so no reply is ever Brotli-decoded (CVE-2026-111497).
 import { plainFetch } from "./brotli-guard.js";
+import { GeminiVoice, defaultVoiceModels } from "./voice.js";
 import { GoogleProvider } from "./google-provider.js";
 import type { RunStore } from "./store.js";
 import type { ProviderConfiguration, ProviderId } from "../shared/types.js";
@@ -69,7 +70,21 @@ export function providersFromEnv(
       crmReady,
     },
   ];
+  // The same Google key powers the voice assistant: Gemini Live, a fast audio model and Gemini TTS.
+  const voice = env.GEMINI_API_KEY
+    ? new GeminiVoice(
+        env.GEMINI_API_KEY,
+        {
+          live: env.GEMINI_LIVE_MODEL ?? defaultVoiceModels.live,
+          turn: env.GEMINI_VOICE_MODEL ?? defaultVoiceModels.turn,
+          tts: env.GEMINI_TTS_MODEL ?? defaultVoiceModels.tts,
+          voice: env.GEMINI_VOICE ?? defaultVoiceModels.voice,
+        },
+        plainFetch,
+      )
+    : undefined;
   return {
+    voice,
     openai,
     google,
     model,

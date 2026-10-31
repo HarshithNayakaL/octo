@@ -169,6 +169,13 @@ export interface SourcePolicy {
   /** Flag sources older than this many months. */
   freshMonths?: number;
 }
+/** Something the voice assistant asks the app to do; the person confirms it. */
+export interface VoiceAction {
+  type: "prepare_research";
+  title: string;
+  brief: string;
+  workflow: Workflow;
+}
 /** A question answered only from this research. */
 export interface QuestionAnswer {
   id: string;
@@ -307,6 +314,14 @@ export interface Configuration {
   deployment?: "local" | "vercel";
   storage?: "sqlite" | "postgres";
   uploadLimitMb?: number;
+  /** Voice assistant availability and the models behind it. */
+  voice?: {
+    available: boolean;
+    provider?: string;
+    live?: string;
+    turn?: string;
+    tts?: string;
+  };
   /** The server runs a Node.js release with the October 2026 security fixes. */
   runtimePatched?: boolean;
   defaultProvider?: ProviderId;

@@ -73,6 +73,25 @@ describe("app status for the voice assistant", () => {
     expect(text).not.toContain("visitor:");
     expect(text).toContain("11 live chats left");
   });
+  it("writes one request in the singular and never doubles full stops", () => {
+    const text = statusText({
+      now,
+      providers,
+      fallbacks: [],
+      runs: [],
+      usage: { "gemini-3.8-live": 1 },
+      open: run({
+        id: "o",
+        title: "T",
+        community: {
+          status: "done",
+          error: "Some searches failed: HTTP 403.",
+        } as Run["community"],
+      }),
+    });
+    expect(text).toContain("gemini-3.8-live 1 request.");
+    expect(text).not.toContain("..");
+  });
   it("says so plainly when all is quiet", () => {
     const text = statusText({ now, providers, fallbacks: [], runs: [] });
     expect(text).toContain("Nothing is running right now.");

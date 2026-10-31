@@ -24,7 +24,8 @@ const PROBLEM = ["warning", "error"];
 const DAY = 24 * 60 * 60_000;
 
 const clip = (text: string | undefined, n: number) => {
-  const t = (text ?? "").replace(/\s+/g, " ").trim();
+  // Trailing full stops are dropped: the status adds its own punctuation.
+  const t = (text ?? "").replace(/\s+/g, " ").trim().replace(/\.+$/, "");
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 };
 
@@ -99,7 +100,7 @@ export function statusText(input: StatusInput) {
     lines.push("Recent problems (last 24 h):");
     for (const { run, a } of problems)
       lines.push(
-        `- ${ago(a.at, now)}, "${clip(run.title, 60)}": ${a.label}. ${clip(a.text, 200)}`,
+        `- ${ago(a.at, now)}, "${clip(run.title, 60)}": ${a.label}. ${clip(a.text, 200)}.`,
       );
     for (const run of failed)
       if (!problems.some((p) => p.run.id === run.id))
@@ -117,7 +118,7 @@ export function statusText(input: StatusInput) {
       const limit =
         input.configured?.[model]?.rpd ?? input.learned?.[model]?.rpd;
       const quotaHits = input.usage?.[`${model}#429`] ?? 0;
-      return `${model} ${count}${limit ? ` of ${limit}` : ""} requests${quotaHits ? `, ${quotaHits} refused for quota` : ""}`;
+      return `${model} ${count}${limit ? ` of ${limit}` : ""} ${count === 1 && !limit ? "request" : "requests"}${quotaHits ? `, ${quotaHits} refused for quota` : ""}`;
     };
     lines.push(
       `Gemini requests sent by Octo today (Pacific day; daily limits reset at midnight Pacific): ${models.map(describe).join("; ")}.`,

@@ -56,7 +56,8 @@ export default function VoiceAssistant({
   const contextRef = useRef(context);
   contextRef.current = context;
   const scroller = useRef<HTMLDivElement>(null);
-  const available = config?.voice?.available ?? false;
+  // Unknown until the config loads; only a confirmed "unavailable" blocks the mic.
+  const unavailable = config?.voice?.available === false;
   const events = {
     state: (s: VoiceState, d?: string) => {
       setState(s);
@@ -98,7 +99,7 @@ export default function VoiceAssistant({
   async function begin() {
     setNotice("");
     setAction(undefined);
-    if (!available) {
+    if (unavailable) {
       setState("error");
       setDetail(
         "The voice assistant needs GEMINI_API_KEY on the server. Add it and redeploy.",

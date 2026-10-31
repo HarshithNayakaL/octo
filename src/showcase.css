@@ -1796,3 +1796,72 @@ table th {
     grid-template-columns: 1fr;
   }
 }
+
+/*
+ * Short laptop screens (1366x657 and similar): the sidebar scrolls instead of
+ * clipping its footer, and tightens its spacing so everything usually fits.
+ */
+.sidebar {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+@media (max-height: 820px) {
+  .sidebar {
+    padding-top: 18px;
+  }
+  .sidebar .nav-label {
+    margin: 16px 13px 6px;
+  }
+  .sidebar .recent-label {
+    margin-top: 16px;
+  }
+  .sidebar nav {
+    gap: 2px;
+  }
+  .sidebar nav button {
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+  .sidebar-bottom {
+    padding-top: 14px;
+  }
+  .engine-card {
+    margin: 8px 4px 12px;
+    padding: 10px 12px;
+  }
+  .engine-card p {
+    margin: 6px 0 8px;
+  }
+  .sidebar-bottom > .quiet {
+    padding-bottom: 12px;
+  }
+  .profile {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}
+@media (max-height: 820px) and (pointer: coarse) {
+  .sidebar nav button {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}
+@media (max-height: 700px) and (pointer: fine) {
+  .sidebar {
+    padding-top: 14px;
+  }
+  .sidebar .nav-label {
+    margin: 12px 13px 4px;
+  }
+  .sidebar .recent-label {
+    margin-top: 12px;
+  }
+  .sidebar nav button {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+  .engine-card p {
+    display: none;
+  }
+}

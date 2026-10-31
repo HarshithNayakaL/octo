@@ -5,10 +5,10 @@
  * used sparingly as the one colour that glows.
  */
 :root[data-theme="dark"] {
-  --panel: linear-gradient(180deg, #0d0d10 0%, #070709 100%);
-  --panel-edge: #1b1b21;
-  --panel-edge-hover: #2c3352;
-  --panel-lit: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --panel: linear-gradient(180deg, #131317 0%, #0f0f12 100%);
+  --panel-edge: #26262e;
+  --panel-edge-hover: #3b4572;
+  --panel-lit: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   --glow: rgba(98, 128, 255, 0.55);
   --shadow-sm: var(--panel-lit);
   --shadow-md: var(--panel-lit), 0 18px 40px -20px rgba(0, 0, 0, 0.9);
@@ -237,26 +237,8 @@
   color: #9fb3ff;
   box-shadow: inset 0 0 0 1px rgba(110, 140, 255, 0.16);
 }
-:root[data-theme="dark"] .tile-evidence {
-  background:
-    radial-gradient(
-      70% 80% at 100% 0%,
-      rgba(70, 105, 255, 0.1),
-      transparent 60%
-    ),
-    var(--panel);
-}
-:root[data-theme="dark"] .evidence-demo {
-  background: rgba(255, 255, 255, 0.02);
-  border-color: var(--panel-edge);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-:root[data-theme="dark"] .evidence-demo li {
-  background: #0a0a0d;
-  border-color: #18181d;
-}
 :root[data-theme="dark"] .tile-stat {
-  border-top-color: #22222a;
+  border-top-color: #2c2c34;
 }
 :root[data-theme="dark"] .tile-stat span {
   color: #80848f;
@@ -323,4 +305,64 @@
 :root[data-theme="dark"] .local-pill {
   border: 0;
   color: #80848f;
+}
+
+/* Rows inside a card read as a layer of their own. */
+:root[data-theme="dark"] .evidence-demo {
+  background: #0a0a0c;
+  border-color: #23232a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+:root[data-theme="dark"] .evidence-demo li {
+  background: #18181d;
+  border-color: #2a2a32;
+}
+:root[data-theme="dark"] .tile-people blockquote {
+  background: #18181d;
+}
+:root[data-theme="dark"] .bento-strip li {
+  border-color: var(--panel-edge);
+}
+:root[data-theme="dark"] .tile-evidence {
+  background:
+    radial-gradient(
+      70% 80% at 100% 0%,
+      rgba(70, 105, 255, 0.12),
+      transparent 60%
+    ),
+    var(--panel);
+}
+:root[data-theme="dark"] .tile-voice,
+:root[data-theme="dark"] .hero-panel {
+  border-color: #283056;
+}
+
+/* Cards inside a panel sit one step lighter than the panel. */
+:root[data-theme="dark"] .claim-row,
+:root[data-theme="dark"] .answer,
+:root[data-theme="dark"] .theme-card,
+:root[data-theme="dark"] .source-row,
+:root[data-theme="dark"] .version-row,
+:root[data-theme="dark"] .director-card,
+:root[data-theme="dark"] .connection-card,
+:root[data-theme="dark"] .resume-card,
+:root[data-theme="dark"] .lead-card,
+:root[data-theme="dark"] .engine-card {
+  background-color: #1a1a1f;
+  border-top-color: #2e2e37;
+  border-right-color: #2e2e37;
+  border-bottom-color: #2e2e37;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+:root[data-theme="dark"] .claim-row:not([class*=" "]),
+:root[data-theme="dark"] .answer,
+:root[data-theme="dark"] .theme-card,
+:root[data-theme="dark"] .source-row,
+:root[data-theme="dark"] .director-card,
+:root[data-theme="dark"] .connection-card {
+  border-left-color: #2e2e37;
+}
+:root[data-theme="dark"] .evidence-head,
+:root[data-theme="dark"] .ask-head {
+  background-color: #17171c;
 }

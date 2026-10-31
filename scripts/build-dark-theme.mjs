@@ -79,12 +79,12 @@ function mapColor(token, role) {
   if (role === "line") {
     if (neutral)
       return format(
-        fromHsl(...GREY, clamp(0.12 + (0.95 - l) * 0.5, 0.11, 0.2)),
+        fromHsl(...GREY, clamp(0.18 + (0.95 - l) * 0.5, 0.17, 0.27)),
         a,
       );
     if (l > 0.6)
       return format(
-        fromHsl(h, Math.min(s, 0.5), clamp(0.16 + (1 - l) * 0.4, 0.15, 0.3)),
+        fromHsl(h, Math.min(s, 0.5), clamp(0.2 + (1 - l) * 0.4, 0.19, 0.34)),
         a,
       );
     return format(fromHsl(h, s, clamp(l + 0.1, 0.28, 0.55)), a);
@@ -94,7 +94,7 @@ function mapColor(token, role) {
     // White cards become near-black panels; light greys become slightly raised ones.
     if (l > 0.5)
       return format(
-        fromHsl(...GREY, clamp(0.035 + (1 - l) * 1.3, 0.035, 0.14)),
+        fromHsl(...GREY, clamp(0.065 + (1 - l) * 1.2, 0.065, 0.17)),
         a,
       );
     return format(fromHsl(...GREY, clamp(0.92 - l * 0.4, 0.75, 0.94)), a);
@@ -102,7 +102,7 @@ function mapColor(token, role) {
   // Light tints become deep tints; saturated fills (primary buttons) keep their colour.
   if (l > 0.82)
     return format(
-      fromHsl(h, Math.min(s, 0.55), clamp(0.06 + (1 - l) * 0.35, 0.06, 0.13)),
+      fromHsl(h, Math.min(s, 0.55), clamp(0.08 + (1 - l) * 0.35, 0.08, 0.15)),
       a,
     );
   if (l < 0.45) return format(fromHsl(h, s, clamp(l + 0.08, 0.32, 0.5)), a);

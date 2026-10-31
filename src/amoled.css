@@ -247,3 +247,33 @@
   border-color: #34406b;
   color: #b8c6ff;
 }
+
+/* Difference section on black. */
+:root[data-theme="dark"] .lane {
+  background: #101014;
+  border-color: #2b3352;
+}
+:root[data-theme="dark"] .lane.model {
+  background: transparent;
+  border-color: #4a5577;
+}
+:root[data-theme="dark"] .lane-tag {
+  color: #9fb3ff;
+}
+:root[data-theme="dark"] .lane.model .lane-tag {
+  color: #8b8f9a;
+}
+:root[data-theme="dark"] .ledger-table {
+  border-top-color: #d6d9e2;
+}
+:root[data-theme="dark"] .ledger-row {
+  border-color: #23232a;
+}
+:root[data-theme="dark"] .ledger-row .octo-col {
+  background: #0d1226;
+  border-color: #6f8bff;
+  color: #e3e8ff;
+}
+:root[data-theme="dark"] .ledger-header .octo-col {
+  color: #9fb3ff;
+}

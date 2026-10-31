@@ -84,3 +84,7 @@ report · 1400+
 phone · 390: hero stacks (copy, specimen, notes in 2 columns); Fig. 1 is a
 vertical track with nodes on the left; reports keep inline marks and highlights.
 ```
+
+### Difference section (Fig. 1)
+
+Between the hero and the process map, "Not another way to ask a model" answers how Octo differs from a search engine and an AI chat with search, without reading as a wrapper. A five-step schematic separates the one swappable part (the model, drawn dashed like a slot) from what Octo runs itself (your plan, its own fetcher, the figure and wording comparison, the marks in the text), and the caption states plainly what the model does (lists claims, with a rule-based fallback) and what Octo's code decides (the verdicts). A comparison ledger follows: seven research questions, three columns, Octo's column tinted with a blue rule and written as mechanisms, not adjectives. On phones each question is a card with Octo's answer first. The process map is now Fig. 2.

@@ -1877,6 +1877,46 @@
 :root[data-theme="dark"] .agent-list .planned-note {
   color: #a2a4ad;
 }
+:root[data-theme="dark"] .lane {
+  border: 1px solid #213262;
+  background: #101012;
+}
+:root[data-theme="dark"] .lane > span:last-child {
+  color: #bdbec4;
+}
+:root[data-theme="dark"] .lane.model {
+  border-color: #34436f;
+  background: #0a1123;
+}
+:root[data-theme="dark"] .lane.model .lane-tag {
+  color: #a2a4ad;
+}
+:root[data-theme="dark"] .lanes figcaption {
+  color: #a2a4ad;
+}
+:root[data-theme="dark"] .ledger-row {
+  border-bottom: 1px solid #2a354e;
+}
+:root[data-theme="dark"] .ledger-row > span {
+  color: #acaeb6;
+}
+:root[data-theme="dark"] .ledger-row .octo-col {
+  background: #0a1123;
+  color: #9da9c8;
+}
+:root[data-theme="dark"] .ledger-header > span {
+  color: #a2a4ad;
+}
+@media (max-width: 720px) {
+  :root[data-theme="dark"] .ledger-row {
+    border: 1px solid #2a354e;
+  }
+}
+@media (max-width: 720px) {
+  :root[data-theme="dark"] .ledger-row > span[data-label]::before {
+    color: #a2a4ad;
+  }
+}
 :root[data-theme="dark"] {
   color-scheme: dark;
   --ink: #f4f5f8;

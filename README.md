@@ -6,9 +6,11 @@ A TypeScript research workspace built around the **OpenAI Agents API**: a resear
 
 **Case study:** [harshith-nayaka-l-portfolio.vercel.app/work/octo](https://harshith-nayaka-l-portfolio.vercel.app/work/octo): the problem, the architecture and the engineering decisions behind Octo.
 
-## Why Octo instead of a chat assistant
+## How Octo differs from search engines and AI chat
 
-A chat assistant can research a question. Octo is built around what happens around the research: aiming it, checking it, and keeping it useful.
+A search engine hands you links; an AI chat hands you an answer with links. Both leave the checking to you. Octo is the work around the model: it plans the research with you before searching, and then checks what the model wrote against the pages it cites.
+
+**The model writes; Octo checks.** Gemini or OpenAI researches and drafts the report. Octo's own code then fetches every cited page and PDF, compares the claim's figures and wording with the page, and marks each claim in the sentence it belongs to. The model lists which claims to check (with a rule-based fallback if that call fails), but it never grades its own work: the verdicts come from Octo reading the source. Planning, source labels, the evidence check, versions and Challenge work the same whichever model writes the report.
 
 | | Chat assistant | Octo |
 |---|---|---|

@@ -207,7 +207,7 @@ export function ProcessMap() {
   return (
     <section className="process-map" aria-labelledby="process-title">
       <div className="map-head">
-        <p className="fig-label">Fig. 1</p>
+        <p className="fig-label">Fig. 2</p>
         <h2 id="process-title">How a report gets made</h2>
         <p>
           Seven steps. You steer at three of them; Octo does the searching,
@@ -236,6 +236,156 @@ export function ProcessMap() {
         Later: refresh any report and Octo shows what changed, keeping every
         version. Ask follow-up questions and it answers only from the research.
       </p>
+    </section>
+  );
+}
+
+/** The pipeline split into the part a model does and the parts Octo runs itself. */
+const lanes: { title: string; text: string; model?: boolean }[] = [
+  {
+    title: "Your plan",
+    text: "You keep or drop each research area before any search runs.",
+  },
+  {
+    title: "A model writes",
+    text: "Gemini or OpenAI researches and drafts the cited report.",
+    model: true,
+  },
+  {
+    title: "Octo fetches",
+    text: "Its own fetcher opens every cited page and PDF.",
+  },
+  {
+    title: "Octo compares",
+    text: "Figures and wording in the claim against the page itself.",
+  },
+  {
+    title: "Octo marks",
+    text: "Each verdict lands on the sentence it belongs to.",
+  },
+];
+
+const ledger: {
+  question: string;
+  engine: string;
+  chat: string;
+  octo: string;
+}[] = [
+  {
+    question: "Before it searches",
+    engine: "Takes the keywords you typed.",
+    chat: "Starts answering straight away.",
+    octo: "Says what it understood, proposes research areas for your brief, and waits for you to keep or drop each.",
+  },
+  {
+    question: "Are the citations right?",
+    engine: "You open each link to find out.",
+    chat: "You open each link to find out.",
+    octo: "Opens every cited page and PDF itself, compares the figures, and marks each claim Supported, Partly supported, Not found or No source.",
+  },
+  {
+    question: "Which sources count",
+    engine: "Whatever ranks, SEO pages included.",
+    chat: "Whatever the search returned.",
+    octo: "Every source labelled by kind and date, blogs and review sites flagged, primary sources first, your trusted and blocked domains respected.",
+  },
+  {
+    question: "What people actually experience",
+    engine: "Forum threads mixed into results.",
+    chat: "Only if the search happens to find them.",
+    octo: "Themes from Reddit and Hacker News discussions, quoted word for word with a link to each post.",
+  },
+  {
+    question: "The other side",
+    engine: "A separate search, if you think of it.",
+    chat: "Usually one confident answer.",
+    octo: "Challenge searches for the strongest evidence against the report and records whether each point stands.",
+  },
+  {
+    question: "Follow-up questions",
+    engine: "A new search from scratch.",
+    chat: "Answered partly from the model's memory.",
+    octo: "Answered only from the report and its checked claims; what it can't answer becomes follow-up research.",
+  },
+  {
+    question: "Next month",
+    engine: "Search again.",
+    chat: "Ask again and get a different answer.",
+    octo: "Refresh the report; every version is kept with a line-by-line view of what changed.",
+  },
+];
+
+/** Where Octo differs from search engines and AI chat, and why it is not a wrapper. */
+export function DifferenceSection() {
+  return (
+    <section className="difference" aria-labelledby="difference-title">
+      <div className="map-head">
+        <p className="fig-label">Fig. 1</p>
+        <h2 id="difference-title">Not another way to ask a model</h2>
+        <p>
+          A search engine hands you links. An AI chat hands you an answer with
+          links. Both leave the checking to you. Octo is the work around the
+          model: it plans with you before searching and checks what the model
+          wrote against the pages it cites.
+        </p>
+      </div>
+
+      <figure className="lanes">
+        <ol aria-label="Who does what in a research run">
+          {lanes.map((lane) => (
+            <li key={lane.title} className={lane.model ? "lane model" : "lane"}>
+              <span className="lane-tag">
+                {lane.model
+                  ? "Swappable model"
+                  : lane.title === "Your plan"
+                    ? "You"
+                    : "Octo's own code"}
+              </span>
+              <b>{lane.title}</b>
+              <span>{lane.text}</span>
+            </li>
+          ))}
+        </ol>
+        <figcaption>
+          The model lists the claims to check, with a rule-based fallback if it
+          can't; the verdicts come from Octo reading the cited page. Switch
+          Gemini for OpenAI and the planning, checking, source labels, versions
+          and challenge work the same way.
+        </figcaption>
+      </figure>
+
+      <div
+        className="ledger-table"
+        role="table"
+        aria-label="Octo compared with a search engine and an AI chat"
+      >
+        <div className="ledger-row ledger-header" role="row">
+          <span role="columnheader">
+            <span className="sr-only">Question</span>
+          </span>
+          <span role="columnheader">Search engine</span>
+          <span role="columnheader">AI chat with search</span>
+          <span role="columnheader" className="octo-col">
+            Octo
+          </span>
+        </div>
+        {ledger.map((row) => (
+          <div className="ledger-row" role="row" key={row.question}>
+            <span role="rowheader" className="ledger-q">
+              {row.question}
+            </span>
+            <span role="cell" data-label="Search engine">
+              {row.engine}
+            </span>
+            <span role="cell" data-label="AI chat with search">
+              {row.chat}
+            </span>
+            <span role="cell" data-label="Octo" className="octo-col">
+              {row.octo}
+            </span>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

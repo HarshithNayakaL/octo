@@ -13,7 +13,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { Arc, Orbit } from "loading-dev";
-import { ProcessMap, SpecimenHero } from "./Showcase";
+import { DifferenceSection, ProcessMap, SpecimenHero } from "./Showcase";
 import Select from "./Select";
 import { deletable, isActive, statusLabel } from "./status";
 import {
@@ -100,6 +100,7 @@ export default function OriginalOverview({
       {page === "research" && (
         <>
           <SpecimenHero onStart={() => onCreate("general")} />
+          <DifferenceSection />
           <ProcessMap />
           <div className="section-top">
             <h2>Start new research</h2>

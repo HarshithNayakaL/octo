@@ -180,3 +180,26 @@ Not yet verified live: Challenge this report and a source policy on a real resea
     - No runtime errors appeared in the last 24 hours.
 - **Follow-up check (24 October 2026, 14:00 UTC):** `/api/config` still reports `"runtimePatched": false`, and the runtime logs show Node.js 24.21.0. Vercel's bulletin still says the patched runtimes are rolling out, so there was no redeploy. Octo's Brotli safeguards remain in place.
 - **Final scheduled check (26 October 2026, 14:07 UTC):** still `"runtimePatched": false`, with Node.js 24.21.0 in the runtime logs. Vercel's bulletin still says the rollout is in progress, so there was no redeploy. Octo's Brotli safeguards remain the protection until Vercel ships 24.22.1.
+
+## Voice assistant (31 October 2026)
+
+- **Automated tests:** 8 new backend tests cover:
+  - Live token minting: single use, setup locked, key never returned;
+  - an audio turn with Gemini TTS;
+  - the TTS rate-limit fallback;
+  - unsupported audio formats;
+  - an unconfigured key;
+  - per-visitor limits;
+  - action parsing;
+  - audio helpers.
+
+  A new Playwright test checks that the mic button is visible and opens the panel. Results: 130 backend tests and 8 Playwright runs (desktop and mobile) pass, and the build succeeds.
+- **Live on https://octo-agents.vercel.app (Gemini free tier):**
+  - **Typed question → `gemini-3.5-flash-lite` + `gemini-3.8-flash-lite-tts`:** a full research brief (Market intelligence) and 8.2 s of 24 kHz speech, in 6.0 s end to end.
+  - **Spoken question (Opus/WebM) → push-to-talk endpoint:** exact transcript, an answer and speech in 5.3 s.
+  - **Gemini Live (`gemini-3.8-live`) over WebSocket with a server-minted token:** token in 0.5 s, session ready in 1.4 s, exact input transcript, spoken answer with a transcript, and **first reply audio 0.87 s after the end of speech**.
+  - **Real Chromium on the live site, with the question as a fake microphone:**
+    - A spoken question got a spoken answer in Live mode.
+    - A spoken "set up new research on the electric scooter market in India for an investor" opened the research form 10 s later, with title, brief and Market intelligence filled in, and nothing started.
+    - With Live blocked, Octo switched to push-to-talk, stopped recording at the pause, transcribed and answered aloud (4.6 s from the end of recording to speech).
+- **Not tested:** a real person on a real microphone and speakers (echo cancellation relies on the browser), and Safari. Both are worth checking in the first manual test.

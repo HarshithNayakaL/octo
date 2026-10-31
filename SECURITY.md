@@ -32,6 +32,15 @@ npm audit signatures
 
 When running locally behind an HTTP proxy, set `NODE_USE_ENV_PROXY=1` so `plainFetch` (built on `node:http`) uses it.
 
+## Voice assistant
+
+The browser talks to Gemini Live directly over `wss://generativelanguage.googleapis.com`, the only external address added to the Content Security Policy. It authenticates with an ephemeral token from `POST /api/voice/token`, never the API key. Each token:
+- allows a single session;
+- must start that session within 2 minutes and expires after 30 minutes;
+- is locked to Octo's model, voice, instructions and tools.
+
+Token minting and voice turns are rate limited per visitor. The assistant can only open the research form, so a person always confirms before anything runs.
+
 ## Reporting a vulnerability
 
 Please open a private security advisory on the GitHub repository rather than a public issue.

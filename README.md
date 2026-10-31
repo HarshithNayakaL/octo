@@ -108,6 +108,19 @@ The **Ask** tab answers questions using only the report, its checked claims and 
 
 Whenever a follow-up, continuation, scheduled check or **Refresh research** replaces a report, the old one is kept (up to 10 versions). The **Versions** tab compares the current report with any earlier version line by line, and lists added and dropped sources and the change in evidence score. **Refresh research** asks the agent to look for evidence published since the report, re-check its figures, and return one updated report ending with a "What changed" section.
 
+### Voice assistant
+
+The **Talk to Octo** button (bottom right, on every page) opens a voice assistant. It uses the same `GEMINI_API_KEY` as research, on the Gemini free tier. Ask it anything: what Octo can do, questions about the research you have open (it reads the report and evidence score), or "set up research on…". When you ask for research, it opens the research form with a title, brief and workflow filled in. It never starts research by itself; you review the form and press Continue.
+
+- **Live (main):** the browser streams your voice to **Gemini Live** (`gemini-3.8-live`) and plays the spoken reply, with live transcripts. You can interrupt it mid-sentence. The server mints a single-use token (`POST /api/voice/token`) that locks the model, voice, instructions and tools for one session; the API key never reaches the browser. In testing, the first reply audio started about 0.9 s after the speaker stopped. Sessions end after 90 seconds of quiet or 9 minutes, to save free-tier minutes.
+- **Push-to-talk (fallback):** if Live is unavailable, tap the mic and speak. Recording stops on its own when you pause. One call to `gemini-3.5-flash-lite` transcribes and answers, and **Gemini TTS** (`gemini-3.8-flash-lite-tts`) speaks the reply (about 5 s end to end). If TTS hits its free-tier limit, the browser's own voice reads the reply.
+- **Typing** works in both modes.
+- **Limits:** 12 Live sessions per hour and 20 push-to-talk turns per 10 minutes per visitor, plus Google's own free-tier limits.
+- **Models:** override with `GEMINI_LIVE_MODEL`, `GEMINI_VOICE_MODEL`, `GEMINI_TTS_MODEL` and `GEMINI_VOICE` (default voice: Kore).
+- **Privacy:** speech is sent to Google to answer you and is not stored by Octo.
+
+The voice code sits behind a small provider interface (`server/voice.ts`), so another speech provider (such as Sarvam) can be added later as a backup, the same way OpenAI sits beside Gemini for research.
+
 ### Community voices
 
 People add "reddit" to their searches because forums hold first-hand experience. Some AI assistants can't read Reddit at all. With **Include what real people say** (in the research form or the question step), or **Gather voices** on any finished run, Octo:
@@ -236,6 +249,7 @@ Live deployment: **https://octo-agents.vercel.app** (Google Gemini by default, O
 | `GEMINI_API_KEY`     | Always (default provider, free tier)                                                            |
 | `OPENAI_API_KEY`     | Only if OpenAI should be available                                                              |
 | `OPENAI_UNLOCK_WORD` | Only with an OpenAI key: the word that unlocks OpenAI in the UI. Without it OpenAI stays locked |
+| `GEMINI_LIVE_MODEL`, `GEMINI_VOICE_MODEL`, `GEMINI_TTS_MODEL`, `GEMINI_VOICE` | Optional: voice assistant models and voice. The defaults work on the free tier |
 | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Optional: Reddit in Community voices on Vercel (see below). Without them, Hacker News still works |
 
 4. Deploy. Changing variables later requires a redeploy.

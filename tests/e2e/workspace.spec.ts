@@ -126,3 +126,21 @@ test("evidence check, grounded questions and versions work in demo mode", async 
   await page.getByRole("tab", { name: "Versions (2)" }).click();
   await expect(page.getByText(/\+\d+ lines/)).toBeVisible();
 });
+test("the voice assistant button is always visible and opens the panel", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const fab = page.getByRole("button", { name: "Talk to Octo" });
+  await expect(fab).toBeVisible();
+  const box = (await fab.boundingBox())!;
+  expect(box.width).toBeGreaterThanOrEqual(48);
+  await fab.click();
+  await expect(
+    page.getByRole("dialog", { name: "Octo voice assistant" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Type to Octo")).toBeVisible();
+  await page.getByRole("button", { name: "Close voice assistant" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Octo voice assistant" }),
+  ).toHaveCount(0);
+});

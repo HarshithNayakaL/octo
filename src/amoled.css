@@ -1,0 +1,324 @@
+/*
+ * AMOLED dark theme, hand-tuned layer. src/dark.css (generated) maps every
+ * light colour; this file shapes the showcase surfaces on true black:
+ * near-black panels with a lit top edge, hairline borders, and blue light
+ * used sparingly as the one colour that glows.
+ */
+:root[data-theme="dark"] {
+  --panel: linear-gradient(180deg, #0d0d10 0%, #070709 100%);
+  --panel-edge: #1b1b21;
+  --panel-edge-hover: #2c3352;
+  --panel-lit: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --glow: rgba(98, 128, 255, 0.55);
+  --shadow-sm: var(--panel-lit);
+  --shadow-md: var(--panel-lit), 0 18px 40px -20px rgba(0, 0, 0, 0.9);
+  --shadow-lg: var(--panel-lit), 0 30px 60px -24px rgba(0, 0, 0, 0.95);
+}
+
+/* Shell: true black everywhere behind the content. */
+:root[data-theme="dark"] .app-shell,
+:root[data-theme="dark"] .main-shell,
+:root[data-theme="dark"] .sidebar {
+  background: #000;
+}
+:root[data-theme="dark"] .sidebar {
+  border-right-color: #141418;
+}
+:root[data-theme="dark"] .topbar {
+  background: rgba(0, 0, 0, 0.72);
+  border-bottom-color: #141418;
+}
+
+/* Panels: near-black with a lit top edge instead of drop shadows. */
+:root[data-theme="dark"] .bento-tile,
+:root[data-theme="dark"] .workflow-card,
+:root[data-theme="dark"] .trust-strip,
+:root[data-theme="dark"] .pulse-panel,
+:root[data-theme="dark"] .report-panel,
+:root[data-theme="dark"] .activity-panel,
+:root[data-theme="dark"] .bento-strip {
+  background: var(--panel);
+  border-color: var(--panel-edge);
+  box-shadow: var(--panel-lit);
+}
+:root[data-theme="dark"] .bento-tile:hover,
+:root[data-theme="dark"] .workflow-card:hover {
+  border-color: var(--panel-edge-hover);
+  box-shadow:
+    var(--panel-lit),
+    0 0 0 1px rgba(98, 128, 255, 0.08),
+    0 24px 48px -24px rgba(60, 90, 255, 0.35);
+}
+:root[data-theme="dark"] .bento-tile::before,
+:root[data-theme="dark"] .workflow-card::before {
+  background: radial-gradient(
+    380px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(110, 140, 255, 0.11),
+    transparent 45%
+  );
+}
+:root[data-theme="dark"] .report-tabs {
+  background: transparent;
+}
+:root[data-theme="dark"] .trust-cell {
+  border-right-color: var(--panel-edge);
+}
+:root[data-theme="dark"] .trust-cell:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+/* Headings: soft white-to-steel gradient for the big type. */
+:root[data-theme="dark"] .page-heading h1,
+:root[data-theme="dark"] .bento-heading h2,
+:root[data-theme="dark"] .detail-heading h1 {
+  background: linear-gradient(180deg, #ffffff 30%, #a7b0c8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:root[data-theme="dark"] .eyebrow,
+:root[data-theme="dark"] .eyebrow-strong {
+  color: #8ea6ff;
+}
+
+/* Primary actions: electric blue with a soft glow. */
+:root[data-theme="dark"] .primary {
+  background: linear-gradient(180deg, #4a6bff, #3152f0) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 24px -10px var(--glow);
+}
+:root[data-theme="dark"] .primary:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 10px 30px -8px var(--glow);
+}
+
+/* Hero: black stage lit by a blue aurora, with the grid fading out. */
+:root[data-theme="dark"] .hero-panel {
+  background:
+    radial-gradient(
+      70% 90% at 88% -10%,
+      rgba(70, 105, 255, 0.42),
+      transparent 60%
+    ),
+    radial-gradient(
+      50% 70% at 0% 110%,
+      rgba(0, 170, 255, 0.14),
+      transparent 60%
+    ),
+    radial-gradient(
+      40% 50% at 55% 50%,
+      rgba(120, 90, 255, 0.08),
+      transparent 70%
+    ),
+    #050507;
+  border: 1px solid #1c2036;
+  box-shadow:
+    var(--panel-lit),
+    0 40px 80px -40px rgba(50, 80, 255, 0.35);
+}
+:root[data-theme="dark"] .hero-panel::after {
+  opacity: 0.1;
+}
+:root[data-theme="dark"] .hero-copy h2 {
+  background: linear-gradient(180deg, #ffffff 35%, #b4c1ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:root[data-theme="dark"] .hero-copy p {
+  color: rgba(214, 220, 240, 0.74);
+}
+:root[data-theme="dark"] .hero-tag {
+  color: rgba(255, 255, 255, 0.82);
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+:root[data-theme="dark"] .hero-copy button,
+:root[data-theme="dark"] .tile-action {
+  background: #fff;
+  color: #05070f;
+  box-shadow: 0 10px 30px -12px rgba(140, 165, 255, 0.6);
+}
+:root[data-theme="dark"] .hero-folio {
+  color: rgba(255, 255, 255, 0.32);
+}
+:root[data-theme="dark"] .research-diagram {
+  color: #5d73c9;
+}
+:root[data-theme="dark"] .diagram-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  -webkit-mask-image: radial-gradient(
+    70% 70% at 60% 45%,
+    #000 30%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(70% 70% at 60% 45%, #000 30%, transparent 100%);
+}
+:root[data-theme="dark"] .director-node,
+:root[data-theme="dark"] .specialist-nodes > div,
+:root[data-theme="dark"] .report-node {
+  background: rgba(14, 16, 26, 0.72);
+  border-color: rgba(150, 170, 255, 0.18);
+  color: #e3e8ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 14px 30px -14px rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(8px);
+}
+:root[data-theme="dark"] .specialist-nodes > div:hover {
+  border-color: rgba(150, 170, 255, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 24px -6px rgba(98, 128, 255, 0.45);
+}
+
+/* Voice tile: a dark stage where the orb is the light source. */
+:root[data-theme="dark"] .tile-voice {
+  background:
+    radial-gradient(
+      90% 55% at 50% 42%,
+      rgba(70, 105, 255, 0.32),
+      transparent 70%
+    ),
+    radial-gradient(
+      100% 60% at 50% 0%,
+      rgba(140, 120, 255, 0.12),
+      transparent 70%
+    ),
+    #050507;
+  border: 1px solid #1c2036;
+  box-shadow: var(--panel-lit);
+}
+:root[data-theme="dark"] .tile-voice:hover {
+  border-color: #2f3a6b;
+}
+:root[data-theme="dark"] .tile-voice h3,
+:root[data-theme="dark"] .tile-icon.on-dark {
+  color: #fff;
+}
+:root[data-theme="dark"] .tile-icon.on-dark {
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+:root[data-theme="dark"] .tile-voice p {
+  color: rgba(214, 220, 240, 0.72);
+}
+:root[data-theme="dark"] .demo-orb span {
+  background: radial-gradient(
+    circle at 35% 30%,
+    #e4ebff,
+    #6d8dff 50%,
+    #2443e0 100%
+  );
+  box-shadow:
+    0 0 50px rgba(98, 128, 255, 0.75),
+    0 0 120px rgba(98, 128, 255, 0.3);
+}
+:root[data-theme="dark"] .demo-orb i {
+  border-color: rgba(140, 165, 255, 0.4);
+}
+:root[data-theme="dark"] .bubble.you {
+  background: rgba(255, 255, 255, 0.94);
+  color: #05070f !important;
+}
+:root[data-theme="dark"] .bubble.octo {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e8ecff !important;
+}
+
+/* Small bento details. */
+:root[data-theme="dark"] .tile-icon {
+  background: rgba(110, 140, 255, 0.1);
+  color: #9fb3ff;
+  box-shadow: inset 0 0 0 1px rgba(110, 140, 255, 0.16);
+}
+:root[data-theme="dark"] .tile-evidence {
+  background:
+    radial-gradient(
+      70% 80% at 100% 0%,
+      rgba(70, 105, 255, 0.1),
+      transparent 60%
+    ),
+    var(--panel);
+}
+:root[data-theme="dark"] .evidence-demo {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--panel-edge);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+:root[data-theme="dark"] .evidence-demo li {
+  background: #0a0a0d;
+  border-color: #18181d;
+}
+:root[data-theme="dark"] .tile-stat {
+  border-top-color: #22222a;
+}
+:root[data-theme="dark"] .tile-stat span {
+  color: #80848f;
+}
+:root[data-theme="dark"] .chip-demo span.on {
+  background: #3152f0;
+  border-color: #3152f0;
+  color: #fff;
+  box-shadow: 0 6px 18px -8px var(--glow);
+}
+:root[data-theme="dark"] .tile-people blockquote {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+/* Reports on black. */
+:root[data-theme="dark"] .markdown {
+  color: #b3b7c2;
+}
+:root[data-theme="dark"] .markdown h1,
+:root[data-theme="dark"] .markdown h2,
+:root[data-theme="dark"] .markdown h3,
+:root[data-theme="dark"] .markdown strong {
+  color: #f1f3f8;
+}
+:root[data-theme="dark"] .markdown h2 {
+  border-top-color: #18181d;
+}
+:root[data-theme="dark"] .markdown table {
+  border-color: #1d1d23;
+}
+:root[data-theme="dark"] .markdown td,
+:root[data-theme="dark"] .markdown th {
+  border-bottom-color: #17171c;
+}
+:root[data-theme="dark"] .markdown th {
+  background: #0d0d11;
+  color: #c9cdd8;
+}
+:root[data-theme="dark"] .markdown tbody tr:hover td {
+  background: #0b0b0e;
+}
+
+/* The voice button glows on black. */
+:root[data-theme="dark"] .voice-fab {
+  background: linear-gradient(180deg, #4a6bff, #3152f0) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 0 1px rgba(98, 128, 255, 0.3),
+    0 12px 36px -8px var(--glow) !important;
+}
+
+/* Dialogs float over a black veil. */
+:root[data-theme="dark"] .modal-backdrop,
+:root[data-theme="dark"] .command-overlay {
+  background: rgba(0, 0, 0, 0.72);
+}
+:root[data-theme="dark"] .modal {
+  background: #08080a;
+  border: 1px solid #1d1d23;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 40px 100px -30px rgba(0, 0, 0, 1);
+}

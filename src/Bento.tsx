@@ -100,12 +100,24 @@ export default function Bento() {
             <span className="tile-icon">
               <ShieldCheck size={18} />
             </span>
-            <h3>Checks its own citations</h3>
-            <p>
-              Octo opens every cited page and PDF itself, looks for the figures
-              each claim depends on, and scores the report. Flagged claims come
-              first.
-            </p>
+            <div>
+              <h3>Checks its own citations</h3>
+              <p>
+                Octo opens every cited page and PDF itself, looks for the
+                figures each claim depends on, and scores the report. Flagged
+                claims come first.
+              </p>
+            </div>
+            <div className="tile-stat">
+              <div>
+                <b>Pages + PDFs</b>
+                <span>opened by Octo, not guessed</span>
+              </div>
+              <div>
+                <b>5 statuses</b>
+                <span>from supported to not found</span>
+              </div>
+            </div>
           </div>
           <div className="evidence-demo" aria-label="Example evidence check">
             <div className="demo-score">

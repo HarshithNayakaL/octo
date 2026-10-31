@@ -996,3 +996,179 @@
 .mini-mix .mix-other {
   background: #d0d5dd;
 }
+
+/* Top bar stays in reach while scrolling, over a frosted backdrop. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+}
+
+/* Evidence tile: icon at the top, the story at the bottom. */
+.tile-evidence {
+  align-items: stretch;
+}
+.tile-evidence .tile-copy {
+  justify-content: space-between;
+  gap: 18px;
+}
+.tile-evidence .tile-copy > div:not(.tile-stat) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tile-stat {
+  display: flex;
+  gap: 22px;
+  padding-top: 14px;
+  border-top: 1px dashed #dfe4ee;
+}
+.tile-stat > div {
+  flex: 1;
+}
+.tile-stat b {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.tile-stat span {
+  font-size: 11px;
+  color: #7b8294;
+}
+
+/* Cursor spotlight on cards (position set by src/spotlight.ts). */
+.workflow-card {
+  position: relative;
+  border-radius: 14px;
+  transition:
+    transform 0.25s var(--ease-out),
+    border-color 0.25s,
+    box-shadow 0.25s;
+}
+.workflow-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+.bento-tile::before,
+.workflow-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  background: radial-gradient(
+    380px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(0, 47, 167, 0.07),
+    transparent 45%
+  );
+}
+.bento-tile:hover::before,
+.workflow-card:hover::before {
+  opacity: 1;
+}
+.tile-voice::before {
+  background: radial-gradient(
+    300px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.12),
+    transparent 50%
+  );
+}
+
+/* Reports read like a document, not a log. */
+.report-panel {
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.report-tabs {
+  gap: 4px;
+  padding: 0 12px;
+}
+.report-tabs > button {
+  font-size: 12px;
+  padding: 15px 10px;
+}
+.report-toolbar {
+  font-size: 10px;
+}
+.report-toolbar > button {
+  font-size: 11px;
+}
+.markdown {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: #4a5262;
+}
+.markdown > * {
+  max-width: 74ch;
+}
+.markdown h1 {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.markdown h2 {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 38px;
+  padding-top: 22px;
+  border-top: 1px solid #eef0f4;
+}
+.markdown h3 {
+  font-size: 15.5px;
+  font-weight: 600;
+  color: #2b3245;
+}
+.markdown strong {
+  color: #1f2638;
+}
+.markdown blockquote {
+  font-size: 13px;
+  border-radius: 0 8px 8px 0;
+}
+.markdown table {
+  display: table;
+  max-width: 100%;
+  font-size: 12.5px;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #e6e9f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.markdown td,
+.markdown th {
+  border: 0;
+  border-bottom: 1px solid #eef0f4;
+  padding: 11px 14px;
+}
+.markdown tr:last-child td {
+  border-bottom: 0;
+}
+.markdown th {
+  background: #f6f8fc;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #4b5568;
+}
+.markdown tbody tr:hover td {
+  background: #fafbfe;
+}
+@media (max-width: 720px) {
+  .markdown {
+    font-size: 14px;
+  }
+  .markdown table {
+    display: block;
+    overflow-x: auto;
+  }
+}

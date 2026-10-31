@@ -56,52 +56,57 @@ const format = ([r, g, b], a) =>
     : `rgba(${r}, ${g}, ${b}, ${Number(a.toFixed(3))})`;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-/** role: "fg" for text/icons, "bg" for surfaces, "line" for borders, "shadow". */
+/**
+ * role: "fg" for text/icons, "bg" for surfaces, "line" for borders, "shadow".
+ * The dark theme is AMOLED: the page is true black, surfaces sit a hair above it,
+ * and greys are neutral so the blue accent is the only colour that glows.
+ */
+const GREY = [230, 0.06];
 function mapColor(token, role) {
   const [r, g, b, a] = parse(token);
   const [h, s, l] = toHsl([r, g, b]);
   const neutral = s < 0.22 || (l > 0.93 && s < 0.6);
-  if (role === "shadow") return format([0, 0, 0], clamp(a * 2.4, 0.18, 0.6));
+  if (role === "shadow") return format([0, 0, 0], clamp(a * 2.4, 0.3, 0.7));
   if (role === "fg") {
     if (neutral)
-      return format(fromHsl(222, 0.1, clamp(1.02 - l * 0.92, 0.45, 0.93)), a);
-    // Accent text: keep the hue, lift it so it reads on dark surfaces.
+      return format(fromHsl(...GREY, clamp(1.02 - l * 0.92, 0.5, 0.95)), a);
+    // Accent text: keep the hue, lift it so it reads on black.
     return format(
-      fromHsl(h, Math.min(s, 0.85), clamp(Math.max(l, 0.68), 0.62, 0.82)),
+      fromHsl(h, Math.min(s, 0.85), clamp(Math.max(l, 0.7), 0.66, 0.84)),
       a,
     );
   }
   if (role === "line") {
     if (neutral)
       return format(
-        fromHsl(224, 0.18, clamp(0.3 - (l - 0.85) * 0.6, 0.17, 0.32)),
+        fromHsl(...GREY, clamp(0.12 + (0.95 - l) * 0.5, 0.11, 0.2)),
         a,
       );
     if (l > 0.6)
       return format(
-        fromHsl(h, Math.min(s, 0.5), clamp(0.26 + (1 - l) * 0.4, 0.22, 0.4)),
+        fromHsl(h, Math.min(s, 0.5), clamp(0.16 + (1 - l) * 0.4, 0.15, 0.3)),
         a,
       );
-    return format(fromHsl(h, s, clamp(l + 0.12, 0.3, 0.6)), a);
+    return format(fromHsl(h, s, clamp(l + 0.1, 0.28, 0.55)), a);
   }
   // Backgrounds
   if (neutral) {
-    // Cool, slightly blue darks keep the blue-and-white identity.
+    // White cards become near-black panels; light greys become slightly raised ones.
     if (l > 0.5)
       return format(
-        fromHsl(224, 0.2, clamp(0.075 + (1 - l) * 0.6, 0.075, 0.2)),
+        fromHsl(...GREY, clamp(0.035 + (1 - l) * 1.3, 0.035, 0.14)),
         a,
       );
-    return format(fromHsl(222, 0.1, clamp(0.92 - l * 0.4, 0.75, 0.94)), a);
+    return format(fromHsl(...GREY, clamp(0.92 - l * 0.4, 0.75, 0.94)), a);
   }
-  // Light tints become dark tints; saturated fills (primary buttons) keep their colour.
+  // Light tints become deep tints; saturated fills (primary buttons) keep their colour.
   if (l > 0.82)
     return format(
-      fromHsl(h, Math.min(s, 0.45), clamp(0.12 + (1 - l) * 0.5, 0.12, 0.22)),
+      fromHsl(h, Math.min(s, 0.55), clamp(0.06 + (1 - l) * 0.35, 0.06, 0.13)),
       a,
     );
   if (l < 0.45) return format(fromHsl(h, s, clamp(l + 0.08, 0.32, 0.5)), a);
-  return format(fromHsl(h, s * 0.8, clamp(l * 0.7, 0.25, 0.5)), a);
+  return format(fromHsl(h, s * 0.8, clamp(l * 0.6, 0.2, 0.45)), a);
 }
 const roleFor = (prop) =>
   /shadow/.test(prop)
@@ -168,28 +173,29 @@ out.append(
   postcss.parse(`
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --ink: #e8ecf6;
-  --blue: #7f9cff;
-  --accent: #7f9cff;
-  --blue-soft: #18213d;
-  --blue-line: #2a3557;
+  --ink: #f4f5f8;
+  --blue: #8ea6ff;
+  --accent: #8ea6ff;
+  --blue-soft: #0b1129;
+  --blue-line: #1d2850;
+  background: #000;
 }
 :root[data-theme="dark"] body,
 :root[data-theme="dark"] #root {
-  background: #0d1017;
+  background: #000;
 }
 /* Primary actions keep the brand blue as a fill with white text. */
 :root[data-theme="dark"] .primary,
 :root[data-theme="dark"] .option-chip.on,
 :root[data-theme="dark"] .area-chip.on .area-check,
 :root[data-theme="dark"] .slide-confirm-knob {
-  background: #2f54d9 !important;
-  border-color: #2f54d9 !important;
+  background: #3152f0 !important;
+  border-color: #3152f0 !important;
   color: #fff !important;
 }
 :root[data-theme="dark"] .voice-fab,
 :root[data-theme="dark"] .voice-mic {
-  background: linear-gradient(135deg, #3a63f0, #2f54d9) !important;
+  background: linear-gradient(135deg, #4a6bff, #3152f0) !important;
   color: #fff !important;
 }
 :root[data-theme="dark"] .voice-mic.recording {
@@ -198,47 +204,7 @@ out.append(
 :root[data-theme="dark"] .voice-orb span {
   background: rgba(255, 255, 255, 0.85);
 }
-/* Navy showcase panels stay navy with white type in both themes. */
-:root[data-theme="dark"] .chip-demo span.on {
-  background: #2f54d9 !important;
-  border-color: #2f54d9 !important;
-  color: #fff !important;
-}
-:root[data-theme="dark"] .demo-orb span {
-  background: radial-gradient(circle at 35% 30%, #cfdbff, #5b82ff 55%, #1a46d6) !important;
-}
-:root[data-theme="dark"] .hero-copy h2,
-:root[data-theme="dark"] .tile-voice h3,
-:root[data-theme="dark"] .tile-icon.on-dark,
-:root[data-theme="dark"] .bubble.octo {
-  color: #fff !important;
-}
-:root[data-theme="dark"] .hero-copy p,
-:root[data-theme="dark"] .tile-voice p {
-  color: rgba(226, 233, 255, 0.82) !important;
-}
-:root[data-theme="dark"] .hero-tag {
-  color: rgba(255, 255, 255, 0.86) !important;
-  border-color: rgba(255, 255, 255, 0.22) !important;
-  background: rgba(255, 255, 255, 0.08) !important;
-}
-:root[data-theme="dark"] .hero-copy button,
-:root[data-theme="dark"] .tile-action,
-:root[data-theme="dark"] .bubble.you {
-  background: #fff !important;
-  color: #0a1f5c !important;
-}
-:root[data-theme="dark"] .hero-panel,
-:root[data-theme="dark"] .tile-voice {
-  border: 1px solid #22305a;
-}
-:root[data-theme="dark"] .director-node,
-:root[data-theme="dark"] .specialist-nodes > div,
-:root[data-theme="dark"] .report-node {
-  background: rgba(13, 19, 40, 0.88) !important;
-  border-color: rgba(140, 165, 255, 0.35) !important;
-  color: #dbe3ff !important;
-}
+/* The showcase surfaces (hero, bento, trust strip) are styled by hand in src/amoled.css. */
 :root[data-theme="dark"] .primary.danger {
   background: #c43a2f !important;
   border-color: #c43a2f !important;

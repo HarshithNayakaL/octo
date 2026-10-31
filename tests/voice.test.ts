@@ -114,11 +114,12 @@ describe("voice assistant", () => {
     });
     const sent = calls[0].body;
     expect(sent.uses).toBe(1);
-    expect(sent.liveConnectConstraints.model).toBe("models/gemini-3.8-live");
-    const config = sent.liveConnectConstraints.config;
-    expect(config.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName).toBe(
-      "Kore",
-    );
+    expect(sent.bidiGenerateContentSetup).toEqual(res.body.setup);
+    const config = sent.bidiGenerateContentSetup;
+    expect(
+      config.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig
+        .voiceName,
+    ).toBe("Kore");
     expect(config.tools[0].functionDeclarations[0].name).toBe(
       "prepare_research",
     );

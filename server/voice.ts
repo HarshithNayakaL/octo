@@ -242,34 +242,37 @@ export class GeminiVoice implements VoiceProvider {
   async liveToken(context: VoiceContext): Promise<LiveToken> {
     const now = Date.now();
     const expiresAt = new Date(now + 30 * 60_000).toISOString();
+    const setup = this.liveSetup(context);
+    // REST takes the Live setup message itself; the SDKs call this liveConnectConstraints.
     const payload = await this.post(
       "/auth_tokens",
       {
         uses: 1,
         expireTime: expiresAt,
         newSessionExpireTime: new Date(now + 2 * 60_000).toISOString(),
-        liveConnectConstraints: {
-          model: `models/${this.models.live}`,
-          config: this.liveConfig(context),
-        },
+        bidiGenerateContentSetup: setup,
       },
       15_000,
     );
     if (typeof payload?.name !== "string")
       throw new Error("Google did not return a Live token.");
-    const config = this.liveConfig(context);
-    const { responseModalities, speechConfig, ...rest } = config;
     return {
       token: payload.name,
       model: this.models.live,
       voice: this.models.voice,
       expiresAt,
       websocketUrl: LIVE_WS,
-      setup: {
-        model: `models/${this.models.live}`,
-        generationConfig: { responseModalities, speechConfig },
-        ...rest,
-      },
+      setup,
+    };
+  }
+  /** The Live setup message: the browser sends it first, and the token locks it. */
+  liveSetup(context: VoiceContext) {
+    const { responseModalities, speechConfig, ...rest } =
+      this.liveConfig(context);
+    return {
+      model: `models/${this.models.live}`,
+      generationConfig: { responseModalities, speechConfig },
+      ...rest,
     };
   }
   liveConfig(context: VoiceContext) {

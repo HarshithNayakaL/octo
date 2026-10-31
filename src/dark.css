@@ -1391,14 +1391,8 @@
     ),
     linear-gradient(135deg, #103293 0%, #0e36ac 55%, #1b3075 100%);
 }
-:root[data-theme="dark"] .hero-tag {
-  border: 1px solid rgba(26, 27, 30, 0.22);
-  background: rgba(8, 9, 9, 0.08);
-  color: rgba(120, 122, 135, 0.86);
-}
-:root[data-theme="dark"] .hero-tag > span {
-  background: #349f61;
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.6);
+:root[data-theme="dark"] .hero-copy .hero-tag {
+  color: rgba(180, 196, 249, 0.62);
 }
 :root[data-theme="dark"] .hero-copy h2 {
   color: #787a87;
@@ -1768,6 +1762,9 @@
 }
 :root[data-theme="dark"] .markdown tbody tr:hover td {
   background: #070c19;
+}
+:root[data-theme="dark"] .local-pill {
+  color: #787a87;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;

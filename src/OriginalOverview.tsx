@@ -110,10 +110,7 @@ export default function OriginalOverview({
         <>
           <section className="hero-panel">
             <div className="hero-copy">
-              <span className="hero-tag">
-                <span />
-                Google Antigravity + OpenAI Agents API
-              </span>
+              <p className="hero-tag">Runs on Google Gemini or OpenAI</p>
               <h2>
                 One brief. <br />
                 Multiple perspectives.

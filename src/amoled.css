@@ -132,10 +132,8 @@
 :root[data-theme="dark"] .hero-copy p {
   color: rgba(214, 220, 240, 0.74);
 }
-:root[data-theme="dark"] .hero-tag {
-  color: rgba(255, 255, 255, 0.82);
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
+:root[data-theme="dark"] .hero-copy .hero-tag {
+  color: rgba(214, 220, 240, 0.5);
 }
 :root[data-theme="dark"] .hero-copy button,
 :root[data-theme="dark"] .tile-action {
@@ -321,4 +319,8 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 40px 100px -30px rgba(0, 0, 0, 1);
+}
+:root[data-theme="dark"] .local-pill {
+  border: 0;
+  color: #80848f;
 }

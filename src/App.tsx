@@ -500,7 +500,6 @@ export default function App() {
               <kbd>Ctrl K</kbd>
             </button>
             <span className="local-pill">
-              <span />
               {config?.deployment === "vercel"
                 ? "Hosted workspace"
                 : "Local workspace"}

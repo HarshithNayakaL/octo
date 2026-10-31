@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "concurrently -k -n api,web \"tsx watch server/index.ts\" \"vite --host 127.0.0.1\"",
-    "build": "tsc --noEmit && vite build && tsc -p tsconfig.server.json",
+    "build": "tsc --noEmit && vite build && tsc -p tsconfig.server.json && npm run check:serverless",
+    "check:serverless": "node --no-experimental-detect-module scripts/check-serverless.mjs",
     "start": "node dist-server/server/index.js --production",
     "test": "vitest run",
     "test:e2e": "playwright test",

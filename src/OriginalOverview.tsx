@@ -1,11 +1,8 @@
 import {
-  ArrowRight,
   ArrowUpRight,
-  BookOpen,
   Building2,
   Compass,
   Trash2,
-  Command,
   FileText,
   FolderOpen,
   Globe2,
@@ -16,9 +13,8 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { Arc, Orbit } from "loading-dev";
-import Bento from "./Bento";
+import { ProcessMap, SpecimenHero } from "./Showcase";
 import Select from "./Select";
-import { Mascot, areaProfile, director } from "./agents";
 import { deletable, isActive, statusLabel } from "./status";
 import {
   workflowLabels,
@@ -80,50 +76,31 @@ export default function OriginalOverview({
 }: Props) {
   return (
     <main className="content dashboard">
-      <div className="page-heading">
-        <div>
-          <h1>
-            {page === "reports"
-              ? "Reports"
-              : page === "monitors"
-                ? "Ongoing research"
-                : "Research you can check"}
-          </h1>
-          <p>
-            {page === "reports"
-              ? "Finished briefings with their sources, evidence checks and company records."
-              : page === "monitors"
-                ? "Topics Octo checks again on a schedule, building on what it found last time."
-                : "Octo researches your question, then opens every page it cites and marks which claims hold up."}
-          </p>
+      {page !== "research" && (
+        <div className="page-heading">
+          <div>
+            <h1>{page === "reports" ? "Reports" : "Ongoing research"}</h1>
+            <p>
+              {page === "reports"
+                ? "Finished briefings with their sources, evidence checks and company records."
+                : "Topics Octo checks again on a schedule, building on what it found last time."}
+            </p>
+          </div>
+          <button
+            className="primary"
+            onClick={() =>
+              onCreate(page === "monitors" ? "monitor" : "general")
+            }
+          >
+            <Plus size={17} />
+            New research
+          </button>
         </div>
-        <button
-          className="primary"
-          onClick={() => onCreate(page === "monitors" ? "monitor" : "general")}
-        >
-          <Plus size={17} />
-          New research
-        </button>
-      </div>
+      )}
       {page === "research" && (
         <>
-          <section className="hero-panel">
-            <div className="hero-copy">
-              <p className="hero-tag">Runs on Google Gemini or OpenAI</p>
-              <h2>One question, a team of specialists</h2>
-              <p>
-                A research director splits your question into areas, a
-                specialist researches each one, and a reviewer checks the report
-                before you read it.
-              </p>
-              <button onClick={() => onCreate("general")}>
-                Start with a question
-                <ArrowRight size={17} />
-              </button>
-            </div>
-            <ResearchDiagram />
-          </section>
-          <Bento />
+          <SpecimenHero onStart={() => onCreate("general")} />
+          <ProcessMap />
           <div className="section-top">
             <h2>Start new research</h2>
             <span>Choose a research workflow</span>
@@ -350,54 +327,6 @@ export default function OriginalOverview({
         </button>
       </footer>
     </main>
-  );
-}
-
-function ResearchDiagram() {
-  // Example plan: real runs get areas chosen for their own brief.
-  const team = ["Context", "Evidence", "Analysis", "Implications"].map(
-    (title, i) => areaProfile(title, i),
-  );
-  return (
-    <div
-      className="research-diagram"
-      role="img"
-      aria-label="Illustration: a research director coordinates one specialist per research area planned for your brief, then produces a report"
-    >
-      <div className="diagram-grid" />
-      <svg
-        className="diagram-lines"
-        viewBox="0 0 500 230"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M250 48V82M250 82H60V110M250 82H187V110M250 82H313V110M250 82H440V110M60 146V176H250M187 146V176M313 146V176M440 146V176H250M250 176V194"
-          fill="none"
-          stroke="currentColor"
-          strokeOpacity=".32"
-          strokeWidth="1.2"
-        />
-        <circle cx="250" cy="82" r="3" fill="currentColor" />
-      </svg>
-      <div className="director-node">
-        <Mascot profile={director} size={26} label="" />
-        Research director
-      </div>
-      <div className="specialist-nodes">
-        {team.map((profile) => (
-          <div key={profile.id}>
-            <Mascot profile={profile} size={30} label="" />
-            <span>{profile.name.replace(" researcher", "")}</span>
-          </div>
-        ))}
-      </div>
-      <div className="report-node">
-        <FileText size={15} />
-        Your final report
-        <ArrowUpRight size={13} />
-      </div>
-    </div>
   );
 }
 

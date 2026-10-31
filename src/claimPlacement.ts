@@ -93,3 +93,34 @@ export function endsRow(report: string, endOffset: number) {
     report.slice(endOffset, lineEnd === -1 ? undefined : lineEnd),
   );
 }
+
+/**
+ * The span of the sentence in `text` that best matches the claim, as
+ * [start, end) offsets, or undefined when no sentence matches well enough.
+ * Splits on sentence ends followed by a capital or bracket, so "18.4" and
+ * "e.g." do not break a sentence.
+ */
+export function bestSentence(text: string, claim: string, min = 0.45) {
+  const spans: [number, number][] = [];
+  const splitter = /[.!?]["”’)\]]*\s+(?=[A-Z0-9(“"[])/g;
+  let start = 0;
+  for (const m of text.matchAll(splitter)) {
+    const end = m.index! + m[0].trimEnd().length;
+    spans.push([start, end]);
+    start = m.index! + m[0].length;
+  }
+  if (start < text.length) spans.push([start, text.length]);
+  let best: [number, number] | undefined;
+  let bestScore = 0;
+  for (const [s, e] of spans) {
+    const score = overlap(claim, text.slice(s, e));
+    if (score >= min && score > bestScore) {
+      best = [s, e];
+      bestScore = score;
+    }
+  }
+  if (!best) return undefined;
+  // Trim leading whitespace so the highlight starts on the first letter.
+  while (best[0] < best[1] && /\s/.test(text[best[0]])) best[0]++;
+  return best;
+}

@@ -3,6 +3,7 @@
   font-family: "Geist Variable", "Helvetica Neue", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   --mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --serif: "Source Serif 4 Variable", "Iowan Old Style", Georgia, serif;
   --ink: #141a2e;
   --blue-soft: #eef2fc;
   --blue-line: #d9e0f2;

@@ -57,9 +57,10 @@ import { useTheme } from "./theme";
 import ClarifyPanel from "./ClarifyPanel";
 import VoiceAssistant from "./VoiceAssistant";
 import UsageLimits from "./UsageLimits";
-import EvidencePanel, { ClaimBadge } from "./EvidencePanel";
+import EvidencePanel, { ClaimBadge, claimLabels } from "./EvidencePanel";
 import { endsRow, marksApply, placeClaims } from "./claimPlacement";
-import { ClaimMarks, ClaimRail, blockLines, hasParagraph } from "./ClaimMarks";
+import { ClaimMarks, blockLines, hasParagraph } from "./ClaimMarks";
+import { ClaimNotes, useClaimHighlights } from "./claimNotes";
 import AskPanel from "./AskPanel";
 import VersionsPanel from "./VersionsPanel";
 import { relatedRuns } from "./related";
@@ -96,6 +97,7 @@ import {
 } from "../shared/formats";
 import {
   workflowLabels,
+  type ClaimStatus,
   type Run,
   type Workflow,
   type Configuration,
@@ -1676,15 +1678,16 @@ function RunDetail({
         : undefined,
     [run.report, run.evidence],
   );
-  const placedInOrder = useMemo(
+  const placedGroups = useMemo(
     () =>
       placement
         ? [...placement.byLine.entries()]
             .sort(([a], [b]) => a - b)
-            .flatMap(([, list]) => list)
+            .map(([, list]) => list)
         : [],
     [placement],
   );
+  const placedInOrder = useMemo(() => placedGroups.flat(), [placedGroups]);
   const openClaim = (id: string) => {
     setHighlight(id);
     setTab("evidence");
@@ -1696,14 +1699,9 @@ function RunDetail({
       50,
     );
   };
-  const jumpToMark = (id: string) => {
-    const mark = document.getElementById(`mark-${id}`);
-    if (!mark) return;
-    mark.scrollIntoView({ block: "center", behavior: "smooth" });
-    mark.classList.remove("flash");
-    void mark.offsetWidth;
-    mark.classList.add("flash");
-  };
+  const [activeClaim, setActiveClaim] = useState<string>();
+  const reportBody = useRef<HTMLDivElement>(null);
+  useClaimHighlights(reportBody, placedInOrder, run.report);
   const marksFor = (node: unknown) => {
     const lines = placement && blockLines(node);
     if (!lines) return null;
@@ -1711,7 +1709,12 @@ function RunDetail({
     for (let line = lines[0]; line <= lines[1]; line++)
       placed.push(...(placement.byLine.get(line) ?? []));
     return placed.length ? (
-      <ClaimMarks placed={placed} onOpen={openClaim} />
+      <ClaimMarks
+        placed={placed}
+        active={activeClaim}
+        onActive={setActiveClaim}
+        onOpen={openClaim}
+      />
     ) : null;
   };
   const [continueNote, setContinueNote] = useState("");
@@ -2017,7 +2020,8 @@ function RunDetail({
                         </span>
                       </div>
                       <div
-                        className={`report-body ${placedInOrder.length ? "with-rail" : ""}`}
+                        className={`report-body ${placedInOrder.length ? "with-notes" : ""}`}
+                        ref={reportBody}
                       >
                         <div className="markdown">
                           <ReactMarkdown
@@ -2056,10 +2060,12 @@ function RunDetail({
                           </ReactMarkdown>
                         </div>
                         {placedInOrder.length > 0 && (
-                          <ClaimRail
-                            placed={placedInOrder}
+                          <ClaimNotes
+                            groups={placedGroups}
                             unplaced={placement?.unplaced.length ?? 0}
-                            onJump={jumpToMark}
+                            active={activeClaim}
+                            onActive={setActiveClaim}
+                            onOpen={openClaim}
                             onOpenEvidence={() => setTab("evidence")}
                           />
                         )}
@@ -2835,6 +2841,16 @@ function SourceTags({
 }
 
 /** The report's trust story at a glance: evidence, sources, voices and versions. */
+const ledgerOrder: ClaimStatus[] = [
+  "supported",
+  "partial",
+  "unreachable",
+  "not_found",
+  "uncited",
+];
+const statusCount = (claims: { status: ClaimStatus }[], status: ClaimStatus) =>
+  claims.filter((c) => c.status === status).length;
+
 function TrustStrip({
   run,
   onOpen,
@@ -2879,27 +2895,46 @@ function TrustStrip({
         className="trust-cell"
         onClick={() => onOpen("evidence")}
       >
-        <div
-          className={`trust-ring ${checking ? "checking" : tone}`}
-          style={{ ["--score" as string]: String(score ?? 0) }}
-          aria-hidden="true"
-        >
-          <span>{checking ? "" : (score ?? "–")}</span>
-        </div>
-        <div>
-          <span className="trust-label">Evidence</span>
-          <span className="trust-value">
-            {checking
-              ? "Checking…"
-              : done
-                ? `${supported} of ${e!.claims.length} claims`
-                : "Not checked"}
+        <div className="ledger">
+          <span className="ledger-top">
+            <span className="trust-label">Evidence</span>
+            {done && score !== undefined && (
+              <span className={`ledger-score ${tone}`}>
+                {score}
+                <small>/100</small>
+              </span>
+            )}
+          </span>
+          {/* Each segment is one status, sized by how many claims have it. */}
+          <span
+            className={`ledger-bar ${checking ? "checking" : ""}`}
+            role="img"
+            aria-label={
+              done
+                ? ledgerOrder
+                    .map(
+                      (s) =>
+                        `${statusCount(e!.claims, s)} ${claimLabels[s].toLowerCase()}`,
+                    )
+                    .join(", ")
+                : checking
+                  ? "Checking citations"
+                  : "Not checked"
+            }
+          >
+            {done &&
+              ledgerOrder.map((s) => {
+                const n = statusCount(e!.claims, s);
+                return n ? (
+                  <i key={s} className={s} style={{ flexGrow: n }} />
+                ) : null;
+              })}
           </span>
           <span className="trust-sub">
             {checking
               ? "Opening the cited pages"
               : done
-                ? `backed by their source${flagged ? ` · ${flagged} to review` : ""}`
+                ? `${supported} of ${e!.claims.length} backed by their source${flagged ? ` · ${flagged} to review` : ""}`
                 : "Open Evidence to check citations"}
           </span>
         </div>

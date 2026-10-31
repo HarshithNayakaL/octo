@@ -4,9 +4,13 @@ import type { PlacedClaim } from "./claimPlacement";
 /** Small numbered marks after a sentence, one per checked claim taken from it. */
 export function ClaimMarks({
   placed,
+  active,
+  onActive,
   onOpen,
 }: {
   placed: PlacedClaim[];
+  active?: string;
+  onActive: (id?: string) => void;
   onOpen: (id: string) => void;
 }) {
   return (
@@ -19,7 +23,9 @@ export function ClaimMarks({
             key={claim.id}
             id={`mark-${claim.id}`}
             type="button"
-            className={`claim-mark ${claim.status}`}
+            className={`claim-mark ${claim.status} ${active === claim.id ? "active" : ""}`}
+            onMouseEnter={() => onActive(claim.id)}
+            onMouseLeave={() => onActive(undefined)}
             aria-label={`${label}. Open in Evidence`}
             title={`${label}${claim.sourceUrl ? ` · ${hostOf(claim.sourceUrl)}` : ""}`}
             onClick={() => onOpen(claim.id)}
@@ -40,55 +46,6 @@ const hostOf = (url: string) => {
     return url;
   }
 };
-
-/** Desktop margin: every placed claim in reading order; flagged ones in bold. */
-export function ClaimRail({
-  placed,
-  unplaced,
-  onJump,
-  onOpenEvidence,
-}: {
-  placed: PlacedClaim[];
-  unplaced: number;
-  onJump: (id: string) => void;
-  onOpenEvidence: () => void;
-}) {
-  // Same rule as the summary strip: only claims the check found against.
-  const flagged = placed.filter((p) =>
-    ["not_found", "uncited"].includes(p.claim.status),
-  ).length;
-  return (
-    <aside className="claim-rail" aria-label="Checked claims in this report">
-      <p className="claim-rail-head">
-        {placed.length} {placed.length === 1 ? "claim" : "claims"} marked
-        {flagged ? <b> · {flagged} to review</b> : null}
-      </p>
-      <ol>
-        {placed.map(({ claim, number }) => {
-          const Icon = claimIcons[claim.status];
-          return (
-            <li key={claim.id}>
-              <button
-                type="button"
-                className={`rail-item ${claim.status}`}
-                onClick={() => onJump(claim.id)}
-              >
-                <span className="rail-number">{number}</span>
-                <Icon size={13} aria-hidden="true" />
-                {claimLabels[claim.status]}
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-      {unplaced > 0 && (
-        <button type="button" className="rail-more" onClick={onOpenEvidence}>
-          {unplaced} more {unplaced === 1 ? "claim" : "claims"} in Evidence
-        </button>
-      )}
-    </aside>
-  );
-}
 
 /** Lines a rendered block came from, excluding nested lists (they get their own marks). */
 export function blockLines(node: unknown): [number, number] | undefined {

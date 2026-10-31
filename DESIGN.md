@@ -41,11 +41,46 @@ Same blue-and-white baseline and layout. Styles live in `src/showcase.css`, laye
 
 - **Type:** Geist Variable for text and Geist Mono Variable for figures, labels and code (self-hosted via Fontsource). Headings use a tighter scale and balanced wrapping; numbers are tabular.
 - **Copy says what Octo does:** "Research you can check" with "Octo researches your question, then opens every page it cites and marks which claims hold up." The hero describes the real process (director, one specialist per area, reviewer). Page titles are plain nouns; no all-caps eyebrows.
-- **Overview tiles** (`src/Bento.tsx`): the evidence check is the large tile because it is Octo's signature; the voice tile shows a sample exchange and opens the real assistant. Three smaller tiles cover asking first, community voices and Challenge. The remaining five capabilities are a plain text list, not cards. Example content is labelled as such.
-- **Report summary strip:** Evidence (score ring and claims backed), Sources (count and source mix), Real voices and Versions; each cell opens its tab.
-- **Claim marks (signature):** every checked claim is placed on the report line it came from (`src/claimPlacement.ts`, word and figure overlap; a claim whose figure is not on the line never matches) and gets a small numbered mark coloured by status. A mark opens the Evidence tab on that claim. At 1280px and wider a sticky margin strip lists the marks in reading order with the count to review; claims that could not be placed are counted there and left to the Evidence tab rather than pinned to the wrong sentence. Marks only show when the check ran on this exact report.
+- **Overview tiles** (superseded by the checked-document pass below; `src/Bento.tsx` removed): the evidence check is the large tile because it is Octo's signature; the voice tile shows a sample exchange and opens the real assistant. Three smaller tiles cover asking first, community voices and Challenge. The remaining five capabilities are a plain text list, not cards. Example content is labelled as such.
+- **Report summary strip:** Evidence (now a ledger bar, see below), Sources (count and source mix), Real voices and Versions; each cell opens its tab.
+- **Claim marks (signature):** every checked claim is placed on the report line it came from (`src/claimPlacement.ts`, word and figure overlap; a claim whose figure is not on the line never matches) and gets a small numbered mark coloured by status. A mark opens the Evidence tab on that claim. At 1280px and wider a sticky margin strip listed the marks in reading order (now margin notes, see below) with the count to review; claims that could not be placed are counted there and left to the Evidence tab rather than pinned to the wrong sentence. Marks only show when the check ran on this exact report.
 - **Legibility floor:** no text under 12px (uppercase labels 11px with tracking), secondary text in `#596070` (6.2:1 on white), inputs 16px on phones, every control 44px tall on touch screens. Measured with a DOM contrast scan across overview, report, Evidence, Connections and the research dialog in both themes at 1440, 834 and 390: 140 failing text styles before, 0 after.
 - **Layout:** below 1024px the sidebar is a drawer behind the menu button (previously only below 760, and the desktop toggle did nothing); research rows become cards below 860px; report tabs scroll with a fading edge; the voice button shrinks to its icon so it covers less of the report.
 - **Motion and decoration:** kept only where they carry meaning: the score ring fill, button press, hover lift on clickable cards, and the claim-mark flash when jumping from the margin strip. No load stagger, cursor spotlight, grain, glowing orb or gradient text. All motion is disabled under `prefers-reduced-motion`.
 - **Dark mode (AMOLED):** the page, sidebar and top bar are true black. `scripts/build-dark-theme.mjs` maps white cards to charcoal panels, greys to a neutral family and light tints to deep tints; `src/amoled.css` adds lit top edges, visible borders, nested cards one step lighter, a flat navy hero and voice tile, and a flat blue for primary actions. Nothing glows.
 - **Both themes:** sticky frosted top bar; reports at 14.5px with a 74-character measure, section dividers and rounded tables.
+
+## Checked-document pass (October 2026)
+
+Derived from Octo's own subject rather than SaaS defaults: a report going through fact-checking. References: Gwern (serif reading text with sidenotes), Making Software (cobalt technical drawings with mono callouts), Modern Treasury (process drawn as a schematic). The category's measured default (grotesk sans, bento grid) was the gravity this pass pushes against.
+
+- **Reports read like documents.** Report paragraphs, list items and table cells use Source Serif 4 (optical sizes, self-hosted, `--serif`); headings and interface stay in Geist.
+- **Claim highlights.** Each placed claim's exact sentence is underlined in its status colour: solid green (supported), solid amber (partly), wavy red (not found), dotted grey (could not check), wavy violet (no source). `src/claimNotes.tsx` builds DOM ranges and registers them with the CSS Custom Highlight API, so the report DOM React renders is untouched; browsers without the API keep the numbered marks only. `bestSentence` in `src/claimPlacement.ts` picks the sentence (numbers like "18.4" do not split sentences).
+- **Margin notes.** At 1400px and wider, one note card per paragraph sits level with it (measured drift 0px on a 20-claim live report), listing that paragraph's claims with status and source host; overlapping cards are pushed down in reading order. Hovering a note row or a mark highlights its pair; clicking opens the claim in Evidence.
+- **Evidence ledger.** The score ring is replaced by the score in mono and a bar with one segment per status, sized by count (unchecked claims hatched), with the full breakdown as the bar's accessible label.
+- **Overview.** The navy hero card and the bento tiles are gone. The page opens on a blueprint-grid hero: the headline with "Start research" and "Say it instead" (opens the voice assistant), beside a labelled example report page showing highlights, marks, a ledger and margin notes. Below, Fig. 1 maps the process as one track of seven numbered stations, each marked by who acts (filled: Octo, outlined: you, tinted: both), with the research mascots at the Research station and a note on refresh and follow-up questions. Under 1100px the track turns vertical.
+
+```
+desktop · 1440
+┌──────────────────────────────────────────────────────────────────────┐
+│ RUNS ON GEMINI OR OPENAI ──     ┌ example report page ──────┐ ┊ 1 ✓  │  blueprint grid
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ (h1)           │ ▬▬▬▬▬▬▬▬ ledger     38/100│ ┊ 2 ◐  │
+│ ░░░░░░░░░░░░░ lede              │ ░░░ claim¹ ░░ claim² ░░░  │ ┊ 3 ✕  │  margin notes
+│ ( Start research ) [🎙 Say it]  │ ~~claim³~~ ~~claim⁴~~     │ ┊ 4 ?  │
+│                                 └───────────────────────────┘        │
+├──────────────────────────────────────────────────────────────────────┤
+│ FIG. 1 ──  How a report gets made          ● Octo ○ You ◍ Both       │
+│ (01)──(02)──(03)──(04)──(05)──(06)──(07)   one track, 7 stations     │
+│ Brief Questions Plan Research Report Check Challenge                 │
+└──────────────────────────────────────────────────────────────────────┘
+
+report · 1400+
+┌ ledger: 50/100 ▇▇▒▒▒▒▒▒▒▒▒▒▇ ┬ Sources ┬ Voices ┬ Versions ┐
+│ serif text, claim sentence underlined ① ② ③   ┊ ┌ 1 ◌ Could not check │
+│                                              ┊ │ 2 ✓ Supported       │  level with paragraph
+│ next paragraph ④                             ┊ └ …                  │
+└──────────────────────────────────────────────┴──────────────────────┘
+
+phone · 390: hero stacks (copy, specimen, notes in 2 columns); Fig. 1 is a
+vertical track with nodes on the left; reports keep inline marks and highlights.
+```

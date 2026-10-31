@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bestSentence,
   endsRow,
   marksApply,
   overlap,
@@ -117,5 +118,20 @@ describe("claim marks", () => {
     const lastEnd = row.indexOf(" |\n");
     expect(endsRow(row, firstEnd)).toBe(false);
     expect(endsRow(row, lastEnd)).toBe(true);
+  });
+
+  it("picks the sentence a claim came from inside a paragraph", () => {
+    const text =
+      "UPI is run by NPCI. It processed 18.4 billion transactions in March 2025, a record. Pix is run by the central bank.";
+    const span = bestSentence(
+      text,
+      "UPI processed 18.4 billion transactions in March 2025",
+    );
+    expect(span && text.slice(...span)).toBe(
+      "It processed 18.4 billion transactions in March 2025, a record.",
+    );
+    expect(
+      bestSentence(text, "Hydrogen stations need a licence"),
+    ).toBeUndefined();
   });
 });

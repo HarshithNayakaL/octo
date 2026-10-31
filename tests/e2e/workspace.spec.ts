@@ -85,7 +85,7 @@ test("evidence check, grounded questions and versions work in demo mode", async 
 }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "What a chat window can't do" }),
+    page.getByRole("heading", { name: "How a report gets made" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Open research" }).first().click();
   const title = "E2E Evidence " + Date.now();

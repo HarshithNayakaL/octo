@@ -129,6 +129,10 @@ describe("voice assistant", () => {
     expect(prompt).toContain("Pix vs UPI");
     expect(prompt).toContain("160 million");
     expect(prompt).toContain("does not start research");
+    expect(
+      config.tools[0].functionDeclarations.map((f: any) => f.name),
+    ).toContain("get_app_status");
+    expect(prompt).toContain("App status right now");
     // The key itself never goes to the browser.
     expect(JSON.stringify(res.body)).not.toContain('key"');
   });
@@ -183,6 +187,48 @@ describe("voice assistant", () => {
     expect(res.body.audio).toBeUndefined();
     expect(res.body.ttsError).toContain("free-tier limit");
     expect(res.body.reply).toBeTruthy();
+  });
+  it("knows the app's state: busy models, failures and what is running", async () => {
+    const now = new Date().toISOString();
+    await store.save({
+      ...seedRun(),
+      id: "busy",
+      title: "EV charging in India",
+      status: "running",
+      provider: "google",
+      baseModel: "gemini-3.5-flash-lite",
+      activities: [
+        {
+          id: "a1",
+          type: "warning",
+          label: "Switched to a lighter model",
+          text: "gemini-3.8-flash is experiencing high demand, so this research runs on gemini-3.5-flash-lite.",
+          at: now,
+        },
+      ],
+    });
+    const { fetcher, calls } = google();
+    const { app } = server(new GeminiVoice("key", defaultVoiceModels, fetcher));
+    const res = await request(app)
+      .post("/api/voice/turn")
+      .send({ text: "Is my research working?", runId: "busy" });
+    expect(res.status).toBe(200);
+    const prompt = calls.find((c) => c.body.model === defaultVoiceModels.turn)!
+      .body.input[0].text;
+    expect(prompt).toContain("App status right now");
+    expect(prompt).toContain("Switched to a lighter model");
+    expect(prompt).toContain("high demand");
+    expect(prompt).toMatch(
+      /Running now: "EV charging in India": running; model gemini-3\.5-flash-lite/,
+    );
+    const status = await request(app)
+      .post("/api/voice/status")
+      .send({ runId: "busy" });
+    expect(status.status).toBe(200);
+    expect(status.body.status).toContain(
+      'Open research "EV charging in India"',
+    );
+    expect(status.body.status).toContain("voice allowance");
   });
   it("tells which writing system a message is in", () => {
     expect(scriptOf("What is the market size?")).toBe("Latin");

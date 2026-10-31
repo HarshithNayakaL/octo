@@ -99,6 +99,7 @@ const { app } = createApp({
   usage: setup.usage,
   rateLimits: setup.rateLimits,
   googleModels: setup.googleModels,
+  fallbacks: setup.fallbacks,
   defaultProvider: setup.defaultProvider,
   providerConfigurations: setup.providerConfigurations,
   model: setup.model,

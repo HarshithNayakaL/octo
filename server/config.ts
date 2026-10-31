@@ -95,6 +95,7 @@ export function providersFromEnv(
     googleModels: env.GEMINI_API_KEY
       ? { agent: googleAgent, model: googleModel }
       : undefined,
+    fallbacks: fallbackModels(env.GEMINI_FALLBACK_MODELS),
     voice,
     openai,
     google,

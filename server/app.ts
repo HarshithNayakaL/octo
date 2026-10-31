@@ -23,6 +23,7 @@ import {
   type ModelLimits,
   type UsageMeter,
 } from "./usage.js";
+import { statusText } from "./status.js";
 import { requestEvidence } from "./evidence.js";
 import { isPatchedNode, refuseCompressedRequests } from "./brotli-guard.js";
 import { answerQuestion } from "./ask.js";
@@ -123,6 +124,8 @@ interface AppOptions {
   /** Free-tier limits copied from AI Studio (GEMINI_RATE_LIMITS). */
   rateLimits?: Record<string, ModelLimits>;
   googleModels?: { agent: string; model: string };
+  /** Models used when the research model is busy, for the voice assistant's status. */
+  fallbacks?: string[];
 }
 const sameSecret = (expected: string, received: string) => {
   const a = Buffer.from(expected);
@@ -871,7 +874,27 @@ export function createApp(options: AppOptions) {
   // Kept in the database so every serverless instance agrees on what is left.
   const liveLimit = new SharedLimiter(store, "voice-live", 12, 60 * 60_000);
   const turnLimit = new SharedLimiter(store, "voice-turn", 20, 10 * 60_000);
-  const voiceContext = async (body: unknown) => {
+  /** The app's current state, as the voice assistant should know it. */
+  const appStatus = async (caller: string, open?: Run) => {
+    const [runs, usage, learned, live, turns] = await Promise.all([
+      store.list(),
+      options.usage?.today(),
+      options.usage?.learned(),
+      liveLimit.remaining(caller),
+      turnLimit.remaining(caller),
+    ]);
+    return statusText({
+      runs,
+      open,
+      providers: profiles,
+      fallbacks: options.fallbacks ?? [],
+      usage,
+      learned,
+      configured: options.rateLimits,
+      voice: { live: live.remaining, turns: turns.remaining },
+    });
+  };
+  const voiceContext = async (body: unknown, caller: string) => {
     const { runId, page } = z
       .object({
         runId: z.string().max(100).optional(),
@@ -879,8 +902,9 @@ export function createApp(options: AppOptions) {
       })
       .passthrough()
       .parse(body ?? {});
-    const run = runId ? await store.get(runId) : undefined;
-    return { run: run ?? undefined, page };
+    const run = (runId ? await store.get(runId) : undefined) ?? undefined;
+    const status = await appStatus(caller, run).catch(() => undefined);
+    return { run, page, status };
   };
   const voiceUnavailable = (res: express.Response) =>
     res.status(409).json({
@@ -921,7 +945,9 @@ export function createApp(options: AppOptions) {
       return;
     }
     try {
-      const token = await options.voice.liveToken(await voiceContext(req.body));
+      const token = await options.voice.liveToken(
+        await voiceContext(req.body, req.ip ?? "local"),
+      );
       await options.usage
         ?.count(`${token.model}#session`)
         .catch(() => undefined);
@@ -967,11 +993,25 @@ export function createApp(options: AppOptions) {
           z.object({ text: z.string().trim().min(1).max(2000), history }),
         ])
         .parse(req.body);
-      res.json(await options.voice.turn(body, await voiceContext(req.body)));
+      res.json(
+        await options.voice.turn(
+          body,
+          await voiceContext(req.body, req.ip ?? "local"),
+        ),
+      );
     } catch (err) {
       await turnLimit.refund(req.ip ?? "local").catch(() => undefined);
       voiceFailed(res, err, "The voice assistant could not answer");
     }
+  });
+  /** Fresh app status for the Live assistant's get_app_status tool. Reads only the database. */
+  app.post("/api/voice/status", async (req, res) => {
+    const { runId } = z
+      .object({ runId: z.string().max(100).optional() })
+      .passthrough()
+      .parse(req.body ?? {});
+    const run = runId ? await store.get(runId) : undefined;
+    res.json({ status: await appStatus(req.ip ?? "local", run ?? undefined) });
   });
   /** Gemini usage today, known limits, and this visitor's remaining voice requests. */
   app.get("/api/limits", async (req, res) => {

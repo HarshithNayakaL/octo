@@ -275,7 +275,38 @@ export class LiveSession extends Session {
       }
     }
     if (message.toolCall?.functionCalls?.length) {
-      const responses = message.toolCall.functionCalls.map((call: any) => {
+      void this.answerTools(message.toolCall.functionCalls);
+    }
+    if (message.goAway)
+      this.events.notice("Gemini Live will end this session shortly.");
+  }
+  /** Run the assistant's tool calls in the browser and send the results back. */
+  private async answerTools(calls: any[]) {
+    const responses = await Promise.all(
+      calls.map(async (call: any) => {
+        if (call.name === "get_app_status") {
+          try {
+            const res = await fetch("/api/voice/status", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(this.context()),
+            });
+            const body = await res.json();
+            return {
+              id: call.id,
+              name: call.name,
+              response: res.ok
+                ? { result: String(body.status ?? "") }
+                : { error: body.error ?? "Status unavailable." },
+            };
+          } catch {
+            return {
+              id: call.id,
+              name: call.name,
+              response: { error: "Status unavailable right now." },
+            };
+          }
+        }
         if (
           call.name === "prepare_research" &&
           call.args?.title &&
@@ -305,13 +336,11 @@ export class LiveSession extends Session {
           name: call.name,
           response: { error: "Unknown tool." },
         };
-      });
-      this.ws?.send(
-        JSON.stringify({ toolResponse: { functionResponses: responses } }),
-      );
-    }
-    if (message.goAway)
-      this.events.notice("Gemini Live will end this session shortly.");
+      }),
+    );
+    this.ws?.send(
+      JSON.stringify({ toolResponse: { functionResponses: responses } }),
+    );
   }
   async sendText(text: string) {
     if (this.ws?.readyState !== WebSocket.OPEN) return;

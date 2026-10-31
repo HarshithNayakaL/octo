@@ -132,6 +132,7 @@ The **Talk to Octo** button (bottom right, on every page) opens a voice assistan
 - **Live (main):** the browser streams your voice to **Gemini Live** (`gemini-3.8-live`) and plays the spoken reply, with live transcripts. You can interrupt it mid-sentence. The server mints a single-use token (`POST /api/voice/token`) that locks the model, voice, instructions and tools for one session; the API key never reaches the browser. In testing, the first reply audio started about 0.9 s after the speaker stopped. Sessions end after 90 seconds of quiet or 9 minutes, to save free-tier minutes.
 - **Push-to-talk (fallback):** if Live is unavailable, tap the mic and speak. Recording stops on its own when you pause. One call to `gemini-3.5-flash-lite` transcribes and answers, and **Gemini TTS** (`gemini-3.8-flash-lite-tts`) speaks the reply (about 5 s end to end). If TTS hits its free-tier limit, the browser's own voice reads the reply.
 - **Typing** works in both modes.
+- **Knows what the app is doing:** every answer comes with a status snapshot built on the server from the same data the app shows: what is running and on which model, recent problems from the last day (a busy Gemini model, a switch to a lighter model, quota refusals, failures and their reasons), Gemini requests sent today against Google's reported limits, your remaining voice allowance, and the open research's status, evidence check and latest steps. Ask "is my research working?" or "why did it fail?" and it answers from that. In a Live chat, which can last minutes, it calls a `get_app_status` tool (`POST /api/voice/status`, database reads only) for a fresh reading.
 - **Language:** it replies in the language of your latest message, so switching from Kannada back to English gets an English reply. Push-to-talk also checks the reply's script against what you said and asks once more if they differ (for example, a Hindi reply to an English question).
 - **Limits:** each visitor gets 12 Live chats per hour and 20 push-to-talk or typed questions per 10 minutes. A request that fails on Google's side is not counted. Google's own free-tier limits apply on top (see below).
 - **Models:** override with `GEMINI_LIVE_MODEL`, `GEMINI_VOICE_MODEL`, `GEMINI_TTS_MODEL` and `GEMINI_VOICE` (default voice: Kore).
@@ -322,6 +323,7 @@ All routes are under `/api` and return JSON. With `APP_TOKEN` set, send `Authori
 | `POST /runs/:id/evidence`, `/ask`, `/community` | Re-check evidence, ask the report, gather community voices |
 | `GET /runs/:id/export?format=pdf\|docx\|csv\|md\|json` | Download a deliverable |
 | `POST /voice/token`, `POST /voice/turn` | Start a Gemini Live session, or one push-to-talk or typed voice turn |
+| `POST /voice/status` | The voice assistant's current app status (running research, recent problems, usage, allowance) as text |
 | `GET /limits` | Gemini usage today, known limits, and this visitor's voice allowance |
 | `POST /uploads`, `PATCH /runs/:id/notes`, `POST /runs/:id/cancel`, `/schedule`, `/crm` | Files, notes, stopping, schedules, CRM export |
 

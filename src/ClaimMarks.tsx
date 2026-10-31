@@ -41,7 +41,7 @@ const hostOf = (url: string) => {
   }
 };
 
-/** Desktop margin: every placed claim in reading order, flagged ones first in weight. */
+/** Desktop margin: every placed claim in reading order; flagged ones in bold. */
 export function ClaimRail({
   placed,
   unplaced,
@@ -53,7 +53,10 @@ export function ClaimRail({
   onJump: (id: string) => void;
   onOpenEvidence: () => void;
 }) {
-  const flagged = placed.filter((p) => p.claim.status !== "supported").length;
+  // Same rule as the summary strip: only claims the check found against.
+  const flagged = placed.filter((p) =>
+    ["not_found", "uncited"].includes(p.claim.status),
+  ).length;
   return (
     <aside className="claim-rail" aria-label="Checked claims in this report">
       <p className="claim-rail-head">

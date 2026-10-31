@@ -1,4 +1,4 @@
-import pptxgenModule from "pptxgenjs";
+import { createRequire } from "node:module";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown } from "mdast-util-gfm";
 import { gfm } from "micromark-extension-gfm";
@@ -11,12 +11,16 @@ import {
   type Run,
 } from "../shared/types.js";
 
-// The package's types are CommonJS-style while Node loads its ES build, so the
-// default export arrives either directly or under `.default`.
+// pptxgenjs's ES build has no "type": "module", so some loaders (Vercel's
+// among them) parse it as CommonJS and crash at startup. Load the CommonJS
+// build explicitly, and only when a deck is requested, so a problem here can
+// never take down the rest of the API.
 type PptxCtor = typeof import("pptxgenjs").default;
-const PptxGenJS: PptxCtor =
-  (pptxgenModule as unknown as { default?: PptxCtor }).default ??
-  (pptxgenModule as unknown as PptxCtor);
+const requireCjs = createRequire(import.meta.url);
+function loadPptx(): PptxCtor {
+  const mod = requireCjs("pptxgenjs") as PptxCtor | { default: PptxCtor };
+  return "default" in mod ? mod.default : mod;
+}
 type Slide = ReturnType<InstanceType<PptxCtor>["addSlide"]>;
 
 /*
@@ -245,6 +249,7 @@ const chunk = <T>(items: T[], size: number) =>
 
 /** A finished, presentable .pptx of the research. */
 export async function toPptx(run: Run): Promise<Buffer> {
+  const PptxGenJS = loadPptx();
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE"; // 13.33 x 7.5 in
   pptx.title = run.title;

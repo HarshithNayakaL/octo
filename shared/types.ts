@@ -177,6 +177,8 @@ export interface VoiceAction {
   workflow: Workflow;
   /** Absent when the person has not chosen; the research form asks. */
   depth?: import("./depth.js").Depth;
+  /** A time limit the person asked for, in minutes. */
+  minutes?: number;
 }
 /** A question answered only from this research. */
 export interface QuestionAnswer {

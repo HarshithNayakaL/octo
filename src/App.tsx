@@ -72,6 +72,7 @@ import {
   depths,
   type Depth,
 } from "../shared/depth";
+import { depthForMinutes, type VoiceCommand } from "../shared/voice-commands";
 import { classifySource, monthsOld } from "../shared/sources";
 import { deletable, isActive as activeRun, statusLabel } from "./status";
 import Overview from "./OriginalOverview";
@@ -240,6 +241,7 @@ export default function App() {
   const [initialBrief, setInitialBrief] = useState("");
   const [initialTitle, setInitialTitle] = useState("");
   const [initialDepth, setInitialDepth] = useState<Depth>();
+  const [initialMinutes, setInitialMinutes] = useState<number>();
   const [collapsed, setCollapsed] = useState(false);
   const [page, setPage] = useState<Page>("research");
   const [runs, setRuns] = useState<Run[]>([]);
@@ -338,6 +340,178 @@ export default function App() {
     setSelected(run);
     void refresh();
   };
+  /**
+   * Actions the voice assistant asks for. They use the same API as the
+   * buttons, so the server's rules still apply; errors are thrown back so the
+   * assistant can say what went wrong.
+   */
+  async function runCommand(c: VoiceCommand): Promise<string> {
+    const list = await api<Run[]>("/runs").catch(() => runs);
+    const current = selectedId.current
+      ? list.find((r) => r.id === selectedId.current)
+      : undefined;
+    const pick = (test: (r: Run) => boolean) =>
+      current && test(current) ? current : list.find(test);
+    const show = async (run: Run) => {
+      setPage("research");
+      setSidebar(false);
+      changed(await api<Run>("/runs/" + run.id).catch(() => run));
+    };
+    switch (c.name) {
+      case "start_research": {
+        if (!c.title || !c.brief || c.brief.length < 15)
+          throw new Error(
+            "I need a title and a clear research question first.",
+          );
+        const providers = config?.providers ?? [];
+        const openaiLocked =
+          (config?.openaiAccess ?? "open") !== "open" && !openaiUnlock.get();
+        let provider: ProviderId = config?.defaultProvider ?? "google";
+        if (provider === "openai" && openaiLocked) provider = "google";
+        const ready = providers.find((p) => p.id === provider)?.ready;
+        const depth =
+          c.depth ?? (c.minutes ? depthForMinutes(c.minutes) : "standard");
+        const limits = depthLimits(provider, depth);
+        const workflow = c.workflow ?? "general";
+        const run = await api<Run>("/runs", {
+          method: "POST",
+          body: JSON.stringify({
+            title: c.title.length >= 3 ? c.title : `${c.title} research`,
+            workflow,
+            brief: c.brief,
+            icp: workflow === "sales" ? c.brief : "",
+            mode: ready ? "live" : "demo",
+            provider,
+            depth,
+            maxMinutes: c.minutes ?? limits.minutes,
+            maxTokens: limits.tokens,
+            // The conversation already settled the scope, so start straight away.
+            clarify: false,
+          }),
+        });
+        setNewWorkflow(undefined);
+        await show(run);
+        return `Started "${run.title}"${ready ? "" : " in demo mode, because no live provider is set up"}: ${depthLabels[depth]}, stopping after ${run.maxMinutes} minute${run.maxMinutes === 1 ? "" : "s"}. It is open on screen.`;
+      }
+      case "submit_research_form": {
+        if (!newWorkflowRef.current)
+          throw new Error("No research form is open.");
+        const result = await new Promise<string>((resolve) =>
+          window.dispatchEvent(
+            new CustomEvent("octo:submit-research", { detail: resolve }),
+          ),
+        );
+        if (!result.startsWith("Submitted")) throw new Error(result);
+        return result;
+      }
+      case "start_from_plan": {
+        const run = pick((r) => r.status === "awaiting_input");
+        if (!run) throw new Error("No research is waiting for answers.");
+        await api(`/runs/${run.id}/answers`, {
+          method: "POST",
+          body: JSON.stringify({ answers: [], extraContext: c.note }),
+        });
+        await show(run);
+        return `Started "${run.title}"${c.note ? " with your answers" : ""}.`;
+      }
+      case "cancel_research": {
+        const run = pick((r) => isActive(r) || r.status === "awaiting_input");
+        if (!run) throw new Error("Nothing is running right now.");
+        await api(`/runs/${run.id}/cancel`, { method: "POST", body: "{}" });
+        await show(run);
+        return `Stopping "${run.title}". Anything written so far is kept.`;
+      }
+      case "continue_research": {
+        const run = pick((r) => r.status === "partial");
+        if (!run)
+          throw new Error("No research has a partial report to continue.");
+        await api(`/runs/${run.id}/continue`, {
+          method: "POST",
+          body: JSON.stringify({ note: c.note }),
+        });
+        await show(run);
+        return `Continuing "${run.title}".`;
+      }
+      case "follow_up": {
+        if (!current)
+          throw new Error("Open the research you want changed first.");
+        if (!c.message || c.message.length < 5)
+          throw new Error("Tell me what to change in the report.");
+        await api(`/runs/${current.id}/followup`, {
+          method: "POST",
+          body: JSON.stringify({ message: c.message }),
+        });
+        await show(current);
+        return `Sent to the agent. "${current.title}" is being revised.`;
+      }
+      case "open_research": {
+        const words = (t: string) =>
+          new Set(t.toLowerCase().match(/[a-z0-9\u0900-\u0dff]+/g) ?? []);
+        const want = words(c.title ?? "");
+        const scored = list
+          .map((r) => {
+            const have = words(r.title);
+            let hits = 0;
+            want.forEach((w) => have.has(w) && hits++);
+            return { r, score: want.size ? hits / want.size : 0 };
+          })
+          .sort((a, b) => b.score - a.score);
+        if (!scored[0] || scored[0].score < 0.34)
+          throw new Error(
+            `I couldn't find that. Research here: ${
+              list
+                .slice(0, 8)
+                .map((r) => r.title)
+                .join("; ") || "none yet"
+            }.`,
+          );
+        await show(scored[0].r);
+        return `Opened "${scored[0].r.title}".`;
+      }
+      case "go_to": {
+        if (c.page === "settings") {
+          setSettings(true);
+          return "Opened settings.";
+        }
+        if (c.page === "help") {
+          setHelp(true);
+          return "Opened help.";
+        }
+        const pages: Record<string, Page> = {
+          "all research": "research",
+          reports: "reports",
+          "ongoing research": "monitors",
+          connections: "connections",
+        };
+        navigate(pages[c.page ?? "all research"] ?? "research");
+        return `Opened ${c.page ?? "all research"}.`;
+      }
+      case "download_report": {
+        const run = current?.report.trim()
+          ? current
+          : list.find((r) => r.report.trim());
+        if (!run)
+          throw new Error("There is no finished report to download yet.");
+        const format = c.format ?? "pdf";
+        await download(
+          `/runs/${run.id}/export?format=${format}`,
+          `${run.title.replace(/[^a-zA-Z0-9-]+/g, "-").replace(/^-|-$/g, "")}.${format}`,
+        );
+        return `Downloading "${run.title}" as ${format.toUpperCase()}.`;
+      }
+      case "check_evidence": {
+        const run = current?.report.trim() ? current : undefined;
+        if (!run) throw new Error("Open a finished report first.");
+        await api(`/runs/${run.id}/evidence`, { method: "POST", body: "{}" });
+        await show(run);
+        return `Checking the citations in "${run.title}" again.`;
+      }
+    }
+  }
+  const commandRef = useRef(runCommand);
+  commandRef.current = runCommand;
+  const newWorkflowRef = useRef(newWorkflow);
+  newWorkflowRef.current = newWorkflow;
   const counts = {
     active: runs.filter(isActive).length,
     reports: runs.filter((r) => r.status === "completed").length,
@@ -630,11 +804,12 @@ export default function App() {
       />
       {newWorkflow && (
         <NewResearch
-          key={`${newWorkflow}:${initialTitle}:${initialBrief.length}:${initialDepth ?? ""}`}
+          key={`${newWorkflow}:${initialTitle}:${initialBrief.length}:${initialDepth ?? ""}:${initialMinutes ?? ""}`}
           workflow={newWorkflow}
           initialBrief={initialBrief}
           initialTitle={initialTitle}
           initialDepth={initialDepth}
+          initialMinutes={initialMinutes}
           config={config}
           runs={runs}
           onClose={() => {
@@ -663,8 +838,10 @@ export default function App() {
           setInitialTitle(action.title);
           setInitialBrief(action.brief);
           setInitialDepth(action.depth);
+          setInitialMinutes(action.minutes);
           setNewWorkflow(action.workflow);
         }}
+        onCommand={(command) => commandRef.current(command)}
       />
       {pendingDelete && (
         <Modal
@@ -888,7 +1065,9 @@ export default function App() {
 }
 
 const formatMinutes = (n: number) =>
-  n >= 60 ? `${n / 60} hour${n > 60 ? "s" : ""}` : `${n} minutes`;
+  n >= 60 && n % 60 === 0
+    ? `${n / 60} hour${n > 60 ? "s" : ""}`
+    : `${n} minute${n === 1 ? "" : "s"}`;
 const formatTokens = (n: number) =>
   n >= 1_000_000 ? `${n / 1_000_000}M` : `${n / 1000}k`;
 
@@ -897,6 +1076,7 @@ function NewResearch({
   initialBrief = "",
   initialTitle = "",
   initialDepth,
+  initialMinutes,
   config,
   runs = [],
   onClose,
@@ -906,6 +1086,7 @@ function NewResearch({
   initialBrief?: string;
   initialTitle?: string;
   initialDepth?: Depth;
+  initialMinutes?: number;
   config?: Configuration;
   runs?: Run[];
   onClose: () => void;
@@ -945,12 +1126,17 @@ function NewResearch({
     profile?.ready ? "live" : "demo",
   );
   // Depth is chosen by the person (or said to the voice assistant) and sets the limits.
-  const [depth, setDepth] = useState<Depth | undefined>(initialDepth);
+  const [depth, setDepth] = useState<Depth | undefined>(
+    initialDepth ??
+      (initialMinutes ? depthForMinutes(initialMinutes) : undefined),
+  );
   const [depthMissing, setDepthMissing] = useState(false);
   const depthRef = useRef<HTMLFieldSetElement>(null);
   const limitsFor = (id: ProviderId, d: Depth = depth ?? "standard") =>
     depthLimits(id, d);
-  const [minutes, setMinutes] = useState(limitsFor(provider).minutes);
+  const [minutes, setMinutes] = useState(
+    initialMinutes ?? limitsFor(provider).minutes,
+  );
   const [tokens, setTokens] = useState(limitsFor(provider).tokens);
   function chooseDepth(d: Depth) {
     setDepth(d);
@@ -1022,6 +1208,31 @@ function NewResearch({
       if (fileInput.current) fileInput.current.value = "";
     }
   }
+  const formRef = useRef<HTMLFormElement>(null);
+  // The voice assistant can press Continue for the person.
+  useEffect(() => {
+    const onSubmit = (event: Event) => {
+      const done = (event as CustomEvent<(result: string) => void>).detail;
+      const form = formRef.current;
+      if (!form) return done("No research form is open.");
+      if (!depth) {
+        setDepthMissing(true);
+        return done(
+          "The form needs a depth first: ask whether they want a quick scan, standard or a deep dive, then call prepare_research again with it.",
+        );
+      }
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return done(
+          "The form is incomplete: it needs a title of at least 3 characters and a brief of at least 15.",
+        );
+      }
+      form.requestSubmit();
+      done("Submitted the research form.");
+    };
+    window.addEventListener("octo:submit-research", onSubmit);
+    return () => window.removeEventListener("octo:submit-research", onSubmit);
+  });
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!depth) {
@@ -1070,7 +1281,7 @@ function NewResearch({
   }
   return (
     <Modal title="Configure your research" onClose={onClose} wide>
-      <form onSubmit={submit}>
+      <form ref={formRef} onSubmit={submit}>
         <div className="modal-body">
           <p className="modal-intro">
             Define the scope, add your context, and choose how far the research
@@ -1346,10 +1557,14 @@ function NewResearch({
                 label="Time limit"
                 value={String(minutes)}
                 onChange={(value) => setMinutes(Number(value))}
-                options={[5, 10, 20, 30, 60, 90, 120, 180].map((n) => ({
-                  value: String(n),
-                  label: formatMinutes(n),
-                }))}
+                options={[
+                  ...new Set([minutes, 5, 10, 20, 30, 60, 90, 120, 180]),
+                ]
+                  .sort((a, b) => a - b)
+                  .map((n) => ({
+                    value: String(n),
+                    label: formatMinutes(n),
+                  }))}
               />
             </label>
             <label className="field">

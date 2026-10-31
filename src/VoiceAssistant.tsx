@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import type { Configuration, VoiceAction } from "../shared/types";
+import type { VoiceCommand } from "../shared/voice-commands";
 import { workflowLabels } from "../shared/types";
 import UsageLimits, { VoiceAllowance, useLimits } from "./UsageLimits";
 import {
@@ -38,10 +39,13 @@ export default function VoiceAssistant({
   config,
   context,
   onPrepareResearch,
+  onCommand,
 }: {
   config?: Configuration;
   context: VoiceContext;
   onPrepareResearch: (action: VoiceAction) => void;
+  /** Runs an action the assistant asked for and says what happened. */
+  onCommand: (command: VoiceCommand) => Promise<string>;
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<VoiceMode>("live");
@@ -56,6 +60,9 @@ export default function VoiceAssistant({
   const session = useRef<LiveSession | TurnSession | undefined>(undefined);
   const contextRef = useRef(context);
   contextRef.current = context;
+  // Sessions keep the events object they started with, so read the latest handler.
+  const commandRef = useRef(onCommand);
+  commandRef.current = onCommand;
   const scroller = useRef<HTMLDivElement>(null);
   // Refresh the allowance when the panel opens and after each answer.
   const [limitsKey, setLimitsKey] = useState(0);
@@ -81,6 +88,11 @@ export default function VoiceAssistant({
       setLimitsKey((k) => k + 1);
       setAction(a);
       onPrepareResearch(a);
+    },
+    command: async (c: VoiceCommand) => {
+      setLimitsKey((k) => k + 1);
+      if (c.name !== "submit_research_form") setAction(undefined);
+      return commandRef.current(c);
     },
     level: (l: number) => setLevel(Math.min(1, l * 6)),
     notice: (m: string) => setNotice(m),

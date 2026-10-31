@@ -1,6 +1,12 @@
 import { z } from "zod";
 import type { Run, VoiceAction } from "../shared/types.js";
 import { workflowLabels } from "../shared/types.js";
+import {
+  commandNames,
+  commandTools,
+  parseCommand,
+  type VoiceCommand,
+} from "../shared/voice-commands.js";
 import { ProviderError } from "./provider.js";
 import { interactionText } from "./google-provider.js";
 
@@ -39,6 +45,8 @@ export interface VoiceTurnResult {
   transcript: string;
   reply: string;
   action?: VoiceAction;
+  /** Something to do in Octo; the browser runs it. */
+  command?: VoiceCommand;
   audio?: { data: string; mimeType: string };
   /** Why no Gemini audio came back; the browser speaks the reply instead. */
   ttsError?: string;
@@ -90,7 +98,7 @@ Brief: ${run.brief.slice(0, 1500)}${
           : ""
       }${run.report.trim() ? `\nReport (may be cut):\n${run.report.slice(0, 6000)}` : "\nNo report yet."}`
     : "";
-  return `You are Octo's voice assistant. Octo is an evidence-led research workspace: it asks clarifying questions before researching, runs research agents (Google Antigravity by default, OpenAI optionally), checks every citation against its source and scores the evidence, answers questions only from a report, gathers what real people say on Reddit and Hacker News, labels source quality, challenges its own reports, keeps versions, and exports PDF, Word, CSV, Markdown or JSON.
+  return `You are Octo's voice assistant. Octo is an evidence-led research workspace: it asks clarifying questions before researching, runs research agents (Google Antigravity by default, OpenAI optionally), checks every citation against its source and scores the evidence, answers questions only from a report, gathers what real people say on Reddit and Hacker News, labels source quality, challenges its own reports, keeps versions, and exports PDF, Word, PowerPoint, CSV, Markdown or JSON.
 Help the person with anything: answer questions, explain Octo, discuss the open research, and turn what they want to find out into a research brief.
 ${
   spoken
@@ -98,7 +106,10 @@ ${
     : ""
 }You are part of Octo, so you know its current state from "App status" below: what is running, which model each run uses, recent problems such as a busy Gemini model, quota limits or failures, today's usage and the person's voice allowance. When they ask whether something is working, why research failed or is slow, what is running, or about limits, answer from App status in plain words and say what Octo is doing about it (for example, that it switched to a lighter model or will retry). Never guess a status that is not listed. In a long conversation, call get_app_status for a fresh reading before answering such questions.
 Answer about a report only from the report text given; say when it does not cover something. Do not invent facts, figures or sources. Say you are unsure when you are.
-When the person wants new research, ask at most one short question if the goal is unclear. Then always ask how in-depth they want it: a quick scan (a direct answer in about 5 minutes), standard (about 20 minutes) or a deep dive (every angle, up to an hour); the depth sets the research's time and token limits. Once they answer, call prepare_research with a clear title, a detailed brief and their depth. That opens the research form for them to review; it does not start research. Never claim research has started.
+You can operate Octo for the person with your tools, the same way they would with the buttons.
+New research: if the goal is unclear, ask one short question. Unless they already gave a depth or a time, ask how in-depth they want it: a quick scan (a direct answer in about 5 minutes), standard (about 20 minutes) or a deep dive (every angle, up to an hour). If they name a time, such as "in 3 minutes", pass it as minutes: it becomes the hard time limit and the agent writes a shorter report to finish inside it. If they want it started (for example "start it", "go ahead", "run it"), call start_research: it begins immediately with no form. If they want to review it first, call prepare_research to open the form, and when they then say go, call submit_research_form.
+Other actions: start_from_plan when research is waiting for answers to its questions (put their answers in note); cancel_research to stop research (confirm first); continue_research for research that stopped early; follow_up to ask for changes to the open report; open_research to open research by title; go_to to open a page; download_report to download the open report (PDF, Word, PowerPoint, CSV, Markdown or JSON); check_evidence to re-check citations.
+After a tool returns, say what happened in one short sentence, using its result. If it returns an error, say so plainly and what they can do. Never claim something happened unless a tool result says it did. Deleting research is not available by voice: tell them to use the delete button.
 Language: reply in the language of the person's most recent message, in the same script. If that message mixes languages, use the language of its last sentence. Judge every message on its own and do not carry an earlier language forward: if they spoke Kannada and then English, reply in English. Never reply in a language they have not used in this conversation; for example, do not answer in Hindi when they spoke English or Kannada. If you cannot tell which Indian language they used, reply in English.${
     context.page ? `\nThe person is on the ${context.page} page.` : ""
   }${
@@ -180,6 +191,11 @@ export const prepareResearchTool = {
         description:
           "How in-depth the person wants it, as they answered when asked: quick (a direct answer, about 5 minutes), standard (about 20 minutes) or deep (every area, up to an hour).",
       },
+      minutes: {
+        type: "integer",
+        description:
+          "Only when the person names a time, such as 'in 3 minutes': that time in minutes (1-180).",
+      },
     },
     required: ["title", "brief", "workflow", "depth"],
   },
@@ -193,6 +209,7 @@ const actionSchema = z.object({
     .default("general"),
   /** Missing or empty when the person has not said; the form then asks. */
   depth: z.enum(["quick", "standard", "deep"]).optional().catch(undefined),
+  minutes: z.coerce.number().int().min(1).max(180).optional().catch(undefined),
 });
 export function parseAction(value: unknown): VoiceAction | undefined {
   const parsed = actionSchema.safeParse(value);
@@ -227,13 +244,35 @@ const turnSchema = {
       },
       required: ["title", "brief", "workflow", "depth"],
     },
+    command: {
+      type: "object",
+      description:
+        "Only when the person asks you to do something in Octo (start, cancel or continue research, open something, download, check evidence): the action and its details. Otherwise name is an empty string.",
+      properties: {
+        name: {
+          type: "string",
+          description: `One of ${commandNames.join(", ")}, or an empty string.`,
+        },
+        title: { type: "string" },
+        brief: { type: "string" },
+        workflow: { type: "string" },
+        depth: { type: "string" },
+        minutes: { type: "integer" },
+        note: { type: "string" },
+        message: { type: "string" },
+        page: { type: "string" },
+        format: { type: "string" },
+      },
+      required: ["name"],
+    },
   },
-  required: ["transcript", "reply", "prepare_research"],
+  required: ["transcript", "reply", "prepare_research", "command"],
 };
 const turnResponse = z.object({
   transcript: z.string().trim().max(4000).default(""),
   reply: z.string().trim().min(1).max(4000),
   prepare_research: z.unknown().optional(),
+  command: z.record(z.string(), z.unknown()).optional().catch(undefined),
 });
 
 /** Pull the base64 audio from an Interactions response, wherever this API revision puts it. */
@@ -349,7 +388,15 @@ export class GeminiVoice implements VoiceProvider {
       },
       inputAudioTranscription: {},
       outputAudioTranscription: {},
-      tools: [{ functionDeclarations: [prepareResearchTool, appStatusTool] }],
+      tools: [
+        {
+          functionDeclarations: [
+            prepareResearchTool,
+            appStatusTool,
+            ...commandTools,
+          ],
+        },
+      ],
       sessionResumption: {},
       contextWindowCompression: { slidingWindow: {} },
     };
@@ -372,7 +419,7 @@ export class GeminiVoice implements VoiceProvider {
       "audio" in input
         ? "The person's latest message is the attached audio. Transcribe it, then reply."
         : `The person typed: ${input.text}`
-    }\nReturn JSON. Fill prepare_research only when they want new research; otherwise use empty strings.`;
+    }\nReturn JSON. Fill prepare_research only when they want the research form opened, and command only when they want you to do something in Octo; otherwise use empty strings.`;
     if ("audio" in input) {
       if (!allowedAudio.test(input.audio.mimeType))
         throw new ProviderError("Unsupported audio format.", 415);
@@ -424,7 +471,7 @@ export class GeminiVoice implements VoiceProvider {
             type: "text",
             text: `${voiceInstructions(context)}${
               history ? `\n\nConversation so far:\n${history}` : ""
-            }\n\nThe person said: ${heard}\nTheir message is written in ${want} script. Reply only in that same language and script.\nReturn JSON. Fill prepare_research only when they want new research; otherwise use empty strings.`,
+            }\n\nThe person said: ${heard}\nTheir message is written in ${want} script. Reply only in that same language and script.\nReturn JSON. Fill prepare_research only when they want the research form opened, and command only when they want you to do something in Octo; otherwise use empty strings.`,
           },
         ],
         response_format: {
@@ -441,6 +488,9 @@ export class GeminiVoice implements VoiceProvider {
       transcript: parsed.transcript || ("text" in input ? input.text : ""),
       reply: parsed.reply,
       action: parseAction(parsed.prepare_research),
+      command: parsed.command
+        ? parseCommand(parsed.command.name, parsed.command)
+        : undefined,
       model: this.models.turn,
     };
     try {

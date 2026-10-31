@@ -1,4 +1,9 @@
 import type { VoiceAction } from "../../shared/types";
+import {
+  parseCommand,
+  parseMinutes,
+  type VoiceCommand,
+} from "../../shared/voice-commands";
 import { api } from "../api";
 import {
   ChunkPlayer,
@@ -28,6 +33,8 @@ export interface VoiceEvents {
   state(state: VoiceState, detail?: string): void;
   line(line: VoiceLine): void;
   action(action: VoiceAction): void;
+  /** Do something in Octo; resolves to what happened, in a sentence. */
+  command(command: VoiceCommand): Promise<string>;
   level(level: number): void;
   notice(message: string): void;
 }
@@ -307,6 +314,22 @@ export class LiveSession extends Session {
             };
           }
         }
+        const command = parseCommand(call.name, call.args ?? {});
+        if (command) {
+          try {
+            return {
+              id: call.id,
+              name: call.name,
+              response: { result: await this.events.command(command) },
+            };
+          } catch (err) {
+            return {
+              id: call.id,
+              name: call.name,
+              response: { error: (err as Error).message },
+            };
+          }
+        }
         if (
           call.name === "prepare_research" &&
           call.args?.title &&
@@ -324,6 +347,7 @@ export class LiveSession extends Session {
             depth: ["quick", "standard", "deep"].includes(call.args.depth)
               ? call.args.depth
               : undefined,
+            minutes: parseMinutes(call.args.minutes),
           });
           return {
             id: call.id,
@@ -478,6 +502,7 @@ export class TurnSession extends Session {
         transcript: string;
         reply: string;
         action?: VoiceAction;
+        command?: VoiceCommand;
         audio?: { data: string; mimeType: string };
         ttsError?: string;
       }>("/voice/turn", {
@@ -502,6 +527,11 @@ export class TurnSession extends Session {
         final: true,
       });
       if (result.action) this.events.action(result.action);
+      if (result.command)
+        void this.events
+          .command(result.command)
+          .then((done) => this.events.notice(done))
+          .catch((err) => this.events.notice((err as Error).message));
       this.set("speaking", "Speaking…");
       if (result.audio) {
         await this.player.encoded(base64ToBytes(result.audio.data));

@@ -154,3 +154,42 @@ test("the voice assistant button is always visible and opens the panel", async (
     page.getByRole("dialog", { name: "Octo voice assistant" }),
   ).toHaveCount(0);
 });
+test("the voice assistant can start research with a spoken time limit", async ({
+  page,
+}) => {
+  const title = "Voice started " + Date.now();
+  // Stand in for Gemini: the push-to-talk reply asks Octo to start research.
+  await page.route("**/api/voice/turn", (route) =>
+    route.fulfill({
+      json: {
+        transcript: "Research Pix merchant growth in 3 minutes and start it",
+        reply: "Starting it now.",
+        command: {
+          name: "start_research",
+          title,
+          brief: "How fast is Pix growing among merchants in Brazil?",
+          workflow: "general",
+          depth: "quick",
+          minutes: 3,
+        },
+        model: "test",
+      },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Talk to Octo" }).click();
+  await page
+    .getByLabel("Type to Octo")
+    .fill("Research Pix in 3 minutes, start it");
+  await page.getByLabel("Type to Octo").press("Enter");
+  await expect(page.getByText(/Started "Voice started/)).toBeVisible({
+    timeout: 15000,
+  });
+  await page.getByRole("button", { name: "Close voice assistant" }).click();
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page.getByText("Quick scan · 3 minute limit")).toBeVisible();
+  // Let the demo run finish so later tests can start their own.
+  await expect(page.getByText("Report ready", { exact: false })).toBeVisible({
+    timeout: 30000,
+  });
+});

@@ -128,7 +128,7 @@ describe("voice assistant", () => {
     const prompt = config.systemInstruction.parts[0].text;
     expect(prompt).toContain("Pix vs UPI");
     expect(prompt).toContain("160 million");
-    expect(prompt).toContain("does not start research");
+    expect(prompt).toContain("Never claim something happened unless a tool result says it did");
     expect(
       config.tools[0].functionDeclarations.map((f: any) => f.name),
     ).toContain("get_app_status");

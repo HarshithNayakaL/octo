@@ -4,7 +4,7 @@ test("market research, notes, sources, and download work end to end in demo mode
 }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Research, with a wider lens." }),
+    page.getByRole("heading", { name: "Research you can check" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Market intelligence" }).click();
   await page.getByRole("button", { name: "Use an example" }).click();

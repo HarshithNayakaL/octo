@@ -111,6 +111,8 @@ After every report (and on **Check again**), Octo:
 3. Compares figures (ignoring thousands separators) and key terms with the page and marks the claim **Supported**, **Partly supported**, **Not found in source**, **No source cited** or **Could not check** (blocked, failed, or a page with almost no readable text, which usually means it needs JavaScript or a sign-in).
 4. Scores the report from 0 to 100: supported claims count fully, partly supported ones half. Pages Octo could not check are left out of the score.
 
+In the report itself, each checked claim gets a small numbered mark after the sentence it came from, coloured by its status; clicking a mark opens that claim in the Evidence tab. On wide screens a margin strip lists the marks in reading order with the count to review. Claims are placed by matching their words and figures to the report line, and a claim whose figure is not on the line is never placed there; claims Octo cannot place stay in the Evidence tab only.
+
 This is an automatic first pass that flags what to review; it is not proof. The check runs outside the research session, costs one small model call on live runs, and is included as a table in PDF, Word, Markdown and JSON downloads. Demo runs show labelled illustrative statuses and fetch nothing.
 
 ### Ask this research

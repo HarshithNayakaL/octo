@@ -2,6 +2,7 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -57,6 +58,8 @@ import ClarifyPanel from "./ClarifyPanel";
 import VoiceAssistant from "./VoiceAssistant";
 import UsageLimits from "./UsageLimits";
 import EvidencePanel, { ClaimBadge } from "./EvidencePanel";
+import { marksApply, placeClaims } from "./claimPlacement";
+import { ClaimMarks, ClaimRail, blockLines, hasParagraph } from "./ClaimMarks";
 import AskPanel from "./AskPanel";
 import VersionsPanel from "./VersionsPanel";
 import { relatedRuns } from "./related";
@@ -468,7 +471,7 @@ export default function App() {
               className="icon-button navigation-toggle"
               aria-label="Toggle navigation"
               onClick={() => {
-                if (window.innerWidth <= 760) setSidebar(!sidebar);
+                if (window.innerWidth <= 1024) setSidebar(!sidebar);
                 else setCollapsed(!collapsed);
               }}
             >
@@ -1580,11 +1583,10 @@ function Connections({
     <main className="content">
       <div className="page-heading">
         <div>
-          <div className="eyebrow">TOOLS FOR YOUR RESEARCH</div>
-          <h1>Connect the bigger picture.</h1>
+          <h1>Connections</h1>
           <p>
-            Bring your research engine and CRM together. Credentials stay on
-            your server.
+            Your research providers and CRM. Keys and credentials stay on your
+            server.
           </p>
         </div>
       </div>
@@ -1666,6 +1668,52 @@ function RunDetail({
 }) {
   const [tab, setTab] = useState("report");
   const [highlight, setHighlight] = useState<string>();
+  // Checked claims placed on the report lines they came from.
+  const placement = useMemo(
+    () =>
+      marksApply(run)
+        ? placeClaims(run.report, run.evidence!.claims)
+        : undefined,
+    [run.report, run.evidence],
+  );
+  const placedInOrder = useMemo(
+    () =>
+      placement
+        ? [...placement.byLine.entries()]
+            .sort(([a], [b]) => a - b)
+            .flatMap(([, list]) => list)
+        : [],
+    [placement],
+  );
+  const openClaim = (id: string) => {
+    setHighlight(id);
+    setTab("evidence");
+    setTimeout(
+      () =>
+        document
+          .getElementById(`claim-${id}`)
+          ?.scrollIntoView({ block: "center" }),
+      50,
+    );
+  };
+  const jumpToMark = (id: string) => {
+    const mark = document.getElementById(`mark-${id}`);
+    if (!mark) return;
+    mark.scrollIntoView({ block: "center", behavior: "smooth" });
+    mark.classList.remove("flash");
+    void mark.offsetWidth;
+    mark.classList.add("flash");
+  };
+  const marksFor = (node: unknown) => {
+    const lines = placement && blockLines(node);
+    if (!lines) return null;
+    const placed = [];
+    for (let line = lines[0]; line <= lines[1]; line++)
+      placed.push(...(placement.byLine.get(line) ?? []));
+    return placed.length ? (
+      <ClaimMarks placed={placed} onOpen={openClaim} />
+    ) : null;
+  };
   const [continueNote, setContinueNote] = useState("");
   const team = teamFor(run);
   const [notes, setNotes] = useState(run.notes);
@@ -1968,19 +2016,49 @@ function RunDetail({
                           </button>
                         </span>
                       </div>
-                      <div className="markdown">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            a: ({ href, children }) => (
-                              <a href={href} target="_blank" rel="noreferrer">
-                                {children}
-                              </a>
-                            ),
-                          }}
-                        >
-                          {run.report}
-                        </ReactMarkdown>
+                      <div
+                        className={`report-body ${placedInOrder.length ? "with-rail" : ""}`}
+                      >
+                        <div className="markdown">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              a: ({ href, children }) => (
+                                <a href={href} target="_blank" rel="noreferrer">
+                                  {children}
+                                </a>
+                              ),
+                              p: ({ node, children }) => (
+                                <p>
+                                  {children}
+                                  {marksFor(node)}
+                                </p>
+                              ),
+                              li: ({ node, children }) => (
+                                <li>
+                                  {children}
+                                  {hasParagraph(node) ? null : marksFor(node)}
+                                </li>
+                              ),
+                              td: ({ node, children }) => (
+                                <td>
+                                  {children}
+                                  {marksFor(node)}
+                                </td>
+                              ),
+                            }}
+                          >
+                            {run.report}
+                          </ReactMarkdown>
+                        </div>
+                        {placedInOrder.length > 0 && (
+                          <ClaimRail
+                            placed={placedInOrder}
+                            unplaced={placement?.unplaced.length ?? 0}
+                            onJump={jumpToMark}
+                            onOpenEvidence={() => setTab("evidence")}
+                          />
+                        )}
                       </div>
                     </>
                   ) : (
@@ -2033,17 +2111,7 @@ function RunDetail({
                       run={run}
                       onChange={onChange}
                       onError={onError}
-                      onClaim={(id) => {
-                        setHighlight(id);
-                        setTab("evidence");
-                        setTimeout(
-                          () =>
-                            document
-                              .getElementById(`claim-${id}`)
-                              ?.scrollIntoView({ block: "center" }),
-                          50,
-                        );
-                      }}
+                      onClaim={openClaim}
                       onResearchGap={(gap) => {
                         setFollowup(gap);
                         setTimeout(() => {

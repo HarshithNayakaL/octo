@@ -56,16 +56,6 @@
   box-shadow: var(--shadow-lg);
   isolation: isolate;
 }
-.hero-panel::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.16;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  z-index: 0;
-}
 .hero-copy {
   padding: 44px 44px 48px;
 }
@@ -119,10 +109,6 @@
 .hero-copy button:hover svg {
   transform: translateX(3px);
 }
-.hero-folio {
-  color: rgba(255, 255, 255, 0.45);
-  z-index: 1;
-}
 .research-diagram {
   color: #b9c8ff;
   z-index: 1;
@@ -167,15 +153,6 @@
   gap: 32px;
   margin-bottom: 20px;
 }
-.eyebrow-strong {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--blue);
-}
 .bento-heading h2 {
   font-size: clamp(26px, 2.6vw, 36px);
   font-weight: 600;
@@ -206,11 +183,6 @@
   background: #fff;
   box-shadow: var(--shadow-sm);
   overflow: hidden;
-}
-.bento-tile:hover {
-  transform: translateY(-3px);
-  border-color: #c9d4f2;
-  box-shadow: var(--shadow-md);
 }
 .bento-tile h3 {
   margin: 6px 0 0;
@@ -353,16 +325,6 @@
   font-size: 12px;
   line-height: 1.4;
   color: var(--ink);
-  animation: rise 0.6s var(--ease-out) both;
-}
-.evidence-demo li:nth-child(2) {
-  animation-delay: 0.08s;
-}
-.evidence-demo li:nth-child(3) {
-  animation-delay: 0.16s;
-}
-.evidence-demo li:nth-child(4) {
-  animation-delay: 0.24s;
 }
 .evidence-demo li svg {
   margin-top: 1px;
@@ -402,36 +364,14 @@
 .evidence-demo li.uncited em {
   background: #f2effc;
 }
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
 .tile-voice {
   grid-column: span 2;
   grid-row: span 2;
   justify-content: space-between;
   border: 0;
   color: #fff;
-  background:
-    radial-gradient(
-      100% 70% at 50% 0%,
-      rgba(110, 145, 255, 0.55),
-      transparent 65%
-    ),
-    linear-gradient(170deg, #0b2a86, #0a1f5c);
+  background: linear-gradient(170deg, #0b2a86, #0a1f5c);
   box-shadow: var(--shadow-md);
-}
-.tile-voice::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.14;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
 .tile-voice h3 {
   color: #fff;
@@ -446,46 +386,6 @@
   display: grid;
   gap: 8px;
   margin: 14px 0;
-}
-.demo-orb {
-  position: relative;
-  justify-self: center;
-  width: 72px;
-  height: 72px;
-  margin-bottom: 6px;
-}
-.demo-orb span {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #cfdbff, #5b82ff 55%, #1a46d6);
-  box-shadow: 0 0 40px rgba(120, 155, 255, 0.6);
-  animation: orb-breathe 3.2s ease-in-out infinite;
-}
-.demo-orb i {
-  position: absolute;
-  inset: -10px;
-  border-radius: 50%;
-  border: 1px solid rgba(180, 200, 255, 0.45);
-  animation: orb-wave 3.2s ease-out infinite;
-}
-.demo-orb i + i {
-  animation-delay: 1.6s;
-}
-@keyframes orb-breathe {
-  50% {
-    transform: scale(0.92);
-  }
-}
-@keyframes orb-wave {
-  from {
-    opacity: 0.9;
-    transform: scale(0.85);
-  }
-  to {
-    opacity: 0;
-    transform: scale(1.35);
-  }
 }
 .bubble {
   max-width: 92%;
@@ -587,43 +487,25 @@
   text-decoration: line-through;
   text-decoration-color: rgba(180, 35, 24, 0.45);
 }
-.bento-strip {
+/* The rest of what Octo does, as plain text: no cards, no icons. */
+.also-list {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0;
-  margin: 14px 0 0;
-  padding: 0;
-  list-style: none;
-  border: 1px solid #e3e7f0;
-  border-radius: 16px;
-  background: #fbfcfe;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 18px 28px;
+  margin: 26px 0 0;
+  padding-top: 22px;
+  border-top: 1px solid #e6e9f0;
 }
-.bento-strip li {
-  display: flex;
-  gap: 10px;
-  padding: 16px 18px;
-  border-right: 1px solid #e9ecf3;
-}
-.bento-strip li:last-child {
-  border-right: 0;
-}
-.bento-strip li > svg {
-  flex-shrink: 0;
-  margin-top: 1px;
-  color: var(--blue);
-}
-.bento-strip b {
-  display: block;
-  font-size: 12.5px;
+.also-list dt {
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--ink);
 }
-.bento-strip span {
-  display: block;
-  margin-top: 3px;
-  font-size: 11.5px;
-  line-height: 1.45;
-  color: #5d6475;
+.also-list dd {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #596070;
 }
 
 /* Workflow cards: lift on hover, a clear call to action. */
@@ -657,23 +539,6 @@
 .pulse-stats b {
   font-size: 32px;
   font-weight: 600;
-}
-
-/* Sections arrive in sequence rather than all at once. */
-.dashboard > * {
-  animation: rise 0.7s var(--ease-out) both;
-}
-.dashboard > *:nth-child(2) {
-  animation-delay: 0.05s;
-}
-.dashboard > *:nth-child(3) {
-  animation-delay: 0.1s;
-}
-.dashboard > *:nth-child(4) {
-  animation-delay: 0.15s;
-}
-.dashboard > *:nth-child(n + 5) {
-  animation-delay: 0.2s;
 }
 
 /* Report page: a trust strip under the title. */
@@ -890,12 +755,6 @@
   .tile-challenge {
     grid-column: span 6;
   }
-  .bento-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .bento-strip li {
-    border-bottom: 1px solid #e9ecf3;
-  }
   .trust-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -920,12 +779,6 @@
   .tile-people,
   .tile-challenge {
     grid-column: span 6;
-  }
-  .bento-strip {
-    grid-template-columns: 1fr;
-  }
-  .bento-strip li {
-    border-right: 0;
   }
   .hero-copy {
     padding: 30px 24px 34px;
@@ -1039,7 +892,7 @@
   color: #7b8294;
 }
 
-/* Cursor spotlight on cards (position set by src/spotlight.ts). */
+/* Workflow cards are buttons: they lift on hover. */
 .workflow-card {
   position: relative;
   border-radius: 14px;
@@ -1052,37 +905,12 @@
   transform: translateY(-3px);
   box-shadow: var(--shadow-md);
 }
-.bento-tile::before,
-.workflow-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s;
-  background: radial-gradient(
-    380px circle at var(--mx, 50%) var(--my, 50%),
-    rgba(0, 47, 167, 0.07),
-    transparent 45%
-  );
-}
-.bento-tile:hover::before,
-.workflow-card:hover::before {
-  opacity: 1;
-}
-.tile-voice::before {
-  background: radial-gradient(
-    300px circle at var(--mx, 50%) var(--my, 50%),
-    rgba(255, 255, 255, 0.12),
-    transparent 50%
-  );
-}
-
 /* Reports read like a document, not a log. */
 .report-panel {
   border-radius: 14px;
   box-shadow: var(--shadow-sm);
+  /* clip, not hidden: hidden would stop the claim rail from sticking. */
+  overflow: clip;
 }
 .report-tabs {
   gap: 4px;
@@ -1177,4 +1005,557 @@
   padding: 0;
   font-size: 11px;
   color: #8a8f9c;
+}
+
+/*
+ * Legibility floor. The original labels ran 8.5–11px in light grey and failed
+ * contrast (measured: 117 failing text styles in light, 23 in dark).
+ * Rule: nothing under 12px, uppercase labels 11px with tracking, and secondary
+ * text in #596070 (6.2:1 on white). Literal colours so build-dark-theme maps them.
+ */
+.brand span,
+.nav-label,
+.small-label,
+.demo-banner > span,
+.report-table th,
+.research-table th,
+table th {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #596070;
+}
+.brand span {
+  font-size: 10px;
+}
+.workspace-switch span,
+.workspace-avatar,
+.profile small,
+.sidebar nav button > span,
+.recent-links button,
+.recent-links button > span,
+.breadcrumb,
+.local-pill,
+.card-number,
+.count-label,
+.workflow-label,
+.date-cell,
+.pulse-legend,
+.back-button,
+.detail-kicker,
+.trust-label,
+.demo-banner,
+.field-hint,
+.code-hint,
+.code-hint code,
+.connection-state,
+.followup > label,
+.search-field kbd,
+.toolbar-actions > button,
+.session-info,
+.session-info > *,
+.claim-id,
+.dashboard-footer,
+.dashboard-footer > button,
+.director-card span,
+.activity-item time,
+.agent-list time,
+.engine-card p,
+.evidence-demo li small,
+.evidence-check p.muted.small,
+.usage-limits p.muted,
+.team-preview p,
+.team-roster-planned span {
+  font-size: 12px;
+  color: #596070;
+}
+.workspace-switch span,
+.workspace-avatar,
+.profile small,
+.sidebar nav button > span,
+.recent-links button,
+.breadcrumb,
+.local-pill,
+.card-number,
+.count-label,
+.workflow-label,
+.date-cell,
+.pulse-legend,
+.back-button,
+.detail-kicker,
+.trust-label,
+.demo-banner,
+.field-hint,
+.code-hint,
+.connection-state,
+.followup > label,
+.toolbar-actions > button,
+.session-info,
+.claim-id,
+.dashboard-footer,
+.dashboard-footer > button,
+.director-card span,
+.activity-item time,
+.agent-list time,
+.engine-card p {
+  font-size: 12px;
+}
+.trust-label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+.recent-links button.selected,
+.sidebar nav button.active > span {
+  color: var(--blue);
+}
+.section-top > span,
+.workflow-card p,
+.connection-card p,
+.modal-intro,
+.muted,
+.markdown blockquote,
+.markdown blockquote p {
+  color: #596070;
+}
+.report-tabs > button {
+  color: #5f6676;
+}
+.report-tabs > button.active {
+  color: var(--blue);
+}
+.report-tabs > button.active[data-accent="evidence"] {
+  color: #17703f;
+}
+.report-tabs > button.active[data-accent="voices"] {
+  color: #5b3fb8;
+}
+.report-tabs > button.active[data-accent="versions"] {
+  color: #8a5300;
+}
+/* Same floor, matched to the specificity of the original rules it replaces. */
+.brand > div > span {
+  font-size: 10px;
+  color: #596070;
+}
+.runs-table th {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #596070;
+}
+.field .field-hint,
+.session-info > small,
+.modal-body .modal-intro,
+.topbar .breadcrumb,
+.breadcrumb > span,
+.director-card > div > span,
+.card-footer,
+.card-footer > span,
+.notice p,
+.detail-meta > span,
+.pulse-stats span,
+.tile-people blockquote small,
+.activity-item p,
+.activity-item time,
+.lead-card dt,
+.openai-gate p {
+  font-size: 12px;
+  color: #596070;
+}
+.field .field-hint,
+.session-info > small,
+.card-footer,
+.notice p,
+.activity-item p,
+.activity-item time,
+.lead-card dt,
+.tile-people blockquote small {
+  font-size: 12px;
+}
+.activity-item b,
+.director-card b {
+  font-size: 12px;
+  color: #2b3245;
+}
+.report-toolbar > span {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #596070;
+}
+.workflow-tabs button {
+  font-size: 12px;
+  color: #4f5666;
+}
+.workflow-tabs button.selected {
+  color: var(--blue);
+}
+.select-trigger.compact > span,
+.agent-list > div > span,
+.pulse-calendar-top > span,
+.clarify-toggle > span {
+  font-size: 12px;
+  color: #4f5666;
+}
+.select-trigger.compact > span,
+.agent-list > div > span,
+.pulse-calendar-top > span {
+  font-size: 12px;
+}
+.research-cell > div > span,
+.source-policy summary > span {
+  font-size: 12px;
+  color: #596070;
+}
+
+/* Phones: inputs at 16px so iOS does not zoom on focus. */
+@media (max-width: 720px) {
+  input,
+  select,
+  textarea,
+  .search-field input {
+    font-size: 16px !important;
+  }
+}
+
+/* Touch screens: every control is at least 44px tall. */
+@media (pointer: coarse) {
+  .sidebar nav button,
+  .recent-links button,
+  .sidebar .quiet,
+  .sidebar-new,
+  .engine-card button,
+  .engine-card .text-link,
+  .icon-button,
+  .report-tabs > button,
+  .back-button,
+  .toolbar-actions > button,
+  .primary,
+  .hero-copy button,
+  .tile-action,
+  .search-field,
+  .row-title,
+  .dashboard-footer > button {
+    min-height: 44px;
+  }
+  .primary {
+    min-width: 44px;
+  }
+  .search-field input {
+    min-height: 44px;
+  }
+  .icon-button {
+    min-width: 44px;
+  }
+}
+.file-attach > span {
+  font-size: 12px;
+  color: #596070;
+}
+
+/* Desktop: the top-bar toggle hides the sidebar entirely. */
+@media (min-width: 1025px) {
+  .sidebar {
+    transition: transform 0.25s var(--ease-out);
+  }
+  .main-shell {
+    transition: margin-left 0.25s var(--ease-out);
+  }
+  .rail-collapsed .sidebar {
+    transform: translateX(-100%);
+  }
+  .rail-collapsed .main-shell {
+    margin-left: 0;
+  }
+}
+
+/* Tablet and below: the sidebar is a drawer, so content gets the full width. */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.25s var(--ease-out);
+    box-shadow: var(--shadow-lg);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .sidebar-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    background: rgba(10, 16, 34, 0.45);
+  }
+  .main-shell {
+    margin-left: 0;
+  }
+  .detail-actions {
+    flex-direction: row;
+    align-items: center;
+  }
+  /* Report tabs scroll sideways; the fading edge says there is more. */
+  .report-tabs {
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      #000 calc(100% - 48px),
+      transparent
+    );
+    mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent);
+    padding-right: 40px;
+  }
+  .report-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .report-tabs > button {
+    scroll-snap-align: start;
+  }
+  /* The voice button shrinks to its icon so it covers less of the report. */
+  .voice-fab {
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    width: 56px;
+    padding: 0;
+    justify-content: center;
+  }
+  .voice-fab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .content {
+    padding-bottom: 96px;
+  }
+}
+
+/* Research list: rows become cards when the table no longer fits. */
+@media (max-width: 860px) {
+  .runs-table,
+  .runs-table tbody {
+    display: block;
+    width: 100%;
+  }
+  .runs-table thead {
+    display: none;
+  }
+  .runs-table tr {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 6px;
+    padding: 14px 4px;
+    border-bottom: 1px solid #eceef3;
+  }
+  .runs-table td,
+  .runs-table td:nth-child(n) {
+    display: block;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .runs-table td:nth-child(1) {
+    grid-column: 1 / 4;
+    grid-row: 1;
+  }
+  .runs-table td:nth-child(2) {
+    grid-column: 1;
+    grid-row: 2;
+    padding-left: 46px;
+  }
+  .runs-table td:nth-child(3) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .runs-table td:nth-child(4) {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+  }
+  .runs-table td:last-child {
+    grid-column: 4;
+    grid-row: 1 / 3;
+  }
+}
+@media (max-width: 520px) {
+  .runs-table td:nth-child(2) {
+    display: none;
+  }
+  .runs-table td:nth-child(3) {
+    grid-column: 1;
+    padding-left: 46px;
+  }
+  .runs-table td:nth-child(4) {
+    grid-column: 2 / 4;
+  }
+}
+
+/* The menu button shows wherever the sidebar can be hidden. */
+.navigation-toggle {
+  display: grid;
+}
+@media (max-width: 520px) {
+  .report-toolbar {
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-bottom: 20px;
+  }
+  .toolbar-actions {
+    display: flex;
+    gap: 16px;
+  }
+}
+
+/*
+ * Claim marks: the evidence check shown where each claim is made. A small
+ * numbered mark after the sentence; colour and icon carry the status.
+ */
+.claim-marks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+.claim-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 6px 0 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+.claim-mark:hover {
+  border-color: currentColor;
+}
+.claim-mark.supported {
+  background: #e8f5ee;
+  color: #17703f;
+}
+.claim-mark.partial {
+  background: #fdf3e1;
+  color: #7a4f00;
+}
+.claim-mark.not_found {
+  background: #fdecea;
+  color: #a8201a;
+}
+.claim-mark.unreachable {
+  background: #f1f2f5;
+  color: #4f5666;
+}
+.claim-mark.uncited {
+  background: #f2effc;
+  color: #5b3fb8;
+}
+.claim-mark.flash {
+  animation: mark-flash 1.2s var(--ease-out);
+}
+@keyframes mark-flash {
+  0%,
+  40% {
+    box-shadow: 0 0 0 4px rgba(0, 47, 167, 0.25);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 47, 167, 0);
+  }
+}
+@media (pointer: coarse) {
+  .claim-mark {
+    height: 28px;
+    padding: 0 8px;
+  }
+}
+
+/* Margin strip: wide screens only; marks stay inline everywhere. */
+.claim-rail {
+  display: none;
+}
+@media (min-width: 1280px) {
+  .report-body.with-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 168px;
+    gap: 28px;
+    align-items: start;
+  }
+  .claim-rail {
+    display: block;
+    position: sticky;
+    top: 92px;
+    padding: 14px 0 14px 18px;
+    border-left: 1px solid #e6e9f0;
+  }
+}
+.claim-rail-head {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #596070;
+}
+.claim-rail-head b {
+  color: #a8201a;
+  font-weight: 600;
+}
+.claim-rail ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.rail-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.rail-item:hover {
+  background: #f3f5fa;
+}
+.rail-number {
+  min-width: 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #596070;
+}
+.rail-item.supported {
+  color: #17703f;
+}
+.rail-item.partial {
+  color: #7a4f00;
+}
+.rail-item.not_found {
+  color: #a8201a;
+  font-weight: 600;
+}
+.rail-item.unreachable {
+  color: #4f5666;
+}
+.rail-item.uncited {
+  color: #5b3fb8;
+  font-weight: 600;
+}
+.rail-more {
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }

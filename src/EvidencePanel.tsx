@@ -19,7 +19,7 @@ export const claimLabels: Record<ClaimStatus, string> = {
   unreachable: "Could not check",
   uncited: "No source cited",
 };
-const icons: Record<ClaimStatus, typeof CircleCheck> = {
+export const claimIcons: Record<ClaimStatus, typeof CircleCheck> = {
   supported: CircleCheck,
   partial: CircleAlert,
   not_found: CircleX,
@@ -35,7 +35,7 @@ const order: ClaimStatus[] = [
 ];
 
 export function ClaimBadge({ status }: { status: ClaimStatus }) {
-  const Icon = icons[status];
+  const Icon = claimIcons[status];
   return (
     <span className={`claim-badge ${status}`}>
       <Icon size={13} />

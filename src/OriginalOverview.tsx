@@ -82,20 +82,19 @@ export default function OriginalOverview({
     <main className="content dashboard">
       <div className="page-heading">
         <div>
-          <div className="eyebrow">YOUR RESEARCH, CONNECTED</div>
           <h1>
             {page === "reports"
-              ? "Ideas, backed by evidence."
+              ? "Reports"
               : page === "monitors"
-                ? "Stay close to what changes."
-                : "Research, with a wider lens."}
+                ? "Ongoing research"
+                : "Research you can check"}
           </h1>
           <p>
             {page === "reports"
-              ? "Your completed briefings, sources, and company research in one place."
+              ? "Finished briefings with their sources, evidence checks and company records."
               : page === "monitors"
-                ? "Keep a topic moving forward with scheduled checks and saved context."
-                : "Turn a question into a clear picture. Put a team of research agents to work."}
+                ? "Topics Octo checks again on a schedule, building on what it found last time."
+                : "Octo researches your question, then opens every page it cites and marks which claims hold up."}
           </p>
         </div>
         <button
@@ -111,14 +110,11 @@ export default function OriginalOverview({
           <section className="hero-panel">
             <div className="hero-copy">
               <p className="hero-tag">Runs on Google Gemini or OpenAI</p>
-              <h2>
-                One brief. <br />
-                Multiple perspectives.
-              </h2>
+              <h2>One question, a team of specialists</h2>
               <p>
-                Octo asks before it researches, checks every citation
-                <br className="desktop-break" /> against its source, and keeps
-                the report current.
+                A research director splits your question into areas, a
+                specialist researches each one, and a reviewer checks the report
+                before you read it.
               </p>
               <button onClick={() => onCreate("general")}>
                 Start with a question
@@ -126,11 +122,10 @@ export default function OriginalOverview({
               </button>
             </div>
             <ResearchDiagram />
-            <div className="hero-folio">01 / A WORKSPACE FOR DISCOVERY</div>
           </section>
           <Bento />
           <div className="section-top">
-            <h2>What would you like to explore?</h2>
+            <h2>Start new research</h2>
             <span>Choose a research workflow</span>
           </div>
           <section className="workflow-grid">
@@ -350,7 +345,7 @@ export default function OriginalOverview({
           sources
         </span>
         <button onClick={onSettings}>
-          Built to be yours
+          Settings
           <ArrowUpRight size={14} />
         </button>
       </footer>

@@ -3,12 +3,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleHelp,
-  FileDown,
-  History,
-  Layers,
-  Library,
   MessageCircleQuestion,
-  MessagesSquare,
   Mic,
   Scale,
   ShieldCheck,
@@ -54,27 +49,22 @@ const claimLabel = {
 
 const smaller = [
   {
-    icon: Layers,
     title: "Knows a regulator from a blog",
     text: "Every source labelled by kind and date; SEO and review sites flagged.",
   },
   {
-    icon: MessagesSquare,
     title: "Answers only from your research",
     text: "Questions answered from the report, never from memory.",
   },
   {
-    icon: History,
     title: "Keeps research current",
     text: "Refresh any report and see exactly what changed.",
   },
   {
-    icon: Library,
     title: "Builds on what you know",
     text: "New research reuses related reports from your workspace.",
   },
   {
-    icon: FileDown,
     title: "Survives limits, ships files",
     text: "Half reports continue into one. PDF, Word or CSV out.",
   },
@@ -86,7 +76,6 @@ export default function Bento() {
     <section className="bento-section" aria-labelledby="why-octo-title">
       <div className="bento-heading">
         <div>
-          <span className="eyebrow-strong">Why research in Octo</span>
           <h2 id="why-octo-title">What a chat window can't do</h2>
         </div>
         <p>
@@ -163,11 +152,6 @@ export default function Bento() {
             </p>
           </div>
           <div className="voice-demo" aria-hidden="true">
-            <div className="demo-orb">
-              <span />
-              <i />
-              <i />
-            </div>
             <p className="bubble you">
               Set up research on EV charging in India for an investor
             </p>
@@ -228,17 +212,14 @@ export default function Bento() {
           </div>
         </article>
       </div>
-      <ul className="bento-strip">
-        {smaller.map(({ icon: Icon, title, text }) => (
-          <li key={title}>
-            <Icon size={16} />
-            <div>
-              <b>{title}</b>
-              <span>{text}</span>
-            </div>
-          </li>
+      <dl className="also-list">
+        {smaller.map(({ title, text }) => (
+          <div key={title}>
+            <dt>{title}</dt>
+            <dd>{text}</dd>
+          </div>
         ))}
-      </ul>
+      </dl>
     </section>
   );
 }

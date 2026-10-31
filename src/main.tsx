@@ -10,7 +10,6 @@ import "./octo.css";
 import "./showcase.css";
 import "./dark.css";
 import "./amoled.css";
-import "./spotlight";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider>

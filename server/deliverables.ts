@@ -33,6 +33,7 @@ import type { Run } from "../shared/types.js";
 import { workflowLabels } from "../shared/types.js";
 import type { DeliverableFormat } from "../shared/formats.js";
 import { csvCell, toCsv } from "./results.js";
+import { toPptx } from "./slides.js";
 
 /** One run of inline text with its styling. */
 interface Span {
@@ -617,6 +618,13 @@ export async function renderDeliverable(
         contentType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         extension: "docx",
+      };
+    case "pptx":
+      return {
+        bytes: await toPptx(run),
+        contentType:
+          "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        extension: "pptx",
       };
     case "csv":
       // A byte-order mark lets Excel open UTF-8 (₹, accents) correctly.

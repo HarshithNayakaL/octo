@@ -249,7 +249,7 @@ export interface Run {
   /** Why the engine asked the current turn to stop (time or token limit). */
   stopReason?: string;
   /** Requested deliverable; "auto" picks from the brief and workflow. */
-  outputFormat?: "auto" | "pdf" | "docx" | "csv" | "md";
+  outputFormat?: "auto" | "pdf" | "docx" | "pptx" | "csv" | "md";
   evidence?: EvidenceCheck;
   community?: CommunityPulse;
   sourcePolicy?: SourcePolicy;

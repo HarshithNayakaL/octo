@@ -75,9 +75,11 @@ export function initialInput(run: Run) {
   const deliverable =
     wanted === "csv"
       ? "The user wants a CSV deliverable: put every tabular result in Markdown tables with one row per item and consistent columns."
-      : wanted === "pdf" || wanted === "docx"
-        ? `The user wants a ${wanted === "pdf" ? "PDF" : "Word"} document; Octo renders it from your Markdown report, so use clear headings, short paragraphs, and Markdown tables for comparisons.`
-        : "Octo turns your Markdown report into the user's chosen file format; use clear headings and Markdown tables for tabular data.";
+      : wanted === "pptx"
+        ? "The user wants a PowerPoint deck; Octo builds the slides from your Markdown report, so give each main section a ## heading, open sections with a one-sentence takeaway, prefer short bullets, and use Markdown tables for comparisons."
+        : wanted === "pdf" || wanted === "docx"
+          ? `The user wants a ${wanted === "pdf" ? "PDF" : "Word"} document; Octo renders it from your Markdown report, so use clear headings, short paragraphs, and Markdown tables for comparisons.`
+          : "Octo turns your Markdown report into the user's chosen file format; use clear headings and Markdown tables for tabular data.";
   const context = engagement(run);
   return `${specifics}\n${deliverable}\n\nResearch brief:\n${run.brief}${context ? `\n\n${context}` : ""}\n\nInput files: ${run.attachments.length ? run.attachments.map((x) => "/workspace/inputs/" + x.id + "-" + x.name).join(", ") : "None"}`;
 }

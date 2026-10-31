@@ -38,6 +38,8 @@ describe("choosing a format", () => {
     expect(formatFromBrief("Send me a spreadsheet of companies")).toBe("csv");
     expect(formatFromBrief("I need a Word document")).toBe("docx");
     expect(formatFromBrief("Export as PDF please")).toBe("pdf");
+    expect(formatFromBrief("Make a slide deck for the board")).toBe("pptx");
+    expect(formatFromBrief("I need a PowerPoint presentation")).toBe("pptx");
     expect(formatFromBrief("Research the market")).toBeUndefined();
     expect(preferredFormat(run({ workflow: "market" }))).toBe("pdf");
     expect(preferredFormat(run({ workflow: "sales" }))).toBe("csv");
@@ -64,6 +66,13 @@ describe("rendering", () => {
     const file = await renderDeliverable(run(), "pdf");
     expect(file.bytes.subarray(0, 5).toString()).toBe("%PDF-");
     expect(file.bytes.includes(Buffer.from("FontFile2"))).toBe(true);
+  });
+  it("produces a PowerPoint deck and lists it for every report", async () => {
+    expect(formatsFor(run())).toContain("pptx");
+    const file = await renderDeliverable(run(), "pptx");
+    expect(file.bytes.subarray(0, 2).toString()).toBe("PK");
+    expect(file.extension).toBe("pptx");
+    expect(file.contentType).toContain("presentationml");
   });
   it("produces a Word document", async () => {
     const file = await renderDeliverable(run(), "docx");

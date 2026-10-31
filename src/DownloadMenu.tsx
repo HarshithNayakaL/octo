@@ -57,7 +57,7 @@ export default function DownloadMenu({
         onClick={() => onDownload(main)}
       >
         <Download size={15} />
-        Download {formatLabels[main].replace(" (.docx)", "")}
+        Download {formatLabels[main].replace(/ \(\.(docx|pptx)\)/, "")}
       </button>
       <button
         className="primary download-toggle"

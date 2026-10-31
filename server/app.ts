@@ -57,7 +57,9 @@ const creation = z
     brief: z.string().trim().min(15).max(20000),
     icp: z.string().trim().max(20000).default(""),
     targetCount: z.number().int().min(1).max(100).default(10),
-    outputFormat: z.enum(["auto", "pdf", "docx", "csv", "md"]).default("auto"),
+    outputFormat: z
+      .enum(["auto", "pdf", "docx", "pptx", "csv", "md"])
+      .default("auto"),
     mode: z.enum(["demo", "live"]).default("demo"),
     provider: z.enum(["openai", "google"]).optional(),
     attachmentIds: z.array(z.string().uuid()).max(5).default([]),
@@ -1210,7 +1212,7 @@ export function createApp(options: AppOptions) {
     }
     const format =
       z
-        .enum(["pdf", "docx", "csv", "md", "json"])
+        .enum(["pdf", "docx", "pptx", "csv", "md", "json"])
         .optional()
         .parse(req.query.format) ?? preferredFormat(run);
     if (!formatsFor(run).includes(format)) {

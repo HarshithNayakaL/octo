@@ -1,12 +1,13 @@
 import type { Run } from "./types.js";
 
 /** Files Octo can produce from a finished run. */
-export type DeliverableFormat = "pdf" | "docx" | "csv" | "md" | "json";
+export type DeliverableFormat = "pdf" | "docx" | "pptx" | "csv" | "md" | "json";
 export type OutputChoice = "auto" | Exclude<DeliverableFormat, "json">;
 
 export const formatLabels: Record<DeliverableFormat, string> = {
   pdf: "PDF",
   docx: "Word (.docx)",
+  pptx: "PowerPoint (.pptx)",
   csv: "CSV",
   md: "Markdown",
   json: "JSON",
@@ -15,6 +16,7 @@ export const choiceLabels: Record<OutputChoice, string> = {
   auto: "Best for the task",
   pdf: "PDF document",
   docx: "Word document (.docx)",
+  pptx: "PowerPoint deck (.pptx)",
   csv: "CSV spreadsheet",
   md: "Markdown",
 };
@@ -26,7 +28,14 @@ export function formatsFor(
   run: Pick<Run, "report" | "leads">,
 ): DeliverableFormat[] {
   const csv = run.leads.length > 0 || hasTable(run.report);
-  return ["pdf", "docx", ...(csv ? (["csv"] as const) : []), "md", "json"];
+  return [
+    "pdf",
+    "docx",
+    "pptx",
+    ...(csv ? (["csv"] as const) : []),
+    "md",
+    "json",
+  ];
 }
 
 /** A format named in the brief, e.g. "send it as a spreadsheet". */
@@ -34,6 +43,12 @@ export function formatFromBrief(brief: string): DeliverableFormat | undefined {
   const text = brief.toLowerCase();
   if (/\b(csv|spreadsheet|excel|xlsx|google sheets?)\b/.test(text))
     return "csv";
+  if (
+    /\b(pptx?|powerpoint|slide ?deck|slides|presentation|google slides|keynote)\b/.test(
+      text,
+    )
+  )
+    return "pptx";
   if (/\b(docx?|word document|ms word|google docs?)\b/.test(text))
     return "docx";
   if (/\bpdf\b/.test(text)) return "pdf";

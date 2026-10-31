@@ -23,7 +23,7 @@ A search engine hands you links; an AI chat hands you an answer with links. Both
 | Over time | A one-off answer | **Refresh** any report, or schedule checks; every version is kept with a line-by-line **what changed** view |
 | Across projects | Starts from zero | **Build on earlier research:** new runs can reuse related reports from your workspace and re-check what changed |
 | Long work | Stops when it stops | Runs up to 3 hours; a run cut off by a limit keeps its partial report and continues into one report |
-| Output | Text in a chat | PDF, Word, CSV, Markdown or JSON files, including the evidence check |
+| Output | Text in a chat | PDF, Word, PowerPoint, CSV, Markdown or JSON files, including the evidence check |
 | Talking to it | A general voice mode | **Voice assistant** that knows the research you have open and fills in the research form for you, with usage and limits shown in the app |
 
 The user research behind these choices (3,314 Reddit and Hacker News posts plus published studies) is in [docs/research-findings.md](docs/research-findings.md).
@@ -35,7 +35,7 @@ The user research behind these choices (3,314 Reddit and Hacker News posts plus 
 - **Working with a report:** [Ask this research](#ask-this-research), [versions and refresh](#versions-and-refresh), [build on earlier research](#build-on-earlier-research), [community voices](#community-voices), partial reports that [continue](#limits-partial-reports-and-continuing).
 - **Voice:** a [voice assistant](#voice-assistant) on every page (Gemini Live, with push-to-talk and Gemini TTS as fallback).
 - **Usage:** [usage and limits](#usage-and-limits): Gemini requests per model today, known free-tier limits, and each visitor's voice allowance.
-- **Output:** [downloads](#downloads) as PDF, Word, CSV, Markdown or JSON; optional [CRM export](#crm-mcp).
+- **Output:** [downloads](#downloads) as PDF, Word, PowerPoint, CSV, Markdown or JSON; optional [CRM export](#crm-mcp).
 - **Running it:** [locally](#start-locally) with SQLite or on [Vercel](#deploy-to-vercel) with Neon Postgres; [dark mode](#managing-runs); [security notes](#security).
 
 ## Start locally
@@ -115,7 +115,7 @@ After every report (and on **Check again**), Octo:
 
 In the report itself, the sentence each checked claim came from is underlined in its status colour and followed by a small numbered mark; clicking a mark opens that claim in the Evidence tab. On wide screens, notes beside each paragraph list its claims with their status and source. Above the report, an evidence bar shows how many claims landed in each status. Claims are placed by matching their words and figures to the report line, and a claim whose figure is not on the line is never placed there; claims Octo cannot place stay in the Evidence tab only.
 
-This is an automatic first pass that flags what to review; it is not proof. The check runs outside the research session, costs one small model call on live runs, and is included as a table in PDF, Word, Markdown and JSON downloads. Demo runs show labelled illustrative statuses and fetch nothing.
+This is an automatic first pass that flags what to review; it is not proof. The check runs outside the research session, costs one small model call on live runs, and is included as a table in PDF, Word, Markdown and JSON downloads and as slides in the PowerPoint deck. Demo runs show labelled illustrative statuses and fetch nothing.
 
 ### Ask this research
 
@@ -206,7 +206,9 @@ User notes are stored in the workspace; they are not automatically added to the 
 
 ## Downloads
 
-Every finished run can be downloaded as **PDF**, **Word (.docx)**, **CSV**, **Markdown** or **JSON**. Choose the main format under **Deliverable** in the research form; **Best for the task** uses the format your brief asks for ("send it as a spreadsheet"), otherwise CSV for company lists and PDF for briefings. The run's download button uses that format, and the menu beside it offers the rest.
+Every finished run can be downloaded as **PDF**, **Word (.docx)**, **PowerPoint (.pptx)**, **CSV**, **Markdown** or **JSON**. Choose the main format under **Deliverable** in the research form; **Best for the task** uses the format your brief asks for ("send it as a spreadsheet", "make a slide deck"), otherwise CSV for company lists and PDF for briefings. The run's download button uses that format, and the menu beside it offers the rest.
+
+**PowerPoint deck.** A 16:9 presentation built from the report itself, with no extra model call, so the same report always gives the same deck. It opens in PowerPoint, Google Slides and Keynote. Slides: a title slide (brief, date, model, evidence score), an executive summary, contents, an evidence slide (score, a bar of claim results, claims to review), one slide per report section (two to four points become cards, a single point becomes a statement slide, longer sections become bullets that never end on a dangling label), the report's tables as native PowerPoint tables, the checked claims with their results and linked sources, community themes with quotes, company records, sources with their kind, and a closing slide on how the research was done. Slides keep short sentences; the full text of each section is in the speaker notes. Text uses Calibri so it renders the same on any machine. Demo runs say "Illustrative demo output" on every slide.
 
 - Octo renders these files itself from the agent's Markdown report, so downloads work without extra agent usage. PDFs embed the Inter font (OFL, `assets/fonts`), so characters such as ₹ print correctly.
 - Documents include the report, company records (sales), the evidence check, community voices, and the source list with each source's kind and date. JSON also includes your Ask answers.

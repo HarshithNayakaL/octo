@@ -1266,6 +1266,60 @@
 :root[data-theme="dark"] .voice-mic.muted {
   background: #babec7;
 }
+:root[data-theme="dark"] .usage-limits {
+  border: 1px solid #373e4f;
+  background: #0f1117;
+}
+:root[data-theme="dark"] .allowance {
+  border: 1px solid #373e4f;
+  background: #111319;
+}
+:root[data-theme="dark"] .allowance-top span {
+  color: #7ddeae;
+}
+:root[data-theme="dark"] .allowance-top span.low {
+  color: #ec786f;
+}
+:root[data-theme="dark"] .allowance-bar,
+:root[data-theme="dark"] .usage-bar {
+  background: #171b23;
+}
+:root[data-theme="dark"] .allowance-bar span.low {
+  background: #8f362c;
+}
+:root[data-theme="dark"] .allowance small {
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .usage-table-wrap {
+  border: 1px solid #373e4f;
+}
+:root[data-theme="dark"] .usage-table th {
+  border-bottom: 1px solid #373e4f;
+  background: #111319;
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .usage-table td {
+  border-bottom: 1px solid #333949;
+  color: #b9bdc6;
+}
+:root[data-theme="dark"] .rate-hit {
+  background: #351714;
+  color: #ec786f;
+}
+:root[data-theme="dark"] .voice-allowance {
+  border: 1px solid #344262;
+  background: #111319;
+  color: #9aa0ad;
+}
+:root[data-theme="dark"] .compact-limits ul {
+  border: 1px solid #373e4f;
+}
+:root[data-theme="dark"] .compact-limits li {
+  border-bottom: 1px solid #333949;
+}
+:root[data-theme="dark"] .compact-limits li > span {
+  color: #b9bdc6;
+}
 :root[data-theme="dark"] {
   color-scheme: dark;
   --blue: #7f9cff;

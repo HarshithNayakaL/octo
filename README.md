@@ -115,11 +115,27 @@ The **Talk to Octo** button (bottom right, on every page) opens a voice assistan
 - **Live (main):** the browser streams your voice to **Gemini Live** (`gemini-3.8-live`) and plays the spoken reply, with live transcripts. You can interrupt it mid-sentence. The server mints a single-use token (`POST /api/voice/token`) that locks the model, voice, instructions and tools for one session; the API key never reaches the browser. In testing, the first reply audio started about 0.9 s after the speaker stopped. Sessions end after 90 seconds of quiet or 9 minutes, to save free-tier minutes.
 - **Push-to-talk (fallback):** if Live is unavailable, tap the mic and speak. Recording stops on its own when you pause. One call to `gemini-3.5-flash-lite` transcribes and answers, and **Gemini TTS** (`gemini-3.8-flash-lite-tts`) speaks the reply (about 5 s end to end). If TTS hits its free-tier limit, the browser's own voice reads the reply.
 - **Typing** works in both modes.
-- **Limits:** 12 Live sessions per hour and 20 push-to-talk turns per 10 minutes per visitor, plus Google's own free-tier limits.
+- **Limits:** each visitor gets 12 Live chats per hour and 20 push-to-talk or typed questions per 10 minutes. A request that fails on Google's side is not counted. Google's own free-tier limits apply on top (see below).
 - **Models:** override with `GEMINI_LIVE_MODEL`, `GEMINI_VOICE_MODEL`, `GEMINI_TTS_MODEL` and `GEMINI_VOICE` (default voice: Kore).
 - **Privacy:** speech is sent to Google to answer you and is not stored by Octo.
 
 The voice code sits behind a small provider interface (`server/voice.ts`), so another speech provider (such as Sarvam) can be added later as a backup, the same way OpenAI sits beside Gemini for research.
+
+### Usage and limits
+
+Google sets Gemini free-tier limits (requests per minute, tokens per minute, requests per day) **per project**. They are shown on your signed-in [AI Studio rate-limit page](https://aistudio.google.com/rate-limit). Google's [rate-limit documentation](https://ai.google.dev/gemini-api/docs/rate-limits) explains how they work (per project, daily quotas reset at midnight Pacific) but publishes no fixed numbers, and they change with usage tier. So Octo does not hard-code third-party figures. **Usage and limits** (on the Connections page, and behind **Limits** in the voice panel) shows:
+
+- **Your voice allowance:** how many Live chats and push-to-talk questions you have left, and when the next one frees up.
+- **Gemini requests today, per model and purpose:** research agent, the model behind questions, evidence and Ask, Live, push-to-talk and TTS. Octo counts every request it sends, stored in the database so all serverless instances share the count, over the same Pacific day Google uses.
+- **Free-tier limit per model:** numbers you copied from AI Studio into `GEMINI_RATE_LIMITS`, or the exact limit Google reports when it rejects a request for quota (its `QuotaFailure` error carries the limit). Otherwise the view links to AI Studio.
+
+To show your project's limits, copy them from AI Studio into the environment, for example:
+
+```dotenv
+GEMINI_RATE_LIMITS={"gemini-3.8-flash":{"rpm":10,"rpd":250},"gemini-3.8-live":{"rpm":3}}
+```
+
+(Example values only; use the numbers on your AI Studio page.) `GET /api/limits` returns the same data as JSON.
 
 ### Community voices
 
@@ -249,6 +265,7 @@ Live deployment: **https://octo-agents.vercel.app** (Google Gemini by default, O
 | `GEMINI_API_KEY`     | Always (default provider, free tier)                                                            |
 | `OPENAI_API_KEY`     | Only if OpenAI should be available                                                              |
 | `OPENAI_UNLOCK_WORD` | Only with an OpenAI key: the word that unlocks OpenAI in the UI. Without it OpenAI stays locked |
+| `GEMINI_RATE_LIMITS` | Optional: your free-tier limits copied from AI Studio, shown in Usage and limits |
 | `GEMINI_LIVE_MODEL`, `GEMINI_VOICE_MODEL`, `GEMINI_TTS_MODEL`, `GEMINI_VOICE` | Optional: voice assistant models and voice. The defaults work on the free tier |
 | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Optional: Reddit in Community voices on Vercel (see below). Without them, Hacker News still works |
 

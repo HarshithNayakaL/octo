@@ -2264,3 +2264,248 @@ tr:hover .row-delete,
     max-height: calc(100vh - 100px);
   }
 }
+
+/* Usage and limits */
+.usage-limits {
+  display: grid;
+  gap: 12px;
+  margin: 28px 0 0;
+  padding: 20px 22px;
+  border: 1px solid #e5e5eb;
+  border-radius: 8px;
+  background: #fff;
+}
+.modal-body .usage-limits {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.usage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.usage-head h2 {
+  margin: 4px 0 6px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.usage-head p {
+  margin: 0;
+  max-width: 640px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.usage-head .secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.usage-limits h3 {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.allowance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.allowance {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid #e5e5eb;
+  border-radius: 8px;
+  background: #fafbfd;
+}
+.allowance-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+.allowance-top b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.allowance-top span {
+  font-weight: 600;
+  color: #1f7a4d;
+  white-space: nowrap;
+}
+.allowance-top span.low {
+  color: #b42318;
+}
+.allowance-bar,
+.usage-bar {
+  height: 6px;
+  border-radius: 6px;
+  background: #e9ecf3;
+  overflow: hidden;
+}
+.allowance-bar span,
+.usage-bar span {
+  display: block;
+  height: 100%;
+  background: var(--blue);
+}
+.allowance-bar span.low {
+  background: #d64535;
+}
+.allowance small {
+  font-size: 11.5px;
+  color: #5d6475;
+}
+.usage-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e5eb;
+  border-radius: 8px;
+}
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.usage-table th {
+  padding: 9px 12px;
+  border-bottom: 1px solid #e5e5eb;
+  background: #fafbfd;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #5d6475;
+}
+.usage-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef0f4;
+  vertical-align: top;
+  color: #3f4656;
+}
+.usage-table tr:last-child td {
+  border-bottom: 0;
+}
+.usage-table td b {
+  display: block;
+  font-weight: 560;
+  color: var(--ink);
+}
+.usage-table td small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.usage-table code {
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.usage-table a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--blue);
+}
+.usage-bar {
+  margin-top: 6px;
+  max-width: 120px;
+}
+.rate-hit {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #fdecea;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #b42318;
+}
+.voice-allowance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 18px 6px;
+  padding: 6px 10px;
+  border: 1px solid #e3e7f0;
+  border-radius: 8px;
+  background: #fafbfd;
+  font-size: 11.5px;
+  color: #5d6475;
+  cursor: pointer;
+  text-align: left;
+}
+.voice-allowance span {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--blue);
+}
+@media (max-width: 640px) {
+  .allowance-grid {
+    grid-template-columns: 1fr;
+  }
+  .usage-head {
+    flex-direction: column;
+  }
+}
+.compact-limits {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+.compact-limits h4 {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.compact-limits ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid #e5e5eb;
+  border-radius: 8px;
+}
+.compact-limits li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-bottom: 1px solid #eef0f4;
+  font-size: 12px;
+}
+.compact-limits li:last-child {
+  border-bottom: 0;
+}
+.compact-limits li b {
+  display: block;
+  font-weight: 560;
+  color: var(--ink);
+}
+.compact-limits li code {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.compact-limits li > span {
+  flex-shrink: 0;
+  max-width: 45%;
+  text-align: right;
+  font-weight: 600;
+  color: #3f4656;
+}
+.compact-limits li small {
+  display: block;
+  font-weight: 400;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.compact-limits li small a {
+  color: var(--blue);
+}

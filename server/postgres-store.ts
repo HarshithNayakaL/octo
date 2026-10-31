@@ -13,6 +13,8 @@ const schema = [
   "CREATE TABLE IF NOT EXISTS octo_uploads (id TEXT PRIMARY KEY, body TEXT NOT NULL)",
   "CREATE TABLE IF NOT EXISTS octo_blobs (key TEXT PRIMARY KEY, data TEXT NOT NULL, size INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS octo_leases (id TEXT PRIMARY KEY, until_ms BIGINT NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS octo_usage (day TEXT NOT NULL, metric TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY (day, metric))",
+  "CREATE TABLE IF NOT EXISTS octo_kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
 ];
 
 /**
@@ -110,6 +112,32 @@ export class PostgresStore implements RunStore {
         );
       },
     };
+  }
+  async bumpUsage(day: string, metric: string) {
+    await this.q(
+      "INSERT INTO octo_usage VALUES ($1,$2,1) ON CONFLICT (day, metric) DO UPDATE SET count=octo_usage.count+1",
+      [day, metric],
+    );
+  }
+  async readUsage(day: string) {
+    const rows = await this.q(
+      "SELECT metric, count FROM octo_usage WHERE day=$1",
+      [day],
+    );
+    return Object.fromEntries(rows.map((r) => [r.metric, Number(r.count)]));
+  }
+  async setValue(key: string, value: string) {
+    await this.q(
+      "INSERT INTO octo_kv VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=excluded.value",
+      [key, value],
+    );
+  }
+  async readValues(prefix: string) {
+    const rows = await this.q(
+      "SELECT key, value FROM octo_kv WHERE left(key, $2) = $1",
+      [prefix, prefix.length],
+    );
+    return Object.fromEntries(rows.map((r) => [r.key, String(r.value)]));
   }
   async close() {}
 }

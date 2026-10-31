@@ -29,6 +29,13 @@ export interface RunStore {
   getUpload(id: string): Promise<Attachment | undefined>;
   readUpload(file: Attachment): Promise<Buffer>;
   blobs(namespace: string): BlobCache;
+  /** Count one use of a metric (for example a model's requests) on a given day. */
+  bumpUsage(day: string, metric: string): Promise<void>;
+  /** All counters for a day. */
+  readUsage(day: string): Promise<Record<string, number>>;
+  /** Small shared settings, such as quota limits Google reported. */
+  setValue(key: string, value: string): Promise<void>;
+  readValues(prefix: string): Promise<Record<string, string>>;
   close(): Promise<void>;
 }
 
@@ -40,7 +47,7 @@ export class Store implements RunStore {
     mkdirSync(directory, { recursive: true });
     this.db = new DatabaseSync(resolve(directory, "research.sqlite"));
     this.db.exec(
-      "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS leases (id TEXT PRIMARY KEY, until_ms INTEGER NOT NULL);",
+      "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS leases (id TEXT PRIMARY KEY, until_ms INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS usage (day TEXT NOT NULL, metric TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY (day, metric)); CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
     );
   }
   async list(): Promise<Run[]> {
@@ -107,6 +114,32 @@ export class Store implements RunStore {
   }
   blobs(namespace: string) {
     return directoryCache(resolve(this.directory, namespace));
+  }
+  async bumpUsage(day: string, metric: string) {
+    this.db
+      .prepare(
+        "INSERT INTO usage VALUES (?,?,1) ON CONFLICT(day, metric) DO UPDATE SET count=count+1",
+      )
+      .run(day, metric);
+  }
+  async readUsage(day: string) {
+    const rows = this.db
+      .prepare("SELECT metric, count FROM usage WHERE day=?")
+      .all(day) as { metric: string; count: number }[];
+    return Object.fromEntries(rows.map((r) => [r.metric, Number(r.count)]));
+  }
+  async setValue(key: string, value: string) {
+    this.db
+      .prepare(
+        "INSERT INTO kv VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+      )
+      .run(key, value);
+  }
+  async readValues(prefix: string) {
+    const rows = this.db
+      .prepare("SELECT key, value FROM kv WHERE substr(key, 1, ?) = ?")
+      .all(prefix.length, prefix) as { key: string; value: string }[];
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
   }
   async close() {
     this.db.close();

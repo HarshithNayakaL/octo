@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { Configuration, VoiceAction } from "../shared/types";
 import { workflowLabels } from "../shared/types";
+import UsageLimits, { VoiceAllowance, useLimits } from "./UsageLimits";
 import {
   LiveSession,
   TurnSession,
@@ -56,10 +57,15 @@ export default function VoiceAssistant({
   const contextRef = useRef(context);
   contextRef.current = context;
   const scroller = useRef<HTMLDivElement>(null);
+  // Refresh the allowance when the panel opens and after each answer.
+  const [limitsKey, setLimitsKey] = useState(0);
+  const { limits } = useLimits(open ? limitsKey : -1);
+  const [showLimits, setShowLimits] = useState(false);
   // Unknown until the config loads; only a confirmed "unavailable" blocks the mic.
   const unavailable = config?.voice?.available === false;
   const events = {
     state: (s: VoiceState, d?: string) => {
+      if (s === "listening" || s === "speaking") setLimitsKey((k) => k + 1);
       setState(s);
       setDetail(d ?? "");
     },
@@ -72,6 +78,7 @@ export default function VoiceAssistant({
         return next;
       }),
     action: (a: VoiceAction) => {
+      setLimitsKey((k) => k + 1);
       setAction(a);
       onPrepareResearch(a);
     },
@@ -236,69 +243,81 @@ export default function VoiceAssistant({
               {detail && <span>{detail}</span>}
             </p>
           </div>
-          <div className="voice-lines" ref={scroller}>
-            {!lines.length && (
-              <div className="voice-hints">
-                <p>Ask anything, for example:</p>
-                {(context.runId
-                  ? [
-                      "What are the key findings here?",
-                      "Which claims are weakest?",
-                      "Summarise this in two sentences",
-                    ]
-                  : [
-                      "What can Octo do?",
-                      "Research the EV charging market in India",
-                      "How does the evidence check work?",
-                    ]
-                ).map((h) => (
-                  <button
-                    key={h}
-                    type="button"
-                    onClick={() => {
-                      void (async () => {
-                        if (!session.current) await startTurn();
-                        await session.current?.sendText(h);
-                      })();
-                    }}
-                  >
-                    {h}
-                  </button>
-                ))}
-              </div>
-            )}
-            {lines.map((l) => (
-              <div
-                key={l.id}
-                className={`voice-line ${l.role} ${l.final ? "" : "partial"}`}
-              >
-                <span>{l.role === "user" ? "You" : "Octo"}</span>
-                <p>{l.text}</p>
-              </div>
-            ))}
-            {action && (
-              <div className="voice-action">
-                <Sparkles size={15} />
-                <div>
-                  <b>Research form ready</b>
-                  <p>
-                    {action.title} · {workflowLabels[action.workflow]}
-                  </p>
-                  <small>
-                    Review it and press Continue to start. Nothing has run yet.
-                  </small>
+          <VoiceAllowance
+            limits={limits}
+            open={showLimits}
+            onOpen={() => setShowLimits((v) => !v)}
+          />
+          {showLimits ? (
+            <div className="voice-lines">
+              <UsageLimits compact refreshKey={limitsKey} />
+            </div>
+          ) : (
+            <div className="voice-lines" ref={scroller}>
+              {!lines.length && (
+                <div className="voice-hints">
+                  <p>Ask anything, for example:</p>
+                  {(context.runId
+                    ? [
+                        "What are the key findings here?",
+                        "Which claims are weakest?",
+                        "Summarise this in two sentences",
+                      ]
+                    : [
+                        "What can Octo do?",
+                        "Research the EV charging market in India",
+                        "How does the evidence check work?",
+                      ]
+                  ).map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => {
+                        void (async () => {
+                          if (!session.current) await startTurn();
+                          await session.current?.sendText(h);
+                        })();
+                      }}
+                    >
+                      {h}
+                    </button>
+                  ))}
                 </div>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => onPrepareResearch(action)}
+              )}
+              {lines.map((l) => (
+                <div
+                  key={l.id}
+                  className={`voice-line ${l.role} ${l.final ? "" : "partial"}`}
                 >
-                  Open
-                  <ArrowRight size={14} />
-                </button>
-              </div>
-            )}
-          </div>
+                  <span>{l.role === "user" ? "You" : "Octo"}</span>
+                  <p>{l.text}</p>
+                </div>
+              ))}
+              {action && (
+                <div className="voice-action">
+                  <Sparkles size={15} />
+                  <div>
+                    <b>Research form ready</b>
+                    <p>
+                      {action.title} · {workflowLabels[action.workflow]}
+                    </p>
+                    <small>
+                      Review it and press Continue to start. Nothing has run
+                      yet.
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => onPrepareResearch(action)}
+                  >
+                    Open
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {notice && <p className="voice-notice">{notice}</p>}
           <footer className="voice-foot">
             <form onSubmit={(e) => void submitText(e)}>

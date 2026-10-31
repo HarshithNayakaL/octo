@@ -2,6 +2,7 @@ import { OpenAIProvider } from "./provider.js";
 // Provider APIs go through node:http too, so no reply is ever Brotli-decoded (CVE-2026-111497).
 import { plainFetch } from "./brotli-guard.js";
 import { GeminiVoice, defaultVoiceModels } from "./voice.js";
+import { UsageMeter, configuredLimits } from "./usage.js";
 import { GoogleProvider } from "./google-provider.js";
 import type { RunStore } from "./store.js";
 import type { ProviderConfiguration, ProviderId } from "../shared/types.js";
@@ -26,6 +27,9 @@ export function providersFromEnv(
   if (crm.url && new URL(crm.url).protocol !== "https:")
     throw new Error("CRM_MCP_URL must use HTTPS.");
   const readAttachment = store.readUpload.bind(store);
+  // Every Gemini request is counted per model per day for the usage view.
+  const usage = new UsageMeter(store);
+  const googleFetch = usage.wrap(plainFetch);
   const openai = env.OPENAI_API_KEY
     ? new OpenAIProvider(
         env.OPENAI_API_KEY,
@@ -44,7 +48,7 @@ export function providersFromEnv(
         googleModel,
         store.blobs("google-artifacts"),
         crm,
-        plainFetch,
+        googleFetch,
         readAttachment,
         maxFileBytes,
       )
@@ -80,10 +84,15 @@ export function providersFromEnv(
           tts: env.GEMINI_TTS_MODEL ?? defaultVoiceModels.tts,
           voice: env.GEMINI_VOICE ?? defaultVoiceModels.voice,
         },
-        plainFetch,
+        googleFetch,
       )
     : undefined;
   return {
+    usage,
+    rateLimits: configuredLimits(env.GEMINI_RATE_LIMITS),
+    googleModels: env.GEMINI_API_KEY
+      ? { agent: googleAgent, model: googleModel }
+      : undefined,
     voice,
     openai,
     google,

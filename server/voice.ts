@@ -382,6 +382,24 @@ export class Limiter {
     private max: number,
     private windowMs: number,
   ) {}
+  /** How many more uses this caller has in the current window, without using one. */
+  remaining(key: string, now = Date.now()) {
+    const recent = (this.hits.get(key) ?? []).filter(
+      (t) => now - t < this.windowMs,
+    );
+    return {
+      remaining: Math.max(0, this.max - recent.length),
+      max: this.max,
+      windowMinutes: Math.round(this.windowMs / 60_000),
+      resetsInSeconds: recent.length
+        ? Math.ceil((this.windowMs - (now - recent[0])) / 1000)
+        : 0,
+    };
+  }
+  /** Give back the latest use, when the request it paid for failed. */
+  refund(key: string) {
+    this.hits.get(key)?.pop();
+  }
   /** Milliseconds to wait, or 0 when allowed (and counted). */
   take(key: string, now = Date.now()) {
     const recent = (this.hits.get(key) ?? []).filter(

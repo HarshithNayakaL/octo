@@ -55,6 +55,7 @@ import {
 import { useTheme } from "./theme";
 import ClarifyPanel from "./ClarifyPanel";
 import VoiceAssistant from "./VoiceAssistant";
+import UsageLimits from "./UsageLimits";
 import EvidencePanel, { ClaimBadge, EvidenceSummary } from "./EvidencePanel";
 import AskPanel from "./AskPanel";
 import VersionsPanel from "./VersionsPanel";
@@ -1644,6 +1645,7 @@ function Connections({
           sent.
         </p>
       </div>
+      <UsageLimits />
     </main>
   );
 }

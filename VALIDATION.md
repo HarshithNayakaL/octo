@@ -203,3 +203,21 @@ Not yet verified live: Challenge this report and a source policy on a real resea
     - A spoken "set up new research on the electric scooter market in India for an investor" opened the research form 10 s later, with title, brief and Market intelligence filled in, and nothing started.
     - With Live blocked, Octo switched to push-to-talk, stopped recording at the pause, transcribed and answered aloud (4.6 s from the end of recording to speech).
 - **Not tested:** a real person on a real microphone and speakers (echo cancellation relies on the browser), and Safari. Both are worth checking in the first manual test.
+
+## Usage and limits (31 October 2026)
+
+- **Official references checked:** Google's [Gemini API rate-limit docs](https://ai.google.dev/gemini-api/docs/rate-limits) and [AI Studio docs](https://aistudio.google.com/docs/rate-limits). Neither publishes free-tier RPM, TPM or RPD numbers for the models Octo uses: limits are per project and shown only on the signed-in [AI Studio rate-limit page](https://aistudio.google.com/rate-limit), and daily quotas reset at midnight Pacific. No third-party figures are used.
+- **Automated tests:** 9 new tests cover:
+  - the Pacific day, and next midnight across the November clock change;
+  - mapping each request to its model;
+  - parsing a Google `QuotaFailure` / `RetryInfo` 429 error;
+  - `GEMINI_RATE_LIMITS` parsing;
+  - counting and learning limits with the meter;
+  - Postgres and SQLite counters;
+  - the `/api/limits` endpoint;
+  - visitor allowance and refunds.
+
+  Results: 139 backend tests pass.
+- **UI checks:** checked in Chromium at desktop, mobile and dark widths, with no horizontal overflow:
+  - **Voice panel:** a one-line allowance, opening a compact limits view.
+  - **Connections page:** the full table.

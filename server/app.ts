@@ -16,6 +16,12 @@ import { renderDeliverable } from "./deliverables.js";
 import { challengeInput, continuationInput, refreshInput } from "./prompts.js";
 import { requestCommunity } from "./community.js";
 import { GeminiVoice, Limiter, type VoiceProvider } from "./voice.js";
+import {
+  nextPacificMidnight,
+  pacificDay,
+  type ModelLimits,
+  type UsageMeter,
+} from "./usage.js";
 import { requestEvidence } from "./evidence.js";
 import { isPatchedNode, refuseCompressedRequests } from "./brotli-guard.js";
 import { answerQuestion } from "./ask.js";
@@ -111,6 +117,11 @@ interface AppOptions {
   openaiGate?: { word?: string };
   /** Speech provider for the voice assistant (Gemini with the Google key). */
   voice?: VoiceProvider;
+  /** Counts Gemini requests per model per day. */
+  usage?: UsageMeter;
+  /** Free-tier limits copied from AI Studio (GEMINI_RATE_LIMITS). */
+  rateLimits?: Record<string, ModelLimits>;
+  googleModels?: { agent: string; model: string };
 }
 const sameSecret = (expected: string, received: string) => {
   const a = Buffer.from(expected);
@@ -908,8 +919,14 @@ export function createApp(options: AppOptions) {
       return;
     }
     try {
-      res.json(await options.voice.liveToken(await voiceContext(req.body)));
+      const token = await options.voice.liveToken(await voiceContext(req.body));
+      await options.usage
+        ?.count(`${token.model}#session`)
+        .catch(() => undefined);
+      res.json(token);
     } catch (err) {
+      // A failed start does not use up one of the visitor's sessions.
+      liveLimit.refund(req.ip ?? "local");
       voiceFailed(res, err, "Gemini Live could not start");
     }
   });
@@ -921,11 +938,9 @@ export function createApp(options: AppOptions) {
     const wait = turnLimit.take(req.ip ?? "local");
     if (wait) {
       res.setHeader("Retry-After", String(Math.ceil(wait / 1000)));
-      res
-        .status(429)
-        .json({
-          error: "Too many voice messages. Wait a minute and try again.",
-        });
+      res.status(429).json({
+        error: "Too many voice messages. Wait a minute and try again.",
+      });
       return;
     }
     try {
@@ -952,8 +967,90 @@ export function createApp(options: AppOptions) {
         .parse(req.body);
       res.json(await options.voice.turn(body, await voiceContext(req.body)));
     } catch (err) {
+      turnLimit.refund(req.ip ?? "local");
       voiceFailed(res, err, "The voice assistant could not answer");
     }
+  });
+  /** Gemini usage today, known limits, and this visitor's remaining voice requests. */
+  app.get("/api/limits", async (req, res) => {
+    const caller = req.ip ?? "local";
+    const voice =
+      options.voice instanceof GeminiVoice ? options.voice.models : undefined;
+    const models = [
+      options.googleModels && {
+        model: options.googleModels.agent,
+        purpose: "Research runs (Antigravity agent)",
+        group: "research",
+      },
+      options.googleModels && {
+        model: options.googleModels.model,
+        purpose:
+          "Questions before research, evidence check, Ask, community voices",
+        group: "research",
+      },
+      voice && {
+        model: voice.live,
+        purpose: "Voice: live conversation",
+        group: "voice",
+        sessions: true,
+      },
+      voice && {
+        model: voice.turn,
+        purpose: "Voice: push-to-talk answers",
+        group: "voice",
+      },
+      voice && {
+        model: voice.tts,
+        purpose: "Voice: spoken replies (TTS)",
+        group: "voice",
+      },
+    ].filter(Boolean) as {
+      model: string;
+      purpose: string;
+      group: string;
+      sessions?: boolean;
+    }[];
+    const [today, learned] = options.usage
+      ? await Promise.all([
+          options.usage.today(),
+          options.usage.learned(),
+        ]).catch(() => [{}, {}] as const)
+      : [{}, {}];
+    res.json({
+      day: pacificDay(),
+      resetsAt: nextPacificMidnight(),
+      aiStudioUrl: "https://aistudio.google.com/rate-limit",
+      models: models.map((m) => {
+        const configured = options.rateLimits?.[m.model];
+        const reported = (learned as Record<string, any>)[m.model];
+        return {
+          ...m,
+          requestsToday: (today as Record<string, number>)[m.model] ?? 0,
+          sessionsToday: m.sessions
+            ? ((today as Record<string, number>)[`${m.model}#session`] ?? 0)
+            : undefined,
+          rateLimitedToday:
+            (today as Record<string, number>)[`${m.model}#429`] ?? 0,
+          limits: configured
+            ? { ...configured, source: "ai-studio" }
+            : reported
+              ? {
+                  rpm: reported.rpm,
+                  rpd: reported.rpd,
+                  tpm: reported.tpm,
+                  source: "google-error",
+                  seenAt: reported.seenAt,
+                  quotaId: reported.quotaId,
+                }
+              : undefined,
+        };
+      }),
+      octo: {
+        voiceSessions: liveLimit.remaining(caller),
+        voiceTurns: turnLimit.remaining(caller),
+        writes: { max: 60, windowMinutes: 1 },
+      },
+    });
   });
   app.patch("/api/runs/:id/notes", async (req, res) => {
     const run = await store.get(req.params.id);

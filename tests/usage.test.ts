@@ -8,6 +8,7 @@ import { Store } from "../server/store";
 import { PostgresStore } from "../server/postgres-store";
 import { createApp } from "../server/app";
 import {
+  SharedLimiter,
   UsageMeter,
   configuredLimits,
   modelOf,
@@ -241,6 +242,36 @@ describe("Gemini usage and limits", () => {
     );
     const res = await request(app).get("/api/limits");
     expect(res.body.octo.voiceSessions.remaining).toBe(12);
+  });
+  it("shares the voice allowance across instances through the database", async () => {
+    const pg = new PGlite();
+    const pgStore = new PostgresStore(
+      async (text, params) =>
+        (await pg.query(text, params as unknown[])).rows as Record<
+          string,
+          any
+        >[],
+    );
+    // Two limiters stand in for two serverless instances using one database.
+    const a = new SharedLimiter(pgStore, "voice-turn", 2, 600_000);
+    const b = new SharedLimiter(pgStore, "voice-turn", 2, 600_000);
+    const now = Date.UTC(2026, 9, 31, 10, 3);
+    expect(await a.take("1.2.3.4", now)).toBe(0);
+    expect(await b.take("1.2.3.4", now)).toBe(0);
+    expect(await a.take("1.2.3.4", now)).toBe(420_000);
+    expect(await b.remaining("1.2.3.4", now)).toMatchObject({
+      remaining: 0,
+      max: 2,
+      resetsInSeconds: 420,
+    });
+    await b.refund("1.2.3.4", now);
+    expect((await a.remaining("1.2.3.4", now)).remaining).toBe(1);
+    expect((await a.remaining("5.6.7.8", now)).remaining).toBe(2);
+    // The next window starts fresh, and no raw address is stored.
+    expect((await a.remaining("1.2.3.4", now + 600_000)).remaining).toBe(2);
+    const rows = await pg.query("SELECT day, metric FROM octo_usage");
+    expect(JSON.stringify(rows.rows)).not.toContain("1.2.3.4");
+    await pg.close();
   });
   it("tells a caller how much of their allowance is left without using it", () => {
     const limiter = new Limiter(3, 60_000);

@@ -15,8 +15,9 @@ import type {
 import { renderDeliverable } from "./deliverables.js";
 import { challengeInput, continuationInput, refreshInput } from "./prompts.js";
 import { requestCommunity } from "./community.js";
-import { GeminiVoice, Limiter, type VoiceProvider } from "./voice.js";
+import { GeminiVoice, type VoiceProvider } from "./voice.js";
 import {
+  SharedLimiter,
   nextPacificMidnight,
   pacificDay,
   type ModelLimits,
@@ -867,8 +868,9 @@ export function createApp(options: AppOptions) {
     advance(run.id);
   });
   // Voice assistant. Free-tier quota is shared, so each caller is limited.
-  const liveLimit = new Limiter(12, 60 * 60_000);
-  const turnLimit = new Limiter(20, 10 * 60_000);
+  // Kept in the database so every serverless instance agrees on what is left.
+  const liveLimit = new SharedLimiter(store, "voice-live", 12, 60 * 60_000);
+  const turnLimit = new SharedLimiter(store, "voice-turn", 20, 10 * 60_000);
   const voiceContext = async (body: unknown) => {
     const { runId, page } = z
       .object({
@@ -909,7 +911,7 @@ export function createApp(options: AppOptions) {
       voiceUnavailable(res);
       return;
     }
-    const wait = liveLimit.take(req.ip ?? "local");
+    const wait = await liveLimit.take(req.ip ?? "local");
     if (wait) {
       res.setHeader("Retry-After", String(Math.ceil(wait / 1000)));
       res.status(429).json({
@@ -926,7 +928,7 @@ export function createApp(options: AppOptions) {
       res.json(token);
     } catch (err) {
       // A failed start does not use up one of the visitor's sessions.
-      liveLimit.refund(req.ip ?? "local");
+      await liveLimit.refund(req.ip ?? "local").catch(() => undefined);
       voiceFailed(res, err, "Gemini Live could not start");
     }
   });
@@ -935,7 +937,7 @@ export function createApp(options: AppOptions) {
       voiceUnavailable(res);
       return;
     }
-    const wait = turnLimit.take(req.ip ?? "local");
+    const wait = await turnLimit.take(req.ip ?? "local");
     if (wait) {
       res.setHeader("Retry-After", String(Math.ceil(wait / 1000)));
       res.status(429).json({
@@ -967,7 +969,7 @@ export function createApp(options: AppOptions) {
         .parse(req.body);
       res.json(await options.voice.turn(body, await voiceContext(req.body)));
     } catch (err) {
-      turnLimit.refund(req.ip ?? "local");
+      await turnLimit.refund(req.ip ?? "local").catch(() => undefined);
       voiceFailed(res, err, "The voice assistant could not answer");
     }
   });
@@ -1046,8 +1048,8 @@ export function createApp(options: AppOptions) {
         };
       }),
       octo: {
-        voiceSessions: liveLimit.remaining(caller),
-        voiceTurns: turnLimit.remaining(caller),
+        voiceSessions: await liveLimit.remaining(caller),
+        voiceTurns: await turnLimit.remaining(caller),
         writes: { max: 60, windowMinutes: 1 },
       },
     });

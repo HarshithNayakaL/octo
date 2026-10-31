@@ -30,7 +30,9 @@ export interface RunStore {
   readUpload(file: Attachment): Promise<Buffer>;
   blobs(namespace: string): BlobCache;
   /** Count one use of a metric (for example a model's requests) on a given day. */
-  bumpUsage(day: string, metric: string): Promise<void>;
+  bumpUsage(day: string, metric: string, delta?: number): Promise<void>;
+  /** One counter, or 0. */
+  getUsage(day: string, metric: string): Promise<number>;
   /** All counters for a day. */
   readUsage(day: string): Promise<Record<string, number>>;
   /** Small shared settings, such as quota limits Google reported. */
@@ -115,12 +117,18 @@ export class Store implements RunStore {
   blobs(namespace: string) {
     return directoryCache(resolve(this.directory, namespace));
   }
-  async bumpUsage(day: string, metric: string) {
+  async bumpUsage(day: string, metric: string, delta = 1) {
     this.db
       .prepare(
-        "INSERT INTO usage VALUES (?,?,1) ON CONFLICT(day, metric) DO UPDATE SET count=count+1",
+        "INSERT INTO usage VALUES (?,?,?) ON CONFLICT(day, metric) DO UPDATE SET count=count+excluded.count",
       )
-      .run(day, metric);
+      .run(day, metric, delta);
+  }
+  async getUsage(day: string, metric: string) {
+    const row = this.db
+      .prepare("SELECT count FROM usage WHERE day=? AND metric=?")
+      .get(day, metric) as { count: number } | undefined;
+    return Number(row?.count ?? 0);
   }
   async readUsage(day: string) {
     const rows = this.db

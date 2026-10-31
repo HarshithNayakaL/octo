@@ -113,11 +113,18 @@ export class PostgresStore implements RunStore {
       },
     };
   }
-  async bumpUsage(day: string, metric: string) {
+  async bumpUsage(day: string, metric: string, delta = 1) {
     await this.q(
-      "INSERT INTO octo_usage VALUES ($1,$2,1) ON CONFLICT (day, metric) DO UPDATE SET count=octo_usage.count+1",
+      "INSERT INTO octo_usage VALUES ($1,$2,$3) ON CONFLICT (day, metric) DO UPDATE SET count=octo_usage.count+excluded.count",
+      [day, metric, delta],
+    );
+  }
+  async getUsage(day: string, metric: string) {
+    const [row] = await this.q(
+      "SELECT count FROM octo_usage WHERE day=$1 AND metric=$2",
       [day, metric],
     );
+    return Number(row?.count ?? 0);
   }
   async readUsage(day: string) {
     const rows = await this.q(

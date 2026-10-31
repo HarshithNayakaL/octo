@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { RunStore } from "./store.js";
 
 /*
@@ -40,7 +41,10 @@ export function nextPacificMidnight(now = new Date()) {
   // Pacific midnight is 07:00 UTC in summer (PDT) and 08:00 UTC in winter (PST).
   for (const offset of [7, 8]) {
     const t = Date.UTC(y, m - 1, d + 1, offset);
-    if (pacificDay(new Date(t)) === tomorrow && pacificDay(new Date(t - 60_000)) !== tomorrow)
+    if (
+      pacificDay(new Date(t)) === tomorrow &&
+      pacificDay(new Date(t - 60_000)) !== tomorrow
+    )
       return new Date(t).toISOString();
   }
   return new Date(Date.UTC(y, m - 1, d + 1, 8)).toISOString();
@@ -168,5 +172,52 @@ export class UsageMeter {
         // Ignore a corrupt entry.
       }
     return out;
+  }
+}
+
+/**
+ * A per-visitor allowance kept in the database, so every serverless instance
+ * agrees. Fixed windows (for example each clock hour); visitors are stored as
+ * a hash of their address, not the address itself.
+ */
+export class SharedLimiter {
+  constructor(
+    private store: RunStore,
+    private name: string,
+    readonly max: number,
+    private windowMs: number,
+  ) {}
+  private slot(caller: string, now: number) {
+    const start = Math.floor(now / this.windowMs) * this.windowMs;
+    const who = createHash("sha256").update(caller).digest("hex").slice(0, 16);
+    return {
+      bucket: `${this.name}@${new Date(start).toISOString()}`,
+      metric: `visitor:${who}`,
+      resetsInSeconds: Math.ceil((start + this.windowMs - now) / 1000),
+    };
+  }
+  /** Use one, or say how long to wait. Returns 0 when allowed. */
+  async take(caller: string, now = Date.now()) {
+    const { bucket, metric, resetsInSeconds } = this.slot(caller, now);
+    if ((await this.store.getUsage(bucket, metric)) >= this.max)
+      return resetsInSeconds * 1000;
+    await this.store.bumpUsage(bucket, metric);
+    return 0;
+  }
+  /** Give back a use whose request failed. */
+  async refund(caller: string, now = Date.now()) {
+    const { bucket, metric } = this.slot(caller, now);
+    if ((await this.store.getUsage(bucket, metric)) > 0)
+      await this.store.bumpUsage(bucket, metric, -1);
+  }
+  async remaining(caller: string, now = Date.now()) {
+    const { bucket, metric, resetsInSeconds } = this.slot(caller, now);
+    const used = await this.store.getUsage(bucket, metric);
+    return {
+      remaining: Math.max(0, this.max - used),
+      max: this.max,
+      windowMinutes: Math.round(this.windowMs / 60_000),
+      resetsInSeconds: used ? resetsInSeconds : 0,
+    };
   }
 }

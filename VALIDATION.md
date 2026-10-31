@@ -217,7 +217,7 @@ Not yet verified live: Challenge this report and a source policy on a real resea
   - the `/api/limits` endpoint;
   - visitor allowance and refunds.
 
-  Results: 139 backend tests pass.
+  The per-visitor voice allowance is stored in the database, so every serverless instance agrees, and visitors are stored as a hash. Results: 140 backend tests pass.
 - **UI checks:** checked in Chromium at desktop, mobile and dark widths, with no horizontal overflow:
   - **Voice panel:** a one-line allowance, opening a compact limits view.
   - **Connections page:** the full table.

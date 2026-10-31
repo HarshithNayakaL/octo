@@ -85,3 +85,11 @@ export function marksApply(run: Run) {
     (!e.reportLength || e.reportLength === run.report.length)
   );
 }
+
+/** True when a table cell ending at this offset is the last cell on its row. */
+export function endsRow(report: string, endOffset: number) {
+  const lineEnd = report.indexOf("\n", endOffset);
+  return /^[\s|]*$/.test(
+    report.slice(endOffset, lineEnd === -1 ? undefined : lineEnd),
+  );
+}

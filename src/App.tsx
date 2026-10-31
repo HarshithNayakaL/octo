@@ -58,7 +58,7 @@ import ClarifyPanel from "./ClarifyPanel";
 import VoiceAssistant from "./VoiceAssistant";
 import UsageLimits from "./UsageLimits";
 import EvidencePanel, { ClaimBadge } from "./EvidencePanel";
-import { marksApply, placeClaims } from "./claimPlacement";
+import { endsRow, marksApply, placeClaims } from "./claimPlacement";
 import { ClaimMarks, ClaimRail, blockLines, hasParagraph } from "./ClaimMarks";
 import AskPanel from "./AskPanel";
 import VersionsPanel from "./VersionsPanel";
@@ -2040,10 +2040,14 @@ function RunDetail({
                                   {hasParagraph(node) ? null : marksFor(node)}
                                 </li>
                               ),
+                              // A table row is one line: marks go in its last cell only.
                               td: ({ node, children }) => (
                                 <td>
                                   {children}
-                                  {marksFor(node)}
+                                  {node?.position?.end.offset !== undefined &&
+                                  endsRow(run.report, node.position.end.offset)
+                                    ? marksFor(node)
+                                    : null}
                                 </td>
                               ),
                             }}

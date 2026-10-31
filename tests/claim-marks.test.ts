@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { marksApply, overlap, placeClaims, tokens } from "../src/claimPlacement";
+import {
+  endsRow,
+  marksApply,
+  overlap,
+  placeClaims,
+  tokens,
+} from "../src/claimPlacement";
 import type { ClaimCheck, Run } from "../shared/types";
 
 const claim = (
@@ -103,5 +109,13 @@ describe("claim marks", () => {
         evidence: { ...base.evidence!, status: "running" },
       }),
     ).toBe(false);
+  });
+
+  it("finds the last cell of a table row", () => {
+    const row = "| Market size | Dated primary data |\nnext";
+    const firstEnd = row.indexOf(" |");
+    const lastEnd = row.indexOf(" |\n");
+    expect(endsRow(row, firstEnd)).toBe(false);
+    expect(endsRow(row, lastEnd)).toBe(true);
   });
 });

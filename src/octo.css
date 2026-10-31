@@ -1,11 +1,78 @@
 /* Octo refinements on the original blue-and-white baseline (styles.css stays the source of layout). */
 :root {
-  font-family: "Inter Variable", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-feature-settings: "cv11", "ss03";
+  font-family: "Geist Variable", "Helvetica Neue", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-  --ink: #181b24;
+  --mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ink: #141a2e;
   --blue-soft: #eef2fc;
   --blue-line: #d9e0f2;
+  --navy: #0a1f5c;
+  /* Shadows tinted with the brand navy, one light source from above. */
+  --shadow-sm:
+    0 1px 2px rgba(10, 31, 92, 0.06), 0 1px 1px rgba(10, 31, 92, 0.04);
+  --shadow-md:
+    0 8px 24px -8px rgba(10, 31, 92, 0.18), 0 2px 6px rgba(10, 31, 92, 0.06);
+  --shadow-lg:
+    0 24px 48px -16px rgba(10, 31, 92, 0.28), 0 4px 12px rgba(10, 31, 92, 0.08);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  scroll-behavior: smooth;
+}
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+  letter-spacing: -0.02em;
+}
+p {
+  text-wrap: pretty;
+}
+code,
+kbd,
+.claim-id,
+.diff-view,
+.usage-table code {
+  font-family: var(--mono);
+}
+.score-pill,
+.score-ring span,
+.theme-count,
+.change-stats,
+.allowance-top span,
+.usage-table td,
+.metric-value,
+.trust-value {
+  font-variant-numeric: tabular-nums;
+}
+/* Buttons and cards respond to the pointer. */
+button,
+a,
+.workflow-card,
+.why-card,
+.bento-tile {
+  transition:
+    background-color 0.2s var(--ease-out),
+    border-color 0.2s var(--ease-out),
+    box-shadow 0.25s var(--ease-out),
+    transform 0.25s var(--ease-out),
+    color 0.2s var(--ease-out);
+}
+button:not(:disabled):active {
+  transform: translateY(1px) scale(0.99);
+}
+:focus-visible {
+  outline: 2px solid #2f54d9;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 b,
 strong {
@@ -356,7 +423,7 @@ canvas.mascot {
 .file-row .middle-truncate {
   font-size: 11px;
   color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-family: var(--mono);
   letter-spacing: -0.01em;
 }
 
@@ -1317,7 +1384,7 @@ tr:hover .row-delete,
   gap: 10px;
 }
 .claim-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   font-size: 11px;
   color: var(--muted);
 }
@@ -1460,7 +1527,7 @@ tr:hover .row-delete,
   border: 1px solid var(--blue-line);
   border-radius: 4px;
   background: var(--blue-soft);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   font-size: 11px;
   color: var(--blue);
   cursor: pointer;
@@ -1534,7 +1601,7 @@ tr:hover .row-delete,
   border: 1px solid #e5e5eb;
   border-radius: 6px;
   overflow: hidden;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   font-size: 12px;
   line-height: 1.6;
 }

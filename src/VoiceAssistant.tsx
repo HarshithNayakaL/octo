@@ -89,6 +89,14 @@ export default function VoiceAssistant({
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [lines, action]);
   useEffect(() => () => void session.current?.stop(), []);
+  // Other parts of the app (the home page tile) can open the assistant.
+  useEffect(() => {
+    const onOpen = () => {
+      if (!open) void toggle();
+    };
+    window.addEventListener("octo:voice-open", onOpen);
+    return () => window.removeEventListener("octo:voice-open", onOpen);
+  });
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && void close();

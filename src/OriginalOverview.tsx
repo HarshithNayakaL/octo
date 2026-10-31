@@ -14,16 +14,9 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
-  MessageCircleQuestion,
-  MessagesSquare,
-  History,
-  Library,
-  FileDown,
-  Users,
-  Scale,
-  Layers,
 } from "lucide-react";
 import { Arc, Orbit } from "loading-dev";
+import Bento from "./Bento";
 import Select from "./Select";
 import { Mascot, areaProfile, director } from "./agents";
 import { deletable, isActive, statusLabel } from "./status";
@@ -138,7 +131,7 @@ export default function OriginalOverview({
             <ResearchDiagram />
             <div className="hero-folio">01 / A WORKSPACE FOR DISCOVERY</div>
           </section>
-          <WhyOcto />
+          <Bento />
           <div className="section-top">
             <h2>What would you like to explore?</h2>
             <span>Choose a research workflow</span>
@@ -389,11 +382,11 @@ function ResearchDiagram() {
         <path
           d="M250 48V82M250 82H60V110M250 82H187V110M250 82H313V110M250 82H440V110M60 146V176H250M187 146V176M313 146V176M440 146V176H250M250 176V194"
           fill="none"
-          stroke="#002fa7"
-          strokeOpacity=".28"
+          stroke="currentColor"
+          strokeOpacity=".32"
           strokeWidth="1.2"
         />
-        <circle cx="250" cy="82" r="3" fill="#002fa7" />
+        <circle cx="250" cy="82" r="3" fill="currentColor" />
       </svg>
       <div className="director-node">
         <Mascot profile={director} size={26} label="" />
@@ -481,77 +474,6 @@ function ResearchPulse({ runs }: { runs: Run[] }) {
           ))}
           More
         </div>
-      </div>
-    </section>
-  );
-}
-
-const reasons = [
-  {
-    icon: MessageCircleQuestion,
-    title: "Asks before it researches",
-    text: "Reads your brief and files, says what it understood, and asks what you need before spending a single search.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Checks its own citations",
-    text: "Opens every cited page and PDF itself and flags claims the source doesn't back. Each report gets an evidence score.",
-  },
-  {
-    icon: Users,
-    title: "Hears what real people say",
-    text: "Searches Reddit and Hacker News for first-hand experience, groups it into themes, and quotes people word for word with links.",
-  },
-  {
-    icon: Scale,
-    title: "Argues with itself",
-    text: "Asks for both sides on contested questions, and Challenge searches for the strongest evidence against its own report.",
-  },
-  {
-    icon: Layers,
-    title: "Knows a regulator from a blog",
-    text: "Labels every source by kind and date, flags SEO and review sites, and follows your source policy: primary first, trusted, blocked.",
-  },
-  {
-    icon: MessagesSquare,
-    title: "Answers only from your research",
-    text: "Ask follow-up questions answered from the report, never from memory. Gaps become one-click follow-up research.",
-  },
-  {
-    icon: History,
-    title: "Keeps research current",
-    text: "Refresh any report or schedule checks. Every version is kept, with a clear view of what changed and why.",
-  },
-  {
-    icon: Library,
-    title: "Builds on what you know",
-    text: "New research can reuse earlier reports in your workspace, so it re-checks what changed instead of starting over.",
-  },
-  {
-    icon: FileDown,
-    title: "Survives limits, ships files",
-    text: "Runs for up to three hours. If a limit hits, the half report is saved and continues into one report. Export PDF, Word or CSV.",
-  },
-];
-
-/** What Octo does that a chat assistant does not. */
-function WhyOcto() {
-  return (
-    <section className="why-octo" aria-labelledby="why-octo-title">
-      <div className="section-top">
-        <h2 id="why-octo-title">What a chat window can't do</h2>
-        <span>Why research in Octo</span>
-      </div>
-      <div className="why-grid">
-        {reasons.map(({ icon: Icon, title, text }) => (
-          <div className="why-card" key={title}>
-            <span className="why-icon">
-              <Icon size={18} />
-            </span>
-            <h3>{title}</h3>
-            <p>{text}</p>
-          </div>
-        ))}
       </div>
     </section>
   );

@@ -34,3 +34,15 @@ Octo's positioning moved from "runs research" to "research you can check and kee
 - **Versions** pairs "Refresh research" (with an optional focus) with a compare selector, change counts, source changes and a monospace line diff. Long unchanged stretches collapse.
 - **Build on earlier research** appears in the research form only when related reports exist, as a tinted fieldset with checkboxes and the shared terms.
 - The status colours (green, amber, red, grey, violet) carry into dark mode through the generated `dark.css`.
+
+## Showcase pass (October 2026)
+
+Same blue-and-white baseline and layout; the pass adds depth, motion and a clearer story. Styles live in `src/showcase.css`, layered after `octo.css`, and feed the dark-theme generator.
+
+- **Type:** Geist Variable for text and Geist Mono Variable for figures, labels and code (self-hosted via Fontsource), replacing Inter. Headings use a tighter scale, negative tracking and balanced wrapping; numbers are tabular.
+- **Surfaces:** ink is a navy-tinted near-black (`--ink`), shadows are navy-tinted (`--shadow-sm/md/lg`), and the overview hero is a navy panel with layered radial light and a CSS-only grain overlay. The research diagram inherits the panel colour through `currentColor`.
+- **Overview bento** (`src/Bento.tsx`) replaces the six equal cards. Two large tiles show the signature features working: an example evidence check (score ring that fills on load, four claims with statuses) and the voice assistant (orb, sample exchange, a button that opens the real assistant). Three smaller tiles cover asking first, community voices and Challenge; a strip lists the remaining five capabilities. Example content is labelled as such.
+- **Report trust strip** replaces the single evidence line above a report: Evidence (score ring and claims backed), Sources (count and a mix bar of official, news and weak sources), Real voices (themes and posts) and Versions. Each cell opens its tab. On phones the evidence cell spans the full row.
+- **Tabs and panels:** Evidence, Voices and Versions tabs carry their own accent underline; their panel headers take matching soft tints (green, violet, amber; Ask in blue).
+- **Motion:** dashboard sections rise in with a short stagger, cards lift on hover, buttons press on click, and the score rings animate through an `@property` custom property. All of it is disabled under `prefers-reduced-motion`.
+- **Dark mode:** generated as before, with overrides so the navy hero and voice tile keep white text and the selected chip keeps contrast.

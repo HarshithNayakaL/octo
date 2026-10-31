@@ -8,6 +8,7 @@ const sources = [
   "src/styles.css",
   "src/control-refinements.css",
   "src/octo.css",
+  "src/showcase.css",
 ];
 const colorPattern = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)|\b(white|black)\b/g;
 
@@ -167,6 +168,7 @@ out.append(
   postcss.parse(`
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --ink: #e8ecf6;
   --blue: #7f9cff;
   --accent: #7f9cff;
   --blue-soft: #18213d;
@@ -195,6 +197,47 @@ out.append(
 }
 :root[data-theme="dark"] .voice-orb span {
   background: rgba(255, 255, 255, 0.85);
+}
+/* Navy showcase panels stay navy with white type in both themes. */
+:root[data-theme="dark"] .chip-demo span.on {
+  background: #2f54d9 !important;
+  border-color: #2f54d9 !important;
+  color: #fff !important;
+}
+:root[data-theme="dark"] .demo-orb span {
+  background: radial-gradient(circle at 35% 30%, #cfdbff, #5b82ff 55%, #1a46d6) !important;
+}
+:root[data-theme="dark"] .hero-copy h2,
+:root[data-theme="dark"] .tile-voice h3,
+:root[data-theme="dark"] .tile-icon.on-dark,
+:root[data-theme="dark"] .bubble.octo {
+  color: #fff !important;
+}
+:root[data-theme="dark"] .hero-copy p,
+:root[data-theme="dark"] .tile-voice p {
+  color: rgba(226, 233, 255, 0.82) !important;
+}
+:root[data-theme="dark"] .hero-tag {
+  color: rgba(255, 255, 255, 0.86) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+:root[data-theme="dark"] .hero-copy button,
+:root[data-theme="dark"] .tile-action,
+:root[data-theme="dark"] .bubble.you {
+  background: #fff !important;
+  color: #0a1f5c !important;
+}
+:root[data-theme="dark"] .hero-panel,
+:root[data-theme="dark"] .tile-voice {
+  border: 1px solid #22305a;
+}
+:root[data-theme="dark"] .director-node,
+:root[data-theme="dark"] .specialist-nodes > div,
+:root[data-theme="dark"] .report-node {
+  background: rgba(13, 19, 40, 0.88) !important;
+  border-color: rgba(140, 165, 255, 0.35) !important;
+  color: #dbe3ff !important;
 }
 :root[data-theme="dark"] .primary.danger {
   background: #c43a2f !important;

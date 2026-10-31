@@ -102,7 +102,7 @@ test("evidence check, grounded questions and versions work in demo mode", async 
   await page.getByText("Ask me questions before researching").click();
   await page.getByRole("button", { name: "Start demo", exact: true }).click();
   await expect(
-    page.locator(".evidence-strip").getByText("Evidence checked"),
+    page.locator(".trust-strip").getByText(/backed by their source/),
   ).toBeVisible({
     timeout: 30000,
   });

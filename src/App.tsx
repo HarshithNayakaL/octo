@@ -56,7 +56,7 @@ import { useTheme } from "./theme";
 import ClarifyPanel from "./ClarifyPanel";
 import VoiceAssistant from "./VoiceAssistant";
 import UsageLimits from "./UsageLimits";
-import EvidencePanel, { ClaimBadge, EvidenceSummary } from "./EvidencePanel";
+import EvidencePanel, { ClaimBadge } from "./EvidencePanel";
 import AskPanel from "./AskPanel";
 import VersionsPanel from "./VersionsPanel";
 import { relatedRuns } from "./related";
@@ -1795,6 +1795,9 @@ function RunDetail({
           />
         </div>
       </div>
+      {run.report.trim() && run.purpose !== "crm" && (
+        <TrustStrip run={run} onOpen={setTab} />
+      )}
       {run.mode === "demo" && (
         <div className="demo-banner">
           <span>DEMO</span>This run is illustrative. No live research or API
@@ -1921,6 +1924,13 @@ function RunDetail({
                       role="tab"
                       aria-selected={tab === key}
                       className={tab === key ? "active" : ""}
+                      data-accent={
+                        ["evidence", "voices", "versions"].includes(
+                          key as string,
+                        )
+                          ? (key as string)
+                          : undefined
+                      }
                       key={key as string}
                       onClick={() => setTab(key as string)}
                     >
@@ -1959,10 +1969,6 @@ function RunDetail({
                           </button>
                         </span>
                       </div>
-                      <EvidenceSummary
-                        run={run}
-                        onOpen={() => setTab("evidence")}
-                      />
                       <div className="markdown">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
@@ -2754,5 +2760,135 @@ function SourceTags({
       )}
       {info?.trusted && <span className="kind-tag trusted">Trusted</span>}
     </span>
+  );
+}
+
+/** The report's trust story at a glance: evidence, sources, voices and versions. */
+function TrustStrip({
+  run,
+  onOpen,
+}: {
+  run: Run;
+  onOpen: (tab: string) => void;
+}) {
+  const e = run.evidence;
+  const checking = e?.status === "pending" || e?.status === "running";
+  const done = e?.status === "done";
+  const supported = done
+    ? e!.claims.filter((c) => c.status === "supported").length
+    : 0;
+  const flagged = done
+    ? e!.claims.filter(
+        (c) => c.status === "not_found" || c.status === "uncited",
+      ).length
+    : 0;
+  const score = done ? e!.score : undefined;
+  const tone =
+    score === undefined
+      ? "none"
+      : score >= 75
+        ? "good"
+        : score >= 50
+          ? "mid"
+          : "low";
+  const counts = new Map<SourceKind, number>();
+  for (const s of run.sources) {
+    const k = kindOf(run, s.url, s.title);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const primary =
+    (counts.get("government") ?? 0) + (counts.get("academic") ?? 0);
+  const weak = (counts.get("blog") ?? 0) + (counts.get("forum") ?? 0);
+  const voices = run.community?.status === "done" ? run.community : undefined;
+  const versions = (run.versions?.length ?? 0) + 1;
+  return (
+    <div className="trust-strip" aria-label="Report summary">
+      <button
+        type="button"
+        className="trust-cell"
+        onClick={() => onOpen("evidence")}
+      >
+        <div
+          className={`trust-ring ${checking ? "checking" : tone}`}
+          style={{ ["--score" as string]: String(score ?? 0) }}
+          aria-hidden="true"
+        >
+          <span>{checking ? "" : (score ?? "–")}</span>
+        </div>
+        <div>
+          <span className="trust-label">Evidence</span>
+          <span className="trust-value">
+            {checking
+              ? "Checking…"
+              : done
+                ? `${supported} of ${e!.claims.length} claims`
+                : "Not checked"}
+          </span>
+          <span className="trust-sub">
+            {checking
+              ? "Opening the cited pages"
+              : done
+                ? `backed by their source${flagged ? ` · ${flagged} to review` : ""}`
+                : "Open Evidence to check citations"}
+          </span>
+        </div>
+      </button>
+      <button
+        type="button"
+        className="trust-cell"
+        onClick={() => onOpen("sources")}
+      >
+        <div>
+          <span className="trust-label">Sources</span>
+          <span className="trust-value">{run.sources.length}</span>
+          <span className="trust-sub">
+            {primary} primary{weak ? ` · ${weak} blog or forum` : ""}
+          </span>
+          {run.sources.length > 0 && (
+            <span className="mini-mix" aria-hidden="true">
+              {kindOrder
+                .filter((k) => counts.get(k))
+                .map((k) => (
+                  <i
+                    key={k}
+                    className={`mix-${k}`}
+                    style={{
+                      width: `${((counts.get(k) ?? 0) / run.sources.length) * 100}%`,
+                    }}
+                  />
+                ))}
+            </span>
+          )}
+        </div>
+      </button>
+      <button
+        type="button"
+        className="trust-cell"
+        onClick={() => onOpen("voices")}
+      >
+        <div>
+          <span className="trust-label">Real voices</span>
+          <span className="trust-value">
+            {voices ? voices.items.length : "–"}
+          </span>
+          <span className="trust-sub">
+            {voices
+              ? `posts in ${voices.themes.length} themes`
+              : "Not gathered yet"}
+          </span>
+        </div>
+      </button>
+      <button
+        type="button"
+        className="trust-cell"
+        onClick={() => onOpen("versions")}
+      >
+        <div>
+          <span className="trust-label">Versions</span>
+          <span className="trust-value">{versions}</span>
+          <span className="trust-sub">Updated {date(run.updatedAt)}</span>
+        </div>
+      </button>
+    </div>
   );
 }

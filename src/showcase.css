@@ -1944,3 +1944,30 @@ table th {
     grid-template-columns: 1fr;
   }
 }
+
+/* Sources under a quick web answer in the voice panel. */
+.voice-sources {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.voice-sources a {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid #d9deea;
+  color: #002fa7;
+  background: #ffffff;
+  text-decoration: none;
+}
+.voice-sources a:hover {
+  border-color: #002fa7;
+}

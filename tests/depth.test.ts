@@ -86,7 +86,7 @@ describe("research depth", () => {
   it("has the voice assistant ask for depth and pass it to the form", () => {
     expect(prepareResearchTool.parameters.required).toContain("depth");
     expect(voiceInstructions({ page: "overview" } as never)).toMatch(
-      /how in-depth/i,
+      /how long or how deep/i,
     );
     expect(
       parseAction({

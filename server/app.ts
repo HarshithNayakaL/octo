@@ -1008,6 +1008,34 @@ export function createApp(options: AppOptions) {
     }
   });
   /** Fresh app status for the Live assistant's get_app_status tool. Reads only the database. */
+  /** A quick grounded web answer for small questions, instead of a research run. */
+  app.post("/api/voice/search", async (req, res) => {
+    if (!options.voice?.search) {
+      voiceUnavailable(res);
+      return;
+    }
+    const parsed = z
+      .object({ question: z.string().trim().min(2).max(500) })
+      .safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Ask a question to search for." });
+      return;
+    }
+    const wait = await turnLimit.take(req.ip ?? "local");
+    if (wait) {
+      res.setHeader("Retry-After", String(Math.ceil(wait / 1000)));
+      res.status(429).json({
+        error: "Too many voice requests. Wait a minute and try again.",
+      });
+      return;
+    }
+    try {
+      res.json(await options.voice.search(parsed.data.question));
+    } catch (err) {
+      await turnLimit.refund(req.ip ?? "local").catch(() => undefined);
+      voiceFailed(res, err, "The web search failed");
+    }
+  });
   app.post("/api/voice/status", async (req, res) => {
     const { runId } = z
       .object({ runId: z.string().max(100).optional() })

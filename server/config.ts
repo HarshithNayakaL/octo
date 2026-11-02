@@ -85,8 +85,10 @@ export function providersFromEnv(
           turn: env.GEMINI_VOICE_MODEL ?? defaultVoiceModels.turn,
           tts: env.GEMINI_TTS_MODEL ?? defaultVoiceModels.tts,
           voice: env.GEMINI_VOICE ?? defaultVoiceModels.voice,
+          search: env.GEMINI_SEARCH_MODEL,
         },
         googleFetch,
+        fallbackModels(env.GEMINI_FALLBACK_MODELS),
       )
     : undefined;
   return {

@@ -47,3 +47,33 @@ export const depthScope: Record<Depth, string> = {
     "Depth: standard. Cover each research area with one focused pass and keep the report to roughly 800-1,500 words.",
   deep: "Depth: deep dive. Investigate every research area thoroughly, cross-check key figures across independent sources, and use tables where they help. Length follows the evidence.",
 };
+
+/** Tokens that fit a custom time limit: roughly what a run uses per minute. */
+export function tokensForMinutes(provider: ProviderId, minutes: number) {
+  const perMinute = provider === "google" ? 20_000 : 10_000;
+  const floor = provider === "google" ? 50_000 : 20_000;
+  return Math.min(
+    2_000_000,
+    Math.max(floor, Math.round((minutes * perMinute) / 10_000) * 10_000),
+  );
+}
+
+/**
+ * Limits for a run from whatever the person chose: an explicit time or token
+ * budget wins; otherwise the depth's defaults.
+ */
+export function researchLimits(
+  provider: ProviderId,
+  choice: { depth?: Depth; minutes?: number; tokens?: number },
+) {
+  const base = depthLimits(provider, choice.depth ?? "standard");
+  const minutes = choice.minutes ?? base.minutes;
+  const tokens =
+    choice.tokens ??
+    (choice.minutes && !choice.depth
+      ? tokensForMinutes(provider, choice.minutes)
+      : choice.minutes
+        ? Math.min(base.tokens, tokensForMinutes(provider, choice.minutes) * 2)
+        : base.tokens);
+  return { minutes, tokens };
+}

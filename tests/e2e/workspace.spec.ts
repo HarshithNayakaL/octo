@@ -19,9 +19,11 @@ test("market research, notes, sources, and download work end to end in demo mode
     page.getByText("Choose a depth to continue", { exact: false }),
   ).toBeVisible();
   await page.getByRole("radio", { name: /Quick scan/ }).click();
-  await expect(
-    page.getByRole("combobox", { name: "Time limit", exact: true }),
-  ).toContainText("5 minutes");
+  await expect(page.getByLabel("Time limit (minutes)")).toHaveValue("5");
+  await expect(page.getByLabel("Token limit (thousands)")).toHaveValue("100");
+  // Custom limits: any whole number of minutes and tokens.
+  await page.getByLabel("Time limit (minutes)").fill("3");
+  await page.getByLabel("Token limit (thousands)").fill("60");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByText("Here is what I understood")).toBeVisible({
     timeout: 20000,
@@ -192,4 +194,31 @@ test("the voice assistant can start research with a spoken time limit", async ({
   await expect(page.getByText("Report ready", { exact: false })).toBeVisible({
     timeout: 30000,
   });
+});
+test("quick questions get a web answer with sources, not a research run", async ({
+  page,
+}) => {
+  await page.route("**/api/voice/turn", (route) =>
+    route.fulfill({
+      json: {
+        transcript: "Who won the Formula One championship last year?",
+        reply: "Lando Norris won the 2025 Formula One drivers' title.",
+        sources: [{ title: "formula1.com", url: "https://www.formula1.com/" }],
+        model: "test",
+      },
+    }),
+  );
+  await page.goto("/");
+  const before = await page.request.get("/api/runs").then((r) => r.json());
+  await page.getByRole("button", { name: "Talk to Octo" }).click();
+  await page
+    .getByLabel("Type to Octo")
+    .fill("Who won the Formula One championship last year?");
+  await page.getByLabel("Type to Octo").press("Enter");
+  await expect(page.getByText("Lando Norris won the 2025")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "formula1.com" }),
+  ).toHaveAttribute("href", "https://www.formula1.com/");
+  const after = await page.request.get("/api/runs").then((r) => r.json());
+  expect(after.length).toBe(before.length);
 });

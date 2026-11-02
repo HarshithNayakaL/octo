@@ -310,7 +310,18 @@ export default function VoiceAssistant({
                   className={`voice-line ${l.role} ${l.final ? "" : "partial"}`}
                 >
                   <span>{l.role === "user" ? "You" : "Octo"}</span>
-                  <p>{l.text}</p>
+                  {l.text !== "Sources" && <p>{l.text}</p>}
+                  {l.sources && (
+                    <ul className="voice-sources" aria-label="Sources">
+                      {l.sources.map((s) => (
+                        <li key={s.url}>
+                          <a href={s.url} target="_blank" rel="noreferrer">
+                            {s.title}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               ))}
               {action && (

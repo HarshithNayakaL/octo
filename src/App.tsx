@@ -73,6 +73,7 @@ import {
   type Depth,
 } from "../shared/depth";
 import { depthForMinutes, type VoiceCommand } from "../shared/voice-commands";
+import { researchLimits } from "../shared/depth";
 import { classifySource, monthsOld } from "../shared/sources";
 import { deletable, isActive as activeRun, statusLabel } from "./status";
 import Overview from "./OriginalOverview";
@@ -242,6 +243,7 @@ export default function App() {
   const [initialTitle, setInitialTitle] = useState("");
   const [initialDepth, setInitialDepth] = useState<Depth>();
   const [initialMinutes, setInitialMinutes] = useState<number>();
+  const [initialTokens, setInitialTokens] = useState<number>();
   const [collapsed, setCollapsed] = useState(false);
   const [page, setPage] = useState<Page>("research");
   const [runs, setRuns] = useState<Run[]>([]);
@@ -366,12 +368,25 @@ export default function App() {
         const providers = config?.providers ?? [];
         const openaiLocked =
           (config?.openaiAccess ?? "open") !== "open" && !openaiUnlock.get();
-        let provider: ProviderId = config?.defaultProvider ?? "google";
+        if (c.provider === "openai" && openaiLocked)
+          throw new Error(
+            "OpenAI is locked on this workspace. Unlock it in the research form, or use Google.",
+          );
+        let provider: ProviderId =
+          c.provider ?? config?.defaultProvider ?? "google";
         if (provider === "openai" && openaiLocked) provider = "google";
         const ready = providers.find((p) => p.id === provider)?.ready;
+        if (!c.depth && !c.minutes && !c.tokens)
+          throw new Error(
+            "Agree the scope first: ask how long or how deep it should go (for example a 5-minute quick scan), then try again with that.",
+          );
         const depth =
-          c.depth ?? (c.minutes ? depthForMinutes(c.minutes) : "standard");
-        const limits = depthLimits(provider, depth);
+          c.depth ?? (c.minutes ? depthForMinutes(c.minutes) : "quick");
+        const limits = researchLimits(provider, {
+          depth: c.depth,
+          minutes: c.minutes,
+          tokens: c.tokens,
+        });
         const workflow = c.workflow ?? "general";
         const run = await api<Run>("/runs", {
           method: "POST",
@@ -383,15 +398,18 @@ export default function App() {
             mode: ready ? "live" : "demo",
             provider,
             depth,
-            maxMinutes: c.minutes ?? limits.minutes,
+            maxMinutes: limits.minutes,
             maxTokens: limits.tokens,
-            // The conversation already settled the scope, so start straight away.
-            clarify: false,
+            outputFormat: c.deliverable ?? "auto",
+            community: workflow !== "sales" && Boolean(c.community),
+            // The conversation already settled the scope, so start straight
+            // away unless the person wants Octo's planning questions.
+            clarify: Boolean(c.askQuestions),
           }),
         });
         setNewWorkflow(undefined);
         await show(run);
-        return `Started "${run.title}"${ready ? "" : " in demo mode, because no live provider is set up"}: ${depthLabels[depth]}, stopping after ${run.maxMinutes} minute${run.maxMinutes === 1 ? "" : "s"}. It is open on screen.`;
+        return `${c.askQuestions ? "Opened" : "Started"} "${run.title}"${ready ? "" : " in demo mode, because no live provider is set up"}: ${depthLabels[depth]}, up to ${run.maxMinutes} minute${run.maxMinutes === 1 ? "" : "s"} and ${Math.round(run.maxTokens / 1000)}k tokens${c.askQuestions ? ". Octo is preparing its questions" : ""}. It is open on screen.`;
       }
       case "submit_research_form": {
         if (!newWorkflowRef.current)
@@ -505,6 +523,77 @@ export default function App() {
         await api(`/runs/${run.id}/evidence`, { method: "POST", body: "{}" });
         await show(run);
         return `Checking the citations in "${run.title}" again.`;
+      }
+      case "ask_research": {
+        const run = current?.report.trim() ? current : undefined;
+        if (!run) throw new Error("Open a finished report first.");
+        if (!c.question) throw new Error("What should I ask the report?");
+        const updated = await api<Run>(`/runs/${run.id}/ask`, {
+          method: "POST",
+          body: JSON.stringify({ question: c.question }),
+        });
+        changed(updated);
+        const answer = updated.questions?.at(-1);
+        if (!answer) throw new Error("No answer came back.");
+        const coverage =
+          answer.coverage === "covered"
+            ? "The report covers this."
+            : answer.coverage === "partly"
+              ? "The report only partly covers this."
+              : "The report does not cover this.";
+        return `${coverage} ${answer.answer}`.slice(0, 1500);
+      }
+      case "refresh_research":
+      case "challenge_report": {
+        const run = current?.report.trim() ? current : undefined;
+        if (!run) throw new Error("Open a finished report first.");
+        const path = c.name === "refresh_research" ? "refresh" : "challenge";
+        await api(`/runs/${run.id}/${path}`, {
+          method: "POST",
+          body: JSON.stringify({ note: c.note }),
+        });
+        await show(run);
+        return c.name === "refresh_research"
+          ? `Refreshing "${run.title}". The current report is kept as a version.`
+          : `The agent is now challenging "${run.title}" and will revise it.`;
+      }
+      case "gather_voices": {
+        if (!current) throw new Error("Open the research first.");
+        await api(`/runs/${current.id}/community`, {
+          method: "POST",
+          body: "{}",
+        });
+        await show(current);
+        return `Gathering Reddit and Hacker News discussions for "${current.title}".`;
+      }
+      case "schedule_checks": {
+        if (!current) throw new Error("Open the research first.");
+        await api(`/runs/${current.id}/schedule`, {
+          method: "POST",
+          body: JSON.stringify({
+            intervalHours: c.everyHours ?? 24,
+            remainingChecks: c.checks ?? 3,
+          }),
+        });
+        await show(current);
+        return c.checks === 0
+          ? `Stopped scheduled checks for "${current.title}".`
+          : `"${current.title}" will be checked every ${c.everyHours ?? 24} hours, ${c.checks ?? 3} times.`;
+      }
+      case "save_note": {
+        if (!current) throw new Error("Open the research first.");
+        if (!c.note) throw new Error("What should the note say?");
+        const notes = [current.notes.trim(), c.note].filter(Boolean).join("\n");
+        await api(`/runs/${current.id}/notes`, {
+          method: "PATCH",
+          body: JSON.stringify({ notes }),
+        });
+        await show(current);
+        return "Added to the notes.";
+      }
+      case "set_theme": {
+        theme.setChoice(c.theme ?? "system");
+        return `Switched to ${c.theme === "system" ? "the system theme" : `${c.theme ?? "system"} mode`}.`;
       }
     }
   }
@@ -804,12 +893,13 @@ export default function App() {
       />
       {newWorkflow && (
         <NewResearch
-          key={`${newWorkflow}:${initialTitle}:${initialBrief.length}:${initialDepth ?? ""}:${initialMinutes ?? ""}`}
+          key={`${newWorkflow}:${initialTitle}:${initialBrief.length}:${initialDepth ?? ""}:${initialMinutes ?? ""}:${initialTokens ?? ""}`}
           workflow={newWorkflow}
           initialBrief={initialBrief}
           initialTitle={initialTitle}
           initialDepth={initialDepth}
           initialMinutes={initialMinutes}
+          initialTokens={initialTokens}
           config={config}
           runs={runs}
           onClose={() => {
@@ -817,12 +907,16 @@ export default function App() {
             setInitialBrief("");
             setInitialTitle("");
             setInitialDepth(undefined);
+            setInitialMinutes(undefined);
+            setInitialTokens(undefined);
           }}
           onCreated={(run) => {
             setNewWorkflow(undefined);
             setInitialBrief("");
             setInitialTitle("");
             setInitialDepth(undefined);
+            setInitialMinutes(undefined);
+            setInitialTokens(undefined);
             setPage("research");
             changed(run);
           }}
@@ -839,6 +933,7 @@ export default function App() {
           setInitialBrief(action.brief);
           setInitialDepth(action.depth);
           setInitialMinutes(action.minutes);
+          setInitialTokens(action.tokens);
           setNewWorkflow(action.workflow);
         }}
         onCommand={(command) => commandRef.current(command)}
@@ -1077,6 +1172,7 @@ function NewResearch({
   initialTitle = "",
   initialDepth,
   initialMinutes,
+  initialTokens,
   config,
   runs = [],
   onClose,
@@ -1087,6 +1183,7 @@ function NewResearch({
   initialTitle?: string;
   initialDepth?: Depth;
   initialMinutes?: number;
+  initialTokens?: number;
   config?: Configuration;
   runs?: Run[];
   onClose: () => void;
@@ -1134,10 +1231,22 @@ function NewResearch({
   const depthRef = useRef<HTMLFieldSetElement>(null);
   const limitsFor = (id: ProviderId, d: Depth = depth ?? "standard") =>
     depthLimits(id, d);
+  // A time or token budget the person named wins over the depth's defaults.
+  const initialLimits = researchLimits(provider, {
+    depth: initialDepth,
+    minutes: initialMinutes,
+    tokens: initialTokens,
+  });
   const [minutes, setMinutes] = useState(
-    initialMinutes ?? limitsFor(provider).minutes,
+    initialMinutes || initialTokens
+      ? initialLimits.minutes
+      : limitsFor(provider).minutes,
   );
-  const [tokens, setTokens] = useState(limitsFor(provider).tokens);
+  const [tokens, setTokens] = useState(
+    initialMinutes || initialTokens
+      ? initialLimits.tokens
+      : limitsFor(provider).tokens,
+  );
   function chooseDepth(d: Depth) {
     setDepth(d);
     setDepthMissing(false);
@@ -1552,34 +1661,42 @@ function NewResearch({
               />
             </label>
             <label className="field">
-              Time limit
-              <Select
-                label="Time limit"
-                value={String(minutes)}
-                onChange={(value) => setMinutes(Number(value))}
-                options={[
-                  ...new Set([minutes, 5, 10, 20, 30, 60, 90, 120, 180]),
-                ]
-                  .sort((a, b) => a - b)
-                  .map((n) => ({
-                    value: String(n),
-                    label: formatMinutes(n),
-                  }))}
+              Time limit (minutes)
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={180}
+                step={1}
+                required
+                value={minutes || ""}
+                onChange={(e) => setMinutes(Number(e.target.value))}
+                onBlur={() =>
+                  setMinutes((m) =>
+                    Math.min(180, Math.max(1, Math.round(m || 1))),
+                  )
+                }
               />
             </label>
             <label className="field">
-              Token limit
-              <Select
-                label="Token limit"
-                value={String(tokens)}
-                onChange={(value) => setTokens(Number(value))}
-                options={[
-                  20_000, 50_000, 100_000, 200_000, 500_000, 1_000_000,
-                  2_000_000,
-                ].map((n) => ({
-                  value: String(n),
-                  label: formatTokens(n),
-                }))}
+              Token limit (thousands)
+              <input
+                type="number"
+                inputMode="numeric"
+                min={10}
+                max={2000}
+                step={10}
+                required
+                value={tokens ? Math.round(tokens / 1000) : ""}
+                onChange={(e) => setTokens(Number(e.target.value) * 1000)}
+                onBlur={() =>
+                  setTokens((t) =>
+                    Math.min(
+                      2_000_000,
+                      Math.max(10_000, Math.round((t || 10_000) / 1000) * 1000),
+                    ),
+                  )
+                }
               />
             </label>
           </div>

@@ -2,6 +2,7 @@ import type { VoiceAction } from "../../shared/types";
 import {
   parseCommand,
   parseMinutes,
+  parseTokens,
   type VoiceCommand,
 } from "../../shared/voice-commands";
 import { api } from "../api";
@@ -28,6 +29,8 @@ export interface VoiceLine {
   role: "user" | "assistant";
   text: string;
   final: boolean;
+  /** Pages behind a quick web answer. */
+  sources?: { title: string; url: string }[];
 }
 export interface VoiceEvents {
   state(state: VoiceState, detail?: string): void;
@@ -314,6 +317,40 @@ export class LiveSession extends Session {
             };
           }
         }
+        if (call.name === "web_search") {
+          try {
+            const found = await api<{
+              answer: string;
+              sources: { title: string; url: string }[];
+            }>("/voice/search", {
+              method: "POST",
+              body: JSON.stringify({
+                question: String(call.args?.question ?? "").slice(0, 500),
+              }),
+            });
+            if (found.sources.length)
+              this.events.line({
+                id: id(),
+                role: "assistant",
+                text: "Sources",
+                final: true,
+                sources: found.sources,
+              });
+            return {
+              id: call.id,
+              name: call.name,
+              response: {
+                result: `${found.answer}\nSources: ${found.sources.map((s) => s.title).join(", ") || "none listed"}`,
+              },
+            };
+          } catch (err) {
+            return {
+              id: call.id,
+              name: call.name,
+              response: { error: (err as Error).message },
+            };
+          }
+        }
         const command = parseCommand(call.name, call.args ?? {});
         if (command) {
           try {
@@ -348,6 +385,7 @@ export class LiveSession extends Session {
               ? call.args.depth
               : undefined,
             minutes: parseMinutes(call.args.minutes),
+            tokens: parseTokens(call.args.tokens),
           });
           return {
             id: call.id,
@@ -503,6 +541,7 @@ export class TurnSession extends Session {
         reply: string;
         action?: VoiceAction;
         command?: VoiceCommand;
+        sources?: { title: string; url: string }[];
         audio?: { data: string; mimeType: string };
         ttsError?: string;
       }>("/voice/turn", {
@@ -525,6 +564,7 @@ export class TurnSession extends Session {
         role: "assistant",
         text: result.reply,
         final: true,
+        sources: result.sources?.length ? result.sources : undefined,
       });
       if (result.action) this.events.action(result.action);
       if (result.command)

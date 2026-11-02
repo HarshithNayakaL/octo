@@ -350,3 +350,8 @@
 :root[data-theme="dark"] .depth-choice.missing > .field-hint {
   color: #fca5a5;
 }
+:root[data-theme="dark"] .voice-sources a {
+  background: #121216;
+  border-color: #2a2a33;
+  color: #9fb3ff;
+}

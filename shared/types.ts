@@ -179,6 +179,8 @@ export interface VoiceAction {
   depth?: import("./depth.js").Depth;
   /** A time limit the person asked for, in minutes. */
   minutes?: number;
+  /** A token budget the person asked for. */
+  tokens?: number;
 }
 /** A question answered only from this research. */
 export interface QuestionAnswer {

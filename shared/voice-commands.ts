@@ -1,5 +1,6 @@
 import type { Depth } from "./depth.js";
-import type { Workflow } from "./types.js";
+import type { ProviderId, Workflow } from "./types.js";
+import type { OutputChoice } from "./formats.js";
 
 /**
  * Things the voice assistant can do in Octo. The model calls them as tools;
@@ -17,6 +18,13 @@ export const commandNames = [
   "go_to",
   "download_report",
   "check_evidence",
+  "ask_research",
+  "refresh_research",
+  "challenge_report",
+  "gather_voices",
+  "schedule_checks",
+  "save_note",
+  "set_theme",
 ] as const;
 export type CommandName = (typeof commandNames)[number];
 
@@ -37,6 +45,16 @@ export const commandFormats = [
   "json",
 ] as const;
 
+export const commandDeliverables = [
+  "auto",
+  "pdf",
+  "docx",
+  "pptx",
+  "csv",
+  "md",
+] as const satisfies readonly OutputChoice[];
+export const commandThemes = ["light", "dark", "system"] as const;
+
 export interface VoiceCommand {
   name: CommandName;
   title?: string;
@@ -45,6 +63,18 @@ export interface VoiceCommand {
   depth?: Depth;
   /** A time limit the person asked for, in minutes (1-180). */
   minutes?: number;
+  /** A token budget the person asked for (10,000-2,000,000). */
+  tokens?: number;
+  deliverable?: (typeof commandDeliverables)[number];
+  provider?: ProviderId;
+  /** Let Octo ask its planning questions before researching. */
+  askQuestions?: boolean;
+  /** Gather Reddit and Hacker News discussions first. */
+  community?: boolean;
+  question?: string;
+  everyHours?: number;
+  checks?: number;
+  theme?: (typeof commandThemes)[number];
   note?: string;
   message?: string;
   page?: (typeof commandPages)[number];
@@ -61,6 +91,22 @@ export function parseMinutes(value: unknown) {
     ? Math.min(180, minutes)
     : undefined;
 }
+
+/** A spoken token budget, kept within what the server accepts. */
+export function parseTokens(value: unknown) {
+  const tokens = Math.round(Number(value));
+  return Number.isFinite(tokens) && tokens > 0
+    ? Math.min(2_000_000, Math.max(10_000, tokens))
+    : undefined;
+}
+const bool = (value: unknown) =>
+  typeof value === "boolean" ? value : value === "true" ? true : undefined;
+const int = (value: unknown, min: number, max: number) => {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) && n >= min ? Math.min(max, n) : undefined;
+};
+const lower = (value: unknown) =>
+  typeof value === "string" ? value.toLowerCase().trim() : value;
 
 const text = (value: unknown, max: number) =>
   typeof value === "string" && value.trim()
@@ -85,14 +131,17 @@ export function parseCommand(
     minutes: parseMinutes(args.minutes),
     note: text(args.note, 2000),
     message: text(args.message, 4000),
-    page: oneOf(
-      typeof args.page === "string" ? args.page.toLowerCase() : args.page,
-      commandPages,
-    ),
-    format: oneOf(
-      typeof args.format === "string" ? args.format.toLowerCase() : args.format,
-      commandFormats,
-    ),
+    tokens: parseTokens(args.tokens),
+    deliverable: oneOf(lower(args.deliverable), commandDeliverables),
+    provider: oneOf(lower(args.provider), ["google", "openai"] as const),
+    askQuestions: bool(args.ask_questions),
+    community: bool(args.community),
+    question: text(args.question, 1000),
+    everyHours: int(args.every_hours, 1, 168),
+    checks: int(args.checks, 0, 30),
+    page: oneOf(lower(args.page), commandPages),
+    format: oneOf(lower(args.format), commandFormats),
+    theme: oneOf(lower(args.theme), commandThemes),
   };
 }
 
@@ -125,6 +174,32 @@ const research = {
       "quick (a direct answer, about 5 minutes), standard (about 20 minutes) or deep (every area, up to an hour).",
   },
   minutes: minutesParam,
+  tokens: {
+    type: "integer",
+    description:
+      "Only when the person names a token budget, such as 'under 50k tokens': the number of tokens (10000-2000000).",
+  },
+  deliverable: {
+    type: "string",
+    enum: commandDeliverables,
+    description:
+      "The form they want: pdf report, docx (Word), pptx (PowerPoint deck), csv (spreadsheet), md, or auto to pick from the request.",
+  },
+  provider: {
+    type: "string",
+    enum: ["google", "openai"],
+    description: "Only if the person asks for a specific provider.",
+  },
+  ask_questions: {
+    type: "boolean",
+    description:
+      "true only if the person wants Octo to ask its planning questions before researching.",
+  },
+  community: {
+    type: "boolean",
+    description:
+      "true if they want what real people say on Reddit and Hacker News included.",
+  },
 };
 
 /** Gemini function declarations for the commands. */
@@ -136,7 +211,7 @@ export const commandTools = [
     parameters: {
       type: "object",
       properties: research,
-      required: ["title", "brief", "workflow", "depth"],
+      required: ["title", "brief", "workflow"],
     },
   },
   {
@@ -217,5 +292,70 @@ export const commandTools = [
     name: "check_evidence",
     description: "Re-run Octo's citation check on the open research's report.",
     parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "ask_research",
+    description:
+      "Answer a question only from the open research's report and sources, with a note on how well the report covers it.",
+    parameters: {
+      type: "object",
+      properties: { question: { type: "string" } },
+      required: ["question"],
+    },
+  },
+  {
+    name: "refresh_research",
+    description:
+      "Bring the open finished report up to date with newer information; the old report is kept as a version.",
+    parameters: {
+      type: "object",
+      properties: { note: { type: "string" } },
+    },
+  },
+  {
+    name: "challenge_report",
+    description:
+      "Have the agent look for weak claims, gaps and counter-evidence in the open report and revise it.",
+    parameters: {
+      type: "object",
+      properties: { note: { type: "string" } },
+    },
+  },
+  {
+    name: "gather_voices",
+    description:
+      "Collect what people say about the open research's topic on Reddit and Hacker News.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "schedule_checks",
+    description:
+      "For ongoing research only: repeat it on a schedule to catch changes: every_hours between checks and how many checks (0 stops them).",
+    parameters: {
+      type: "object",
+      properties: {
+        every_hours: { type: "integer", description: "1, 6, 24 or 168." },
+        checks: { type: "integer", description: "0-30." },
+      },
+      required: ["every_hours", "checks"],
+    },
+  },
+  {
+    name: "save_note",
+    description: "Add a line to the open research's notes.",
+    parameters: {
+      type: "object",
+      properties: { note: { type: "string" } },
+      required: ["note"],
+    },
+  },
+  {
+    name: "set_theme",
+    description: "Switch Octo to light mode, dark mode, or follow the system.",
+    parameters: {
+      type: "object",
+      properties: { theme: { type: "string", enum: commandThemes } },
+      required: ["theme"],
+    },
   },
 ];

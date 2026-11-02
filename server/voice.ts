@@ -8,6 +8,7 @@ import {
   type VoiceCommand,
 } from "../shared/voice-commands.js";
 import { ProviderError } from "./provider.js";
+import { withFallback } from "./fallback.js";
 import { interactionText } from "./google-provider.js";
 
 /*
@@ -32,6 +33,14 @@ export interface VoiceModels {
   turn: string;
   tts: string;
   voice: string;
+  /** Answers quick questions with Google Search grounding; defaults to the turn model. */
+  search?: string;
+}
+/** A quick answer from the web, with the pages it came from. */
+export interface SearchAnswer {
+  answer: string;
+  sources: { title: string; url: string }[];
+  model: string;
 }
 export const defaultVoiceModels: VoiceModels = {
   live: "gemini-3.8-live",
@@ -47,6 +56,8 @@ export interface VoiceTurnResult {
   action?: VoiceAction;
   /** Something to do in Octo; the browser runs it. */
   command?: VoiceCommand;
+  /** Pages behind a quick web answer. */
+  sources?: SearchAnswer["sources"];
   audio?: { data: string; mimeType: string };
   /** Why no Gemini audio came back; the browser speaks the reply instead. */
   ttsError?: string;
@@ -71,6 +82,7 @@ export interface VoiceProvider {
   readonly name: string;
   liveToken?(context: VoiceContext): Promise<LiveToken>;
   turn(input: TurnInput, context: VoiceContext): Promise<VoiceTurnResult>;
+  search?(question: string): Promise<SearchAnswer>;
 }
 export interface VoiceContext {
   run?: Run;
@@ -106,9 +118,12 @@ ${
     : ""
 }You are part of Octo, so you know its current state from "App status" below: what is running, which model each run uses, recent problems such as a busy Gemini model, quota limits or failures, today's usage and the person's voice allowance. When they ask whether something is working, why research failed or is slow, what is running, or about limits, answer from App status in plain words and say what Octo is doing about it (for example, that it switched to a lighter model or will retry). Never guess a status that is not listed. In a long conversation, call get_app_status for a fresh reading before answering such questions.
 Answer about a report only from the report text given; say when it does not cover something. Do not invent facts, figures or sources. Say you are unsure when you are.
-You can operate Octo for the person with your tools, the same way they would with the buttons.
-New research: if the goal is unclear, ask one short question. Unless they already gave a depth or a time, ask how in-depth they want it: a quick scan (a direct answer in about 5 minutes), standard (about 20 minutes) or a deep dive (every angle, up to an hour). If they name a time, such as "in 3 minutes", pass it as minutes: it becomes the hard time limit and the agent writes a shorter report to finish inside it. If they want it started (for example "start it", "go ahead", "run it"), call start_research: it begins immediately with no form. If they want to review it first, call prepare_research to open the form, and when they then say go, call submit_research_form.
-Other actions: start_from_plan when research is waiting for answers to its questions (put their answers in note); cancel_research to stop research (confirm first); continue_research for research that stopped early; follow_up to ask for changes to the open report; open_research to open research by title; go_to to open a page; download_report to download the open report (PDF, Word, PowerPoint, CSV, Markdown or JSON); check_evidence to re-check citations.
+You can operate Octo for the person with your tools, the same way they would with the buttons. First decide what they need:
+1. A quick fact or current question (who won a race or championship, a price, a date, a definition, the latest news on something): call web_search and answer in one or two sentences, naming where it came from. Do not start a research run for this, and do not ask about depth. Keep answering quick follow-up questions the same way, searching again whenever the answer could have changed or you are not sure.
+2. A question about the research that is open: answer from the report below, or call ask_research for an answer checked against the report and its sources.
+3. Real research (an analysis, a comparison, a market or company study, a report, a deck or a spreadsheet): before starting, agree on three things in one short exchange: what exactly they need, the form they want it in (a short answer, a report, a PowerPoint deck, a spreadsheet) and how long or how deep it should go. Suggest a sensible default that fits the size of the question, for example "A quick 5-minute scan as a short report?", and let them change it. A narrow question gets a quick scan or a few minutes; only use standard or deep when the question is broad or they ask for it. If they name a time or a budget ("in 3 minutes", "keep it under 50k tokens"), pass minutes or tokens exactly. Never start research until they have agreed the scope.
+Then, if they want it started ("start it", "go ahead", "run it"), call start_research: it begins immediately with no form, using the depth, minutes, tokens and format you agreed. If they want to review it first, call prepare_research to open the form, and when they then say go, call submit_research_form. Pass ask_questions=true only if they want Octo to ask its planning questions first.
+Other actions: start_from_plan when research is waiting for answers to its questions (put their answers in note); cancel_research to stop research (confirm first); continue_research for research that stopped early; follow_up to ask for changes to the open report; refresh_research to bring a finished report up to date; challenge_report to have the agent look for weak points in its own report; gather_voices to collect what people say on Reddit and Hacker News; schedule_checks to repeat ongoing research on a schedule; save_note to add to the research notes; open_research to open research by title; go_to to open a page; download_report to download the open report (PDF, Word, PowerPoint, CSV, Markdown or JSON); check_evidence to re-check citations; set_theme to switch light or dark mode.
 After a tool returns, say what happened in one short sentence, using its result. If it returns an error, say so plainly and what they can do. Never claim something happened unless a tool result says it did. Deleting research is not available by voice: tell them to use the delete button.
 Language: reply in the language of the person's most recent message, in the same script. If that message mixes languages, use the language of its last sentence. Judge every message on its own and do not carry an earlier language forward: if they spoke Kannada and then English, reply in English. Never reply in a language they have not used in this conversation; for example, do not answer in Hindi when they spoke English or Kannada. If you cannot tell which Indian language they used, reply in English.${
     context.page ? `\nThe person is on the ${context.page} page.` : ""
@@ -162,6 +177,24 @@ export const appStatusTool = {
   parameters: { type: "object", properties: {} },
 };
 
+/** Quick questions get a grounded web answer instead of a research run. */
+export const webSearchTool = {
+  name: "web_search",
+  description:
+    "Search the web with Google for a quick, current answer: facts, results, prices, dates, news. Returns a short answer and its sources. Use for small questions instead of starting research.",
+  parameters: {
+    type: "object",
+    properties: {
+      question: {
+        type: "string",
+        description:
+          "The question as a complete search request, in the person's language, with names and years spelled out.",
+      },
+    },
+    required: ["question"],
+  },
+};
+
 /** Shared by the Live tool and the turn response. */
 export const prepareResearchTool = {
   name: "prepare_research",
@@ -196,6 +229,11 @@ export const prepareResearchTool = {
         description:
           "Only when the person names a time, such as 'in 3 minutes': that time in minutes (1-180).",
       },
+      tokens: {
+        type: "integer",
+        description:
+          "Only when the person names a token budget: the number of tokens (10000-2000000).",
+      },
     },
     required: ["title", "brief", "workflow", "depth"],
   },
@@ -210,6 +248,13 @@ const actionSchema = z.object({
   /** Missing or empty when the person has not said; the form then asks. */
   depth: z.enum(["quick", "standard", "deep"]).optional().catch(undefined),
   minutes: z.coerce.number().int().min(1).max(180).optional().catch(undefined),
+  tokens: z.coerce
+    .number()
+    .int()
+    .min(10_000)
+    .max(2_000_000)
+    .optional()
+    .catch(undefined),
 });
 export function parseAction(value: unknown): VoiceAction | undefined {
   const parsed = actionSchema.safeParse(value);
@@ -244,6 +289,11 @@ const turnSchema = {
       },
       required: ["title", "brief", "workflow", "depth"],
     },
+    search: {
+      type: "string",
+      description:
+        "A quick question to answer with a web search (a fact, result, price, date or news), written as a complete search request. Your reply is then replaced by the search answer. Otherwise an empty string.",
+    },
     command: {
       type: "object",
       description:
@@ -266,13 +316,14 @@ const turnSchema = {
       required: ["name"],
     },
   },
-  required: ["transcript", "reply", "prepare_research", "command"],
+  required: ["transcript", "reply", "prepare_research", "command", "search"],
 };
 const turnResponse = z.object({
   transcript: z.string().trim().max(4000).default(""),
   reply: z.string().trim().min(1).max(4000),
   prepare_research: z.unknown().optional(),
   command: z.record(z.string(), z.unknown()).optional().catch(undefined),
+  search: z.string().trim().max(500).optional().catch(undefined),
 });
 
 /** Pull the base64 audio from an Interactions response, wherever this API revision puts it. */
@@ -308,7 +359,57 @@ export class GeminiVoice implements VoiceProvider {
     private key: string,
     readonly models: VoiceModels = defaultVoiceModels,
     private request: typeof fetch = fetch,
+    private fallbacks: string[] = [],
   ) {}
+  /**
+   * A quick answer from Google Search grounding, written to be spoken.
+   * Lighter models take over if the search model is busy.
+   */
+  async search(question: string): Promise<SearchAnswer> {
+    const today = new Date().toISOString().slice(0, 10);
+    const body = {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `Today is ${today}. Use Google Search to answer this question. Reply in one to three short sentences that sound natural spoken aloud, in the same language as the question. No Markdown, lists or URLs. Give the date or season when the answer could change over time. If the results disagree or do not answer it, say so plainly instead of guessing.\nQuestion: ${question.slice(0, 500)}`,
+            },
+          ],
+        },
+      ],
+      tools: [{ google_search: {} }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 500 },
+    };
+    const { value: payload, model: used } = await withFallback<any>(
+      this.models.search ?? this.models.turn,
+      this.fallbacks,
+      (model) => this.post(`/models/${model}:generateContent`, body, 25_000),
+    );
+    const candidate = payload?.candidates?.[0];
+    const answer = (candidate?.content?.parts ?? [])
+      .map((p: { text?: string }) => p.text ?? "")
+      .join("")
+      .trim();
+    if (!answer) throw new Error("The web search returned no answer.");
+    const seen = new Set<string>();
+    const sources = (candidate?.groundingMetadata?.groundingChunks ?? [])
+      .map((c: { web?: { uri?: string; title?: string } }) => c.web)
+      .filter(
+        (w: any): w is { uri: string; title?: string } =>
+          typeof w?.uri === "string" && /^https:\/\//.test(w.uri),
+      )
+      .filter((w: { uri: string; title?: string }) => {
+        const key = w.title ?? w.uri;
+        return !seen.has(key) && Boolean(seen.add(key));
+      })
+      .slice(0, 5)
+      .map((w: { uri: string; title?: string }) => ({
+        title: (w.title ?? new URL(w.uri).hostname).slice(0, 120),
+        url: w.uri,
+      }));
+    return { answer: answer.slice(0, 1500), sources, model: used };
+  }
   private async post(path: string, body: unknown, timeoutMs = 60_000) {
     const response = await this.request(
       `https://generativelanguage.googleapis.com/v1beta${path}`,
@@ -393,6 +494,7 @@ export class GeminiVoice implements VoiceProvider {
           functionDeclarations: [
             prepareResearchTool,
             appStatusTool,
+            webSearchTool,
             ...commandTools,
           ],
         },
@@ -419,7 +521,7 @@ export class GeminiVoice implements VoiceProvider {
       "audio" in input
         ? "The person's latest message is the attached audio. Transcribe it, then reply."
         : `The person typed: ${input.text}`
-    }\nReturn JSON. Fill prepare_research only when they want the research form opened, and command only when they want you to do something in Octo; otherwise use empty strings.`;
+    }\nReturn JSON. Fill search for a quick question that needs the web, prepare_research only when they want the research form opened, and command only when they want you to do something in Octo; otherwise use empty strings.`;
     if ("audio" in input) {
       if (!allowedAudio.test(input.audio.mimeType))
         throw new ProviderError("Unsupported audio format.", 415);
@@ -471,7 +573,7 @@ export class GeminiVoice implements VoiceProvider {
             type: "text",
             text: `${voiceInstructions(context)}${
               history ? `\n\nConversation so far:\n${history}` : ""
-            }\n\nThe person said: ${heard}\nTheir message is written in ${want} script. Reply only in that same language and script.\nReturn JSON. Fill prepare_research only when they want the research form opened, and command only when they want you to do something in Octo; otherwise use empty strings.`,
+            }\n\nThe person said: ${heard}\nTheir message is written in ${want} script. Reply only in that same language and script.\nReturn JSON. Fill search for a quick question that needs the web, prepare_research only when they want the research form opened, and command only when they want you to do something in Octo; otherwise use empty strings.`,
           },
         ],
         response_format: {
@@ -484,9 +586,21 @@ export class GeminiVoice implements VoiceProvider {
       if (scriptOf(second.reply) === want)
         parsed = { ...second, transcript: heard };
     }
+    let reply = parsed.reply;
+    let sources: SearchAnswer["sources"] | undefined;
+    if (parsed.search) {
+      try {
+        const found = await this.search(parsed.search);
+        reply = found.answer;
+        sources = found.sources;
+      } catch (err) {
+        reply = `I couldn't search the web just now${err instanceof ProviderError && err.status === 429 ? " because the free-tier limit was reached" : ""}. Try again in a moment.`;
+      }
+    }
     const result: VoiceTurnResult = {
       transcript: parsed.transcript || ("text" in input ? input.text : ""),
-      reply: parsed.reply,
+      reply,
+      sources,
       action: parseAction(parsed.prepare_research),
       command: parsed.command
         ? parseCommand(parsed.command.name, parsed.command)

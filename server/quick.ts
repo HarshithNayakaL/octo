@@ -11,7 +11,7 @@ export interface QuickAnswer {
 /** Instructions for a quick, spoken answer with its sources on separate lines. */
 export function quickPrompt(question: string) {
   const today = new Date().toISOString().slice(0, 10);
-  return `Today is ${today}. Search the web and answer this question quickly: one short research pass, no report, no files. Reply in one to three short sentences that sound natural spoken aloud, in the same language as the question. No Markdown, lists or URLs in the answer. Give the date or season when the answer could change over time. If sources disagree or you cannot find it, say so plainly instead of guessing.
+  return `Today is ${today}. Search the web and answer this question quickly: one short research pass, no report, no files. Reply in one to three short sentences that sound natural spoken aloud, in the same language as the question. No Markdown, lists or URLs in the answer. Answer only what was asked, plainly. For something current (a price, a standing, the latest news) say how recent it is; never comment on whether an answer can change. If sources disagree or you cannot find it, say so instead of guessing.
 After the answer, list up to three sources you used, one per line, exactly as: SOURCE: <page title> | <https URL>
 Question: ${question.slice(0, 500)}`;
 }

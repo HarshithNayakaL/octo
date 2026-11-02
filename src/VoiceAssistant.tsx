@@ -399,7 +399,7 @@ export default function VoiceAssistant({
           </footer>
           <p className="voice-fine">
             Gemini on the free tier · Your voice goes to Google to answer you ·
-            Octo opens forms, it never starts research on its own
+            Octo confirms the scope before it starts research
           </p>
         </section>
       )}

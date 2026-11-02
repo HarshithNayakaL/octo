@@ -9,10 +9,14 @@ const labels: Partial<Record<Run["status"], string>> = {
   partial: "Partial",
 };
 /** Human wording for a run's status. */
-export const statusLabel = (run: Run) =>
-  run.cancelRequested && isActive(run)
-    ? "Stopping"
-    : (labels[run.status] ?? run.status.replaceAll("_", " "));
+export const statusLabel = (run: Run) => {
+  const label =
+    run.cancelRequested && isActive(run)
+      ? "Stopping"
+      : (labels[run.status] ?? run.status.replaceAll("_", " "));
+  // Sentence case: "Needs your input", "Completed".
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
 /** Live remote research is running, so the run cannot be deleted yet. */
 export const deletable = (run: Run) =>
   !(

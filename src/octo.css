@@ -114,11 +114,14 @@ strong {
 .fit {
   font-size: 10px;
 }
+/* Tracked uppercase labels stay at 11px; everything else in this tier is 12px. */
 .nav-label,
+.eyebrow,
+.hero-tag {
+  font-size: 11px;
+}
 .profile small,
 .local-pill,
-.eyebrow,
-.hero-tag,
 .card-number,
 .count-label,
 .research-cell > div > span,
@@ -143,7 +146,7 @@ strong {
 .notes-view > div > span,
 .file-row span,
 .export-preview span {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 .hero-copy p {
   font-size: 13px;

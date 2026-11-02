@@ -1159,6 +1159,25 @@ export default function App() {
   );
 }
 
+/**
+ * Marks a horizontally scrolling strip with more-left / more-right classes so
+ * CSS can fade the edge that hides more content.
+ */
+function scrollHint(el: HTMLElement | null) {
+  if (!el || el.dataset.scrollHint) return;
+  el.dataset.scrollHint = "1";
+  const update = () => {
+    el.classList.toggle("more-left", el.scrollLeft > 4);
+    el.classList.toggle(
+      "more-right",
+      el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    );
+  };
+  el.addEventListener("scroll", update, { passive: true });
+  new ResizeObserver(update).observe(el);
+  update();
+}
+
 const formatMinutes = (n: number) =>
   n >= 60 && n % 60 === 0
     ? `${n / 60} hour${n > 60 ? "s" : ""}`
@@ -1803,6 +1822,7 @@ function NewResearch({
               <label className="field">
                 Prefer
                 <select
+                  aria-label="Prefer sources"
                   value={prefer}
                   onChange={(e) => setPrefer(e.target.value as typeof prefer)}
                 >
@@ -2237,16 +2257,18 @@ function RunDetail({
               <Trash2 size={15} />
             </button>
           )}
-          <DownloadMenu
-            run={run}
-            onDownload={(format) => void exportFile(format)}
-            onArtifact={(artifactId, name) =>
-              void download(
-                `/runs/${run.id}/artifacts/${artifactId}`,
-                name,
-              ).catch((e) => onError(e.message))
-            }
-          />
+          {(run.report.trim() || run.artifacts.length > 0) && (
+            <DownloadMenu
+              run={run}
+              onDownload={(format) => void exportFile(format)}
+              onArtifact={(artifactId, name) =>
+                void download(
+                  `/runs/${run.id}/artifacts/${artifactId}`,
+                  name,
+                ).catch((e) => onError(e.message))
+              }
+            />
+          )}
         </div>
       </div>
       {run.report.trim() && run.purpose !== "crm" && (
@@ -2328,6 +2350,7 @@ function RunDetail({
                 className="report-tabs"
                 role="tablist"
                 aria-label="Research output"
+                ref={scrollHint}
               >
                 {[
                   ["report", "Report", FileText],
@@ -2386,7 +2409,14 @@ function RunDetail({
                           : undefined
                       }
                       key={key as string}
-                      onClick={() => setTab(key as string)}
+                      onClick={(e) => {
+                        setTab(key as string);
+                        e.currentTarget.scrollIntoView({
+                          block: "nearest",
+                          inline: "nearest",
+                          behavior: "smooth",
+                        });
+                      }}
                     >
                       <G size={15} />
                       {label as string}

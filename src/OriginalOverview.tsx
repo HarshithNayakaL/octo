@@ -259,19 +259,25 @@ export default function OriginalOverview({
                     </td>
                     <td className="date-cell">{date(run.updatedAt)}</td>
                     <td className="row-actions">
-                      {deletable(run) && (
-                        <button
-                          className="icon-button row-delete"
-                          aria-label={`Delete ${run.title}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(run);
-                          }}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      )}
-                      <ArrowUpRight size={17} />
+                      <div className="row-actions-inner">
+                        {deletable(run) && (
+                          <button
+                            className="icon-button row-delete"
+                            aria-label={`Delete ${run.title}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete(run);
+                            }}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                        <ArrowUpRight
+                          size={17}
+                          className="row-open"
+                          aria-hidden="true"
+                        />
+                      </div>
                     </td>
                   </tr>
                 );

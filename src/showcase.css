@@ -1971,3 +1971,238 @@ table th {
 .voice-sources a:hover {
   border-color: #002fa7;
 }
+
+/*
+ * Polish pass. One deliberate type scale that wins over the legacy 8.5-11px
+ * rules (they used more specific selectors than the earlier floor):
+ * 13px for things you read or click, 12px for secondary text,
+ * 11px only for tracked uppercase labels.
+ */
+html body .brand > div > span {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+html body .workspace-switch > div:not(.workspace-avatar) {
+  font-size: 13px;
+  line-height: 1.35;
+}
+html body .workspace-switch > div > span {
+  font-size: 12px;
+}
+html body .sidebar nav button {
+  font-size: 13px;
+}
+html body .sidebar nav button > span,
+html body .recent-links > button {
+  font-size: 12px;
+}
+html body .engine-card > div,
+html body .engine-card p,
+html body .engine-card button,
+html body .sidebar-bottom > .quiet,
+html body .profile small,
+html body .local-pill {
+  font-size: 12px;
+}
+html body .profile {
+  font-size: 13px;
+}
+html body .profile-avatar {
+  font-size: 12px;
+}
+
+/* Research list. */
+html body .runs-table .row-title {
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1.35;
+  text-align: left;
+}
+html body .research-cell > div > span,
+html body .runs-table .workflow-label,
+html body .runs-table .date-cell,
+html body .runs-table .status,
+html body .count-label,
+html body .card-number,
+html body .row-score {
+  font-size: 12px;
+}
+html body .status {
+  text-transform: none;
+}
+.row-actions-inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.row-actions-inner .row-delete {
+  margin: 0;
+}
+.row-open {
+  color: #8a91a1;
+  flex-shrink: 0;
+}
+tr:hover .row-open {
+  color: #002fa7;
+}
+
+/* Report toolbar: icons sit beside their label, not touching it. */
+.toolbar-actions > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Form placeholders readable, not whispered. */
+.modal input::placeholder,
+.modal textarea::placeholder {
+  font-size: 13px;
+  color: #8a91a1;
+}
+.modal .field input,
+.modal .field textarea {
+  font-size: 14px;
+}
+
+/* Scrolling tab strip: fade whichever edge hides more tabs. */
+.report-tabs {
+  scrollbar-width: none;
+  scroll-padding-inline: 24px;
+}
+.report-tabs::-webkit-scrollbar {
+  display: none;
+}
+.report-tabs.more-right {
+  mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+}
+.report-tabs.more-left {
+  mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent);
+}
+.report-tabs.more-left.more-right {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 48px,
+    #000 calc(100% - 48px),
+    transparent
+  );
+}
+
+/* Phone: the title gets the full width; actions sit in a row above it. */
+@media (max-width: 640px) {
+  .detail-heading {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .detail-actions {
+    justify-content: flex-end;
+  }
+  html body .detail-heading h1 {
+    font-size: clamp(28px, 8.5vw, 34px);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+  }
+  .detail-kicker {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  /* Hero actions: two equal, full-width buttons. */
+  .hero-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .hero-actions > * {
+    width: 100%;
+    justify-content: center;
+  }
+  /* Workflow cards: no empty footer band. */
+  html body .workflow-card .card-footer {
+    display: none;
+  }
+  html body .workflow-card {
+    min-height: 0;
+    padding-bottom: 18px;
+  }
+  /* List header: the search field takes its own full-width row. */
+  .research-list > .section-top {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+  .research-list > .section-top .list-tools {
+    width: 100%;
+  }
+  .research-list > .section-top .search-field {
+    flex: 1;
+    min-width: 0;
+  }
+}
+/* Cards layout of the list: the whole row opens it, so drop the arrow. */
+@media (max-width: 860px) {
+  .row-open {
+    display: none;
+  }
+}
+html body .step-marks,
+html body .usage-limits small,
+html body .connection-card .text-link,
+html body .connection-card .secondary,
+html body .dashboard-footer,
+html body .dashboard-footer > button,
+html body .dashboard-footer > span {
+  font-size: 12px;
+}
+
+/* Sidebar labels stay on one line at the larger size. */
+html body .workspace-switch > div:not(.workspace-avatar) {
+  min-width: 0;
+  white-space: nowrap;
+}
+html body .workspace-switch > div:not(.workspace-avatar),
+html body .workspace-switch > div > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html body .sidebar-bottom > .quiet {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: nowrap;
+  width: 100%;
+}
+html body .sidebar-bottom > .quiet > svg:last-child {
+  margin-left: auto;
+}
+
+/* The search input fills its field, so the placeholder is never cut. */
+html body .search-field input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  font-size: 13px;
+}
+
+/* A dialog covers the voice button unless the assistant is open. */
+body:has(.modal-backdrop) .voice-fab:not(.open) {
+  display: none;
+}
+html body .workspace-switch > div:not(.workspace-avatar) {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+html body .workspace-switch > div > span {
+  font-weight: 400;
+}
+/* The whole row opens the research, so the title needs no touch padding. */
+html body .runs-table .row-title {
+  min-height: 0;
+  padding: 0;
+}
+@media (max-width: 860px) {
+  html body .research-cell > div > span {
+    white-space: normal;
+    overflow: visible;
+  }
+}

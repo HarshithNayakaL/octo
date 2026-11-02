@@ -1964,6 +1964,75 @@
     border-left: 1.5px solid #414249;
   }
 }
+:root[data-theme="dark"] .depth-choice legend {
+  color: #b0b2b9;
+}
+:root[data-theme="dark"] .depth-options button {
+  border: 1px solid #313237;
+  background: #101012;
+}
+:root[data-theme="dark"] .depth-options button:hover {
+  border-color: #223665;
+}
+:root[data-theme="dark"] .depth-options button b {
+  color: #9ea6c7;
+}
+:root[data-theme="dark"] .depth-options button span {
+  color: #a2a4ad;
+}
+:root[data-theme="dark"] .depth-options button small {
+  color: #a2a4ad;
+}
+:root[data-theme="dark"] .depth-options button.selected {
+  background: #0b1224;
+  border-color: #003dda;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.7);
+}
+:root[data-theme="dark"] .depth-options button.selected b {
+  color: #7196f4;
+}
+:root[data-theme="dark"] .depth-choice > .field-hint {
+  color: #a2a4ad;
+}
+:root[data-theme="dark"] .depth-choice.missing .depth-options button {
+  border-color: #d24747;
+}
+:root[data-theme="dark"] .depth-choice.missing > .field-hint {
+  color: #ed8078;
+}
+:root[data-theme="dark"] .voice-sources a {
+  border: 1px solid #2d3751;
+  color: #7196f4;
+  background: #101012;
+}
+:root[data-theme="dark"] .voice-sources a:hover {
+  border-color: #003dda;
+}
+:root[data-theme="dark"] .row-open {
+  color: #787a87;
+}
+:root[data-theme="dark"] tr:hover .row-open {
+  color: #7196f4;
+}
+:root[data-theme="dark"] .modal input::placeholder,
+:root[data-theme="dark"] .modal textarea::placeholder {
+  color: #787a87;
+}
+:root[data-theme="dark"] .report-tabs.more-right {
+  mask-image: linear-gradient(to right, #e9eaec calc(100% - 48px), transparent);
+}
+:root[data-theme="dark"] .report-tabs.more-left {
+  mask-image: linear-gradient(to left, #e9eaec calc(100% - 48px), transparent);
+}
+:root[data-theme="dark"] .report-tabs.more-left.more-right {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #e9eaec 48px,
+    #e9eaec calc(100% - 48px),
+    transparent
+  );
+}
 :root[data-theme="dark"] {
   color-scheme: dark;
   --ink: #f4f5f8;

@@ -355,3 +355,13 @@
   border-color: #2a2a33;
   color: #9fb3ff;
 }
+:root[data-theme="dark"] .row-open {
+  color: #6b7080;
+}
+:root[data-theme="dark"] tr:hover .row-open {
+  color: #9fb3ff;
+}
+:root[data-theme="dark"] .modal input::placeholder,
+:root[data-theme="dark"] .modal textarea::placeholder {
+  color: #6f7585;
+}

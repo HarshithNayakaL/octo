@@ -86,6 +86,69 @@ describe("quick web answers", () => {
     expect(found.model).toBe("light-model");
   });
 
+  it("answers from Wikipedia when Google Search grounding is not on the key's tier", async () => {
+    for (const extractsWork of [true, false]) {
+      const prompts: string[] = [];
+      const fetcher = vi.fn(async (url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("wikipedia.org") && u.includes("list=search"))
+          return json({
+            query: {
+              search: [
+                {
+                  title: "2025 Formula One World Championship",
+                  snippet: "Drivers&#039; Champion: <span>Lando Norris</span>",
+                },
+              ],
+            },
+          });
+        if (u.includes("wikipedia.org"))
+          return extractsWork
+            ? json({
+                query: {
+                  pages: [
+                    {
+                      title: "2025 Formula One World Championship",
+                      extract: "Lando Norris won the drivers' title.",
+                    },
+                  ],
+                },
+              })
+            : new Response("Too many requests", { status: 429 });
+        const body = JSON.parse(String(init?.body ?? "{}"));
+        if (body.tools)
+          return json(
+            { error: { message: "You exceeded your current quota" } },
+            429,
+          );
+        prompts.push(body.contents[0].parts[0].text);
+        return json({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { text: "According to Wikipedia, Lando Norris won it." },
+                ],
+              },
+            },
+          ],
+        });
+      }) as unknown as typeof fetch;
+      const voice = new GeminiVoice("key", defaultVoiceModels, fetcher);
+      const found = await voice.search("Who won the 2025 F1 title?");
+      expect(found.answer).toContain("Lando Norris");
+      expect(found.sources[0]).toEqual({
+        title: "2025 Formula One World Championship (Wikipedia)",
+        url: "https://en.wikipedia.org/wiki/2025_Formula_One_World_Championship",
+      });
+      expect(prompts[0]).toContain(
+        extractsWork
+          ? "Lando Norris won the drivers' title."
+          : "Drivers' Champion: Lando Norris",
+      );
+    }
+  });
+
   it("serves quick answers over the API and validates the question", async () => {
     const fetcher = vi.fn(async () =>
       json(grounded),

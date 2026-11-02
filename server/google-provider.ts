@@ -54,6 +54,7 @@ export function interactionText(interaction: ApiObject): string {
     : "";
 }
 import { instructions, initialInput } from "./prompts.js";
+import { parseQuick, quickPrompt } from "./quick.js";
 
 type GoogleCreate = Parameters<GoogleGenAI["interactions"]["create"]>[0];
 // The REST MCP allowlist is tool names; the preview SDK currently types it differently.
@@ -193,6 +194,66 @@ export class GoogleProvider implements Provider {
     );
     // The engine records the switch so later turns use the same model.
     return fallback ? { ...value, octoFallback: fallback } : value;
+  }
+  /**
+   * A quick web-searched answer from one short Antigravity pass. The agent
+   * runs in the background, so poll until it finishes or `timeoutMs` passes.
+   */
+  async quickAnswer(question: string, timeoutMs = 50_000) {
+    const prompt = quickPrompt(question);
+    const { value: created, model } = await withFallback(
+      this.model,
+      this.fallbacks,
+      (m) =>
+        this.call("/interactions", {
+          agent: this.agent,
+          agent_config: {
+            type: "antigravity",
+            model: m,
+            max_total_tokens: "40000",
+          },
+          system_instruction: prompt,
+          environment: {
+            type: "remote",
+            sources: [
+              {
+                type: "inline",
+                target: "/workspace/AGENTS.md",
+                content: prompt,
+              },
+            ],
+          },
+          input: question.slice(0, 500),
+          background: true,
+          store: true,
+          labels: { octo_purpose: "quick_answer" },
+        }),
+    );
+    const id = String(created?.id ?? "");
+    if (!id) throw new Error("Google did not start the quick search.");
+    const deadline = Date.now() + timeoutMs;
+    let interaction: any = created;
+    while (
+      !["completed", "failed", "cancelled", "incomplete"].includes(
+        String(interaction?.status),
+      )
+    ) {
+      if (Date.now() > deadline) {
+        await this.call(
+          "/interactions/" + encodeURIComponent(id) + ":cancel",
+          {},
+        ).catch(() => undefined);
+        throw new ProviderError("The quick search took too long.", 504);
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+      interaction = await this.call("/interactions/" + encodeURIComponent(id));
+    }
+    if (interaction.status !== "completed")
+      throw new ProviderError(
+        interaction.error?.message ?? `The quick search ${interaction.status}.`,
+        502,
+      );
+    return parseQuick(interactionText(interaction), model);
   }
   /** Questions and proposed areas, from the base model with structured output. No tools, no research. */
   async plan(run: Run): Promise<ResearchPlan> {

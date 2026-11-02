@@ -83,12 +83,16 @@ export interface VoiceProvider {
   liveToken?(context: VoiceContext): Promise<LiveToken>;
   turn(input: TurnInput, context: VoiceContext): Promise<VoiceTurnResult>;
   search?(question: string): Promise<SearchAnswer>;
+  groundedSearch?(question: string): Promise<SearchAnswer>;
+  wikipediaSearch?(question: string): Promise<SearchAnswer | undefined>;
 }
 export interface VoiceContext {
   run?: Run;
   page?: string;
   /** The app's live status (see status.ts), as plain text. */
   status?: string;
+  /** Quick web answers through the app's full chain (grounding, agents, Wikipedia). */
+  search?: (question: string) => Promise<SearchAnswer>;
 }
 export type TurnInput =
   | { audio: { data: string; mimeType: string }; history?: HistoryEntry[] }
@@ -119,7 +123,7 @@ ${
 }You are part of Octo, so you know its current state from "App status" below: what is running, which model each run uses, recent problems such as a busy Gemini model, quota limits or failures, today's usage and the person's voice allowance. When they ask whether something is working, why research failed or is slow, what is running, or about limits, answer from App status in plain words and say what Octo is doing about it (for example, that it switched to a lighter model or will retry). Never guess a status that is not listed. In a long conversation, call get_app_status for a fresh reading before answering such questions.
 Answer about a report only from the report text given; say when it does not cover something. Do not invent facts, figures or sources. Say you are unsure when you are.
 You can operate Octo for the person with your tools, the same way they would with the buttons. First decide what they need:
-1. A quick fact or current question (who won a race or championship, a price, a date, a definition, the latest news on something): call web_search and answer in one or two sentences, naming where it came from. Do not start a research run for this, and do not ask about depth. If web_search returns an error, say so briefly and offer a quick research run of 2-3 minutes instead (it searches the web itself); start it only if they agree. Keep answering quick follow-up questions the same way, searching again whenever the answer could have changed or you are not sure.
+1. A quick fact or current question (who won a race or championship, a price, a date, a definition, the latest news on something): say a short "Let me look that up", call web_search (it can take up to a minute when it runs a quick agent search) and answer in one or two sentences, naming where it came from. Do not start a research run for this, and do not ask about depth. If web_search returns an error, say so briefly and offer a quick research run of 2-3 minutes instead (it searches the web itself); start it only if they agree. Keep answering quick follow-up questions the same way, searching again whenever the answer could have changed or you are not sure.
 2. A question about the research that is open: answer from the report below, or call ask_research for an answer checked against the report and its sources.
 3. Real research (an analysis, a comparison, a market or company study, a report, a deck or a spreadsheet): before starting, agree on three things in one short exchange: what exactly they need, the form they want it in (a short answer, a report, a PowerPoint deck, a spreadsheet) and how long or how deep it should go. Suggest a sensible default that fits the size of the question, for example "A quick 5-minute scan as a short report?", and let them change it. A narrow question gets a quick scan or a few minutes; only use standard or deep when the question is broad or they ask for it. If they name a time or a budget ("in 3 minutes", "keep it under 50k tokens"), pass minutes or tokens exactly. Never start research until they have agreed the scope.
 Then, if they want it started ("start it", "go ahead", "run it"), call start_research: it begins immediately with no form, using the depth, minutes, tokens and format you agreed. If they want to review it first, call prepare_research to open the form, and when they then say go, call submit_research_form. Pass ask_questions=true only if they want Octo to ask its planning questions first.
@@ -383,7 +387,7 @@ export class GeminiVoice implements VoiceProvider {
       throw err;
     }
   }
-  private async groundedSearch(question: string): Promise<SearchAnswer> {
+  async groundedSearch(question: string): Promise<SearchAnswer> {
     const today = new Date().toISOString().slice(0, 10);
     const body = {
       contents: [
@@ -429,9 +433,7 @@ export class GeminiVoice implements VoiceProvider {
     return { answer: answer.slice(0, 1500), sources, model: used };
   }
   /** Answer from the top Wikipedia articles when grounded search is unavailable. */
-  private async wikipediaSearch(
-    question: string,
-  ): Promise<SearchAnswer | undefined> {
+  async wikipediaSearch(question: string): Promise<SearchAnswer | undefined> {
     const api = "https://en.wikipedia.org/w/api.php";
     const headers = {
       "User-Agent": "Octo research workspace (https://octo-agents.vercel.app)",
@@ -705,7 +707,9 @@ export class GeminiVoice implements VoiceProvider {
     let sources: SearchAnswer["sources"] | undefined;
     if (parsed.search) {
       try {
-        const found = await this.search(parsed.search);
+        const found = await (context.search
+          ? context.search(parsed.search)
+          : this.search(parsed.search));
         reply = found.answer;
         sources = found.sources;
       } catch (err) {

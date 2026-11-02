@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { parseQuick, quickPrompt, type QuickAnswer } from "./quick.js";
 import type { Run, Artifact, Attachment } from "../shared/types.js";
 import { instructions, initialInput } from "./prompts.js";
 import type { ResearchPlan } from "../shared/types.js";
@@ -47,6 +48,8 @@ export interface Provider {
   exportCrm(run: Run): Promise<ApiObject>;
   /** Questions and proposed research areas before research starts. */
   plan?(run: Run): Promise<ResearchPlan>;
+  /** A short web-searched answer to a small question, without a research run. */
+  quickAnswer?(question: string): Promise<QuickAnswer | undefined>;
   /** A short structured model call without tools, e.g. claim extraction or a grounded answer. */
   structured?(
     run: Run,
@@ -177,6 +180,45 @@ export class OpenAIProvider implements Provider {
         name,
       ),
     );
+  }
+  /** One Responses call with web search: fast, and billed per use. */
+  async quickAnswer(question: string) {
+    const response = await this.request("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: this.model,
+        tools: [{ type: "web_search" }],
+        input: quickPrompt(question),
+        max_output_tokens: 600,
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new ProviderError(
+        String(
+          payload?.error?.message ?? `OpenAI returned HTTP ${response.status}`,
+        )
+          .replaceAll(this.key, "[redacted]")
+          .slice(0, 500),
+        response.status,
+      );
+    const parts = (payload.output ?? [])
+      .flatMap((o: any) => o?.content ?? [])
+      .filter((c: any) => c?.type === "output_text");
+    const text =
+      typeof payload.output_text === "string"
+        ? payload.output_text
+        : parts.map((c: any) => c.text).join("");
+    const cited = parts
+      .flatMap((c: any) => c.annotations ?? [])
+      .filter((a: any) => a?.type === "url_citation")
+      .map((a: any) => ({ title: a.title, url: a.url }));
+    return parseQuick(text, this.model, cited);
   }
   private async respond(content: unknown[], schema: unknown, name: string) {
     const response = await this.request("https://api.openai.com/v1/responses", {

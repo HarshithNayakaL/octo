@@ -15,7 +15,7 @@ import type {
 import { renderDeliverable } from "./deliverables.js";
 import { challengeInput, continuationInput, refreshInput } from "./prompts.js";
 import { requestCommunity } from "./community.js";
-import { GeminiVoice, type VoiceProvider } from "./voice.js";
+import { GeminiVoice, type SearchAnswer, type VoiceProvider } from "./voice.js";
 import {
   SharedLimiter,
   nextPacificMidnight,
@@ -897,7 +897,52 @@ export function createApp(options: AppOptions) {
       voice: { live: live.remaining, turns: turns.remaining },
     });
   };
-  const voiceContext = async (body: unknown, caller: string) => {
+  /**
+   * Quick web answers, best source first: Google Search grounding (when the
+   * key's tier has it), OpenAI web search (billed, so only once unlocked),
+   * then a short Antigravity agent pass, with Wikipedia fetched alongside and
+   * used only if the agent fails or runs long.
+   */
+  const quickSearch = async (
+    question: string,
+    req: express.Request,
+  ): Promise<SearchAnswer> => {
+    const voice = options.voice;
+    let firstError: unknown;
+    const attempt = async (
+      run: () => Promise<SearchAnswer | undefined> | undefined,
+    ) => {
+      try {
+        return await run();
+      } catch (err) {
+        firstError ??= err;
+        return undefined;
+      }
+    };
+    const grounded = await attempt(() => voice?.groundedSearch?.(question));
+    if (grounded) return grounded;
+    if (registry.openai?.quickAnswer && openaiUnlocked(req)) {
+      const openai = await attempt(() =>
+        registry.openai!.quickAnswer!(question),
+      );
+      if (openai) return openai;
+    }
+    const wiki = attempt(() => voice?.wikipediaSearch?.(question));
+    if (registry.google?.quickAnswer) {
+      const agent = await attempt(() =>
+        registry.google!.quickAnswer!(question),
+      );
+      if (agent) return agent;
+    }
+    const fallback = await wiki;
+    if (fallback) return fallback;
+    throw firstError ?? new Error("No answer was found for that question.");
+  };
+  const voiceContext = async (
+    body: unknown,
+    caller: string,
+    req?: express.Request,
+  ) => {
     const { runId, page } = z
       .object({
         runId: z.string().max(100).optional(),
@@ -907,7 +952,12 @@ export function createApp(options: AppOptions) {
       .parse(body ?? {});
     const run = (runId ? await store.get(runId) : undefined) ?? undefined;
     const status = await appStatus(caller, run).catch(() => undefined);
-    return { run, page, status };
+    return {
+      run,
+      page,
+      status,
+      search: req ? (q: string) => quickSearch(q, req) : undefined,
+    };
   };
   const voiceUnavailable = (res: express.Response) =>
     res.status(409).json({
@@ -999,7 +1049,7 @@ export function createApp(options: AppOptions) {
       res.json(
         await options.voice.turn(
           body,
-          await voiceContext(req.body, req.ip ?? "local"),
+          await voiceContext(req.body, req.ip ?? "local", req),
         ),
       );
     } catch (err) {
@@ -1010,7 +1060,7 @@ export function createApp(options: AppOptions) {
   /** Fresh app status for the Live assistant's get_app_status tool. Reads only the database. */
   /** A quick grounded web answer for small questions, instead of a research run. */
   app.post("/api/voice/search", async (req, res) => {
-    if (!options.voice?.search) {
+    if (!options.voice?.search && !registry.google && !registry.openai) {
       voiceUnavailable(res);
       return;
     }
@@ -1030,7 +1080,7 @@ export function createApp(options: AppOptions) {
       return;
     }
     try {
-      res.json(await options.voice.search(parsed.data.question));
+      res.json(await quickSearch(parsed.data.question, req));
     } catch (err) {
       await turnLimit.refund(req.ip ?? "local").catch(() => undefined);
       if (err instanceof ProviderError && err.status === 429) {

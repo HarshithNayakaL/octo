@@ -1033,6 +1033,13 @@ export function createApp(options: AppOptions) {
       res.json(await options.voice.search(parsed.data.question));
     } catch (err) {
       await turnLimit.refund(req.ip ?? "local").catch(() => undefined);
+      if (err instanceof ProviderError && err.status === 429) {
+        // Say what Google said: a quota of 0 means search is not on this key's tier.
+        res.status(429).json({
+          error: `Web search is not available on this Gemini key right now (${err.message.slice(0, 240)}). Offer a 2-3 minute quick research run instead; it searches the web itself.`,
+        });
+        return;
+      }
       voiceFailed(res, err, "The web search failed");
     }
   });

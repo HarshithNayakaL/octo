@@ -85,10 +85,15 @@ export function providersFromEnv(
           turn: env.GEMINI_VOICE_MODEL ?? defaultVoiceModels.turn,
           tts: env.GEMINI_TTS_MODEL ?? defaultVoiceModels.tts,
           voice: env.GEMINI_VOICE ?? defaultVoiceModels.voice,
-          search: env.GEMINI_SEARCH_MODEL,
+          // Search grounding has free-tier quota on the main Flash model,
+          // so quick answers start there; the lite models come after it.
+          search: env.GEMINI_SEARCH_MODEL ?? googleModel,
         },
         googleFetch,
-        fallbackModels(env.GEMINI_FALLBACK_MODELS),
+        [
+          env.GEMINI_VOICE_MODEL ?? defaultVoiceModels.turn,
+          ...fallbackModels(env.GEMINI_FALLBACK_MODELS),
+        ],
       )
     : undefined;
   return {
